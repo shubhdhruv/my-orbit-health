@@ -5,6 +5,8 @@ export interface Env {
   STRIPE_WEBHOOK_SECRET: string;
   STRIPE_PUBLISHABLE_KEY: string;
   RESEND_API_KEY: string;
+  ADMIN_EMAIL: string;
+  ADMIN_PASSWORD_HASH: string;
   ENVIRONMENT: string;
 }
 
@@ -62,6 +64,8 @@ export interface PartnerConfig {
   stripeDirectAccountId?: string;
   healthieOrgId?: string;
   healthieFormIds?: Record<string, string>; // serviceId → Healthie form ID
+  platformFees?: Record<string, number>; // serviceId → flat dollar amount MOH keeps
+  enabled: boolean;
   createdAt: string;
 }
 

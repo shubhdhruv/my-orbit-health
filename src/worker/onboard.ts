@@ -48,6 +48,8 @@ onboard.post("/", async (c) => {
     })),
     paymentMode: body.paymentMode,
     healthieFormIds: {},
+    platformFees: {},
+    enabled: true,
     createdAt: new Date().toISOString(),
   };
 

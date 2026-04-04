@@ -4,7 +4,7 @@ import { Env } from "../lib/types";
 import onboard from "./onboard";
 import intake from "./intake";
 import webhooks from "./webhooks";
-import { getPartner, listPartners } from "../lib/kv";
+import admin from "./admin";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -24,21 +24,8 @@ app.route("/form", intake);
 // Webhooks
 app.route("/webhooks", webhooks);
 
-// Admin: list partners (protect this in production)
-app.get("/admin/partners", async (c) => {
-  const slugs = await listPartners(c.env.PARTNERS);
-  const partners = await Promise.all(
-    slugs.map((slug) => getPartner(c.env.PARTNERS, slug))
-  );
-  return c.json(partners.filter(Boolean));
-});
-
-// Admin: get single partner config
-app.get("/admin/partners/:slug", async (c) => {
-  const partner = await getPartner(c.env.PARTNERS, c.req.param("slug"));
-  if (!partner) return c.json({ error: "Not found" }, 404);
-  return c.json(partner);
-});
+// Admin panel (password protected)
+app.route("/admin", admin);
 
 // Health check
 app.get("/", (c) => {

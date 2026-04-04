@@ -42,7 +42,8 @@ export async function authorizePayment(
   partner: PartnerConfig,
   amount: number,
   customerEmail: string,
-  paymentMethodId: string
+  paymentMethodId: string,
+  serviceType?: string
 ): Promise<string> {
   const params: Stripe.PaymentIntentCreateParams = {
     amount: amount * 100, // cents
@@ -54,6 +55,7 @@ export async function authorizePayment(
     metadata: {
       partner_slug: partner.slug,
       partner_name: partner.businessName,
+      service_type: serviceType || "",
     },
     automatic_payment_methods: {
       enabled: true,
@@ -63,9 +65,16 @@ export async function authorizePayment(
 
   // Platform mode: charge on behalf of the influencer
   if (partner.paymentMode === "platform" && partner.stripeConnectAccountId) {
+    // Calculate platform fee (flat dollar amount MOH keeps)
+    const platformFee = partner.platformFees?.[serviceType || ""] || 0;
+
     params.transfer_data = {
       destination: partner.stripeConnectAccountId,
     };
+
+    if (platformFee > 0) {
+      params.application_fee_amount = platformFee * 100; // cents
+    }
   }
 
   const intent = await stripe.paymentIntents.create(

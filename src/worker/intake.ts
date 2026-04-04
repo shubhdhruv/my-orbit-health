@@ -16,6 +16,7 @@ intake.get("/:slug/:serviceType", async (c) => {
   const partner = await getPartner(c.env.PARTNERS, slug);
 
   if (!partner) return c.text("Partner not found", 404);
+  if (partner.enabled === false) return c.text("This partner is currently inactive", 403);
 
   const service = getServiceById(serviceType);
   if (!service) return c.text("Service not found", 404);
@@ -34,6 +35,7 @@ intake.get("/:slug/:serviceType/recommend", async (c) => {
   const partner = await getPartner(c.env.PARTNERS, slug);
 
   if (!partner) return c.text("Partner not found", 404);
+  if (partner.enabled === false) return c.text("This partner is currently inactive", 403);
 
   const service = getServiceById(serviceType);
   if (!service) return c.text("Service not found", 404);
@@ -52,6 +54,7 @@ intake.get("/:slug/:serviceType/checkout", async (c) => {
   const partner = await getPartner(c.env.PARTNERS, slug);
 
   if (!partner) return c.text("Partner not found", 404);
+  if (partner.enabled === false) return c.text("This partner is currently inactive", 403);
 
   const service = getServiceById(serviceType);
   if (!service) return c.text("Service not found", 404);
@@ -88,7 +91,8 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
       partner,
       chargeAmount,
       body.shipping?.email || "",
-      body.paymentMethodId
+      body.paymentMethodId,
+      serviceType
     );
   } catch (err) {
     console.error("Payment authorization failed:", err);
