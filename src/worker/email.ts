@@ -37,9 +37,10 @@ export function buildOnboardingCompleteEmail(
       <p style="color: #666; margin-bottom: 32px;">Your white-label telehealth forms are ready, ${businessName}.</p>
 
       <div style="background: #f8f9fa; border-radius: 8px; padding: 24px; margin-bottom: 24px;">
-        <h2 style="font-size: 16px; margin-bottom: 12px;">Your Embed Code</h2>
-        <p style="font-size: 14px; color: #666; margin-bottom: 12px;">Paste this into your website where you want the intake form to appear:</p>
-        <pre style="background: #1a1a2e; color: #e0e0e0; padding: 16px; border-radius: 6px; overflow-x: auto; font-size: 13px;">${escapeHtml(embedCode)}</pre>
+        <h2 style="font-size: 16px; margin-bottom: 12px;">Your Embed Codes</h2>
+        <p style="font-size: 14px; color: #666; margin-bottom: 12px;">Each code below is labeled with the service name. Copy and paste each one into the corresponding page on your website.</p>
+        <p style="font-size: 13px; color: #888; margin-bottom: 16px;">The HTML comments above each iframe tell your developer exactly which form it is and where to place it.</p>
+        <pre style="background: #1a1a2e; color: #e0e0e0; padding: 16px; border-radius: 6px; overflow-x: auto; font-size: 13px; white-space: pre-wrap; word-break: break-all;">${escapeHtml(embedCode)}</pre>
       </div>
 
       <div style="margin-bottom: 24px;">

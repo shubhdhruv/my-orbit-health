@@ -7,10 +7,15 @@ ENVIRONMENT = "production"
 
 [[kv_namespaces]]
 binding = "PARTNERS"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+id = "92bb2fea9284478ba3ce1438ca0898b3"
+
+[[routes]]
+pattern = "onboard.myorbithealth.com/*"
+zone_name = "myorbithealth.com"
 
 # Secrets (set via `wrangler secret put`):
 # HEALTHIE_API_KEY
 # STRIPE_SECRET_KEY
+# STRIPE_PUBLISHABLE_KEY
 # STRIPE_WEBHOOK_SECRET
 # RESEND_API_KEY

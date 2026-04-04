@@ -106,14 +106,35 @@ onboard.post("/", async (c) => {
   // 5. Save partner config to KV
   await savePartner(c.env.PARTNERS, partner);
 
-  // 6. Generate embed code
+  // 6. Generate embed code — labeled per service so developers know where each goes
   const baseUrl = new URL(c.req.url).origin;
+  const serviceLabelsMap: Record<string, string> = {
+    'semaglutide': 'Semaglutide (GLP-1 Weight Loss)',
+    'tirzepatide': 'Tirzepatide (GLP-1 Weight Loss)',
+    'retatrutide': 'Retatrutide (Weight Loss)',
+    'sildenafil': 'Sildenafil (Erectile Dysfunction)',
+    'tadalafil': 'Tadalafil (Erectile Dysfunction)',
+    'testosterone-injectable': 'Testosterone Injectable',
+    'testosterone-oral': 'Testosterone Oral',
+    'enclomiphene': 'Enclomiphene (Male Hormone Optimization)',
+    'estrogen-cream': 'Estrogen Cream',
+    'estrogen-patches': 'Estrogen Patches',
+    'mots-c': 'MOTS-c (Metabolic Peptide)',
+    'nad': 'NAD+ (Cellular Energy)',
+    'bpc-157': 'BPC-157 (Tissue Repair)',
+    'tb-500': 'TB-500 (Injury Recovery)',
+    'wolverine': 'Wolverine Blend (BPC-157 + TB-500)',
+    'glo': 'GLO Blend (Skin & Tissue)',
+    'klow': 'KLOW Blend (Anti-Inflammatory)',
+  };
   const embedCode = partner.services
     .map(
       (s) =>
-        `<iframe src="${baseUrl}/form/${slug}/${s.type}" style="width:100%;min-height:800px;border:none;" title="${partner.businessName} - ${s.type} Intake Form"></iframe>`
+        `<!-- ${serviceLabelsMap[s.type] || s.type} Intake Form -->\n` +
+        `<!-- Place this where you want the ${serviceLabelsMap[s.type] || s.type} form to appear -->\n` +
+        `<iframe src="${baseUrl}/form/${slug}/${s.type}" style="width:100%;min-height:800px;border:none;" title="${partner.businessName} - ${serviceLabelsMap[s.type] || s.type}"></iframe>`
     )
-    .join("\n");
+    .join("\n\n");
 
   const previewUrl = `${baseUrl}/form/${slug}/${partner.services[0].type}`;
 
