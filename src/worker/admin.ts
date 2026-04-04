@@ -49,8 +49,12 @@ admin.post("/auth", async (c) => {
   const password = body.password as string || "";
 
   const passwordHash = await hashPassword(password);
+  const storedHash = c.env.ADMIN_PASSWORD_HASH.trim();
+  const storedEmail = c.env.ADMIN_EMAIL.trim();
 
-  if (email === c.env.ADMIN_EMAIL && passwordHash === c.env.ADMIN_PASSWORD_HASH) {
+  console.log("Login attempt:", { email, storedEmail, emailMatch: email === storedEmail, hashMatch: passwordHash === storedHash, passwordHash, storedHash });
+
+  if (email === storedEmail && passwordHash === storedHash) {
     const today = new Date().toISOString().split("T")[0];
     const sessionToken = await hashPassword(c.env.ADMIN_PASSWORD_HASH + today);
 
