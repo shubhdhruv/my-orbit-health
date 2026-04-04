@@ -2,7 +2,7 @@ import Stripe from "stripe";
 import { PartnerConfig } from "../lib/types";
 
 export function createStripeClient(secretKey: string): Stripe {
-  return new Stripe(secretKey, { apiVersion: "2024-06-20" });
+  return new Stripe(secretKey, { apiVersion: "2025-02-24.acacia" });
 }
 
 // Create a Stripe Connect account for an influencer (platform mode)
