@@ -187,7 +187,7 @@ function renderDashboard(partners: PartnerConfig[]): string {
     'semaglutide': 'Semaglutide', 'tirzepatide': 'Tirzepatide', 'retatrutide': 'Retatrutide',
     'sildenafil': 'Sildenafil', 'tadalafil': 'Tadalafil',
     'testosterone-injectable': 'TRT Injectable', 'testosterone-oral': 'TRT Oral',
-    'enclomiphene': 'Enclomiphene', 'estrogen-cream': 'Estrogen Cream', 'estrogen-patches': 'Estrogen Patches',
+    'enclomiphene': 'Enclomiphene', 'estrogen-cream-vaginal': 'Estrogen Cream (Vaginal)', 'estrogen-cream-systemic': 'Estrogen Cream (Systemic)', 'estrogen-patches': 'Estrogen Patches',
     'mots-c': 'MOTS-c', 'nad': 'NAD+', 'bpc-157': 'BPC-157', 'tb-500': 'TB-500',
     'wolverine': 'Wolverine', 'glo': 'GLO', 'klow': 'KLOW',
   };
@@ -261,7 +261,7 @@ function renderPartnerDetail(partner: PartnerConfig): string {
     'semaglutide': 'Semaglutide', 'tirzepatide': 'Tirzepatide', 'retatrutide': 'Retatrutide',
     'sildenafil': 'Sildenafil', 'tadalafil': 'Tadalafil',
     'testosterone-injectable': 'TRT Injectable', 'testosterone-oral': 'TRT Oral',
-    'enclomiphene': 'Enclomiphene', 'estrogen-cream': 'Estrogen Cream', 'estrogen-patches': 'Estrogen Patches',
+    'enclomiphene': 'Enclomiphene', 'estrogen-cream-vaginal': 'Estrogen Cream (Vaginal)', 'estrogen-cream-systemic': 'Estrogen Cream (Systemic)', 'estrogen-patches': 'Estrogen Patches',
     'mots-c': 'MOTS-c', 'nad': 'NAD+', 'bpc-157': 'BPC-157', 'tb-500': 'TB-500',
     'wolverine': 'Wolverine', 'glo': 'GLO', 'klow': 'KLOW',
   };

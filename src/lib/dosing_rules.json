@@ -1,0 +1,807 @@
+{
+  "meta": {
+    "version": "2.0.0",
+    "based_on": "pnp_dosing_schema_patch_v3 + MD signoff checklist v3",
+    "created": "2026-04-05",
+    "md_signoff": "Dr. Shubh Dhruv, 2026-04-05T21:32:23.223Z",
+    "all_17_services_active": true,
+    "notes": "All 17 protocols approved by MD. All services active."
+  },
+  "protocols": {
+    "semaglutide": {
+      "status": "active",
+      "product_name": "Semaglutide (compounded)",
+      "schedule": "none",
+      "automation_level": "decision_support",
+      "dosing": {
+        "route": "subcutaneous injection",
+        "frequency": "weekly",
+        "titration": [
+          { "step": 1, "dose_mg": 0.25, "duration_weeks": 4, "label": "Initiation" },
+          { "step": 2, "dose_mg": 0.5, "duration_weeks": 4, "label": "Escalation 1" },
+          { "step": 3, "dose_mg": 1.0, "duration_weeks": 4, "label": "Escalation 2" },
+          { "step": 4, "dose_mg": 1.7, "duration_weeks": 4, "label": "Escalation 3" },
+          { "step": 5, "dose_mg": 2.4, "duration_weeks": null, "label": "Maintenance (max)" }
+        ],
+        "starting_dose_mg": 0.25,
+        "max_dose_mg": 2.4,
+        "dose_reduction_protocol": {
+          "trigger": "intolerable_gi_side_effects",
+          "action": "Drop one titration step for 4 weeks, then re-attempt escalation. If still intolerable, maintain at tolerated dose."
+        },
+        "gallbladder_workflow": {
+          "trigger": "gallbladder_symptoms_or_history",
+          "action": "Flag for provider review. Patients with gallbladder disease or prior cholecystectomy: monitor for biliary symptoms. Rapid weight loss increases cholelithiasis risk."
+        }
+      },
+      "disqualifiers": [
+        { "field": "gastroparesis", "value": "yes", "block_type": "hard", "reason": "GLP-1 slows gastric emptying — absolute CI in gastroparesis" },
+        { "field": "triglycerides-600", "value": "yes", "block_type": "hard", "reason": "Pancreatitis risk" },
+        { "field": "pancreatic-cancer", "value": "yes", "block_type": "hard", "reason": "Absolute CI" },
+        { "field": "pancreatitis", "value": "yes", "block_type": "hard", "reason": "Personal history of pancreatitis — absolute CI" },
+        { "field": "type-1-diabetes", "value": "yes", "block_type": "hard", "reason": "Not indicated for T1DM" },
+        { "field": "insulin-dependent", "value": "yes", "block_type": "hard", "reason": "Hypoglycemia risk with concomitant insulin" },
+        { "field": "thyroid-cancer-family", "value": "yes", "block_type": "hard", "reason": "MTC risk — GLP-1 class black box warning (rodent thyroid C-cell tumors)" },
+        { "field": "men-2", "value": "yes", "block_type": "hard", "reason": "MEN-2 syndrome — absolute CI per FDA labeling" },
+        { "field": "pregnancy", "value": "yes", "block_type": "hard", "reason": "Discontinue 2 months before planned pregnancy" }
+      ],
+      "disqualifying_medications": [
+        "insulin", "glimepiride", "meglitinides", "glipizide", "glyburide",
+        "sitagliptin", "saxagliptin", "linagliptin", "alogliptin"
+      ],
+      "required_labs": [],
+      "monitoring": {
+        "schedule": "4 weeks after each dose escalation (async symptom check). Every 3 months at maintenance.",
+        "checks": ["weight", "gi_tolerability", "gallbladder_symptoms"]
+      },
+      "escalation_triggers": [
+        { "trigger": "Severe nausea/vomiting persisting >2 weeks at current dose", "action": "Drop one step. Provider review." },
+        { "trigger": "Signs of pancreatitis (severe abdominal pain radiating to back)", "action": "HOLD. ER referral. Do not resume without provider clearance." },
+        { "trigger": "Gallbladder symptoms (RUQ pain, especially post-prandial)", "action": "Flag for provider review. Ultrasound if indicated." }
+      ],
+      "visit_model": { "initial": "async", "follow_up": "async" }
+    },
+
+    "tirzepatide": {
+      "status": "active",
+      "product_name": "Tirzepatide (compounded)",
+      "schedule": "none",
+      "automation_level": "decision_support",
+      "dosing": {
+        "route": "subcutaneous injection",
+        "frequency": "weekly",
+        "titration": [
+          { "step": 1, "dose_mg": 2.5, "duration_weeks": 4, "label": "Initiation" },
+          { "step": 2, "dose_mg": 5.0, "duration_weeks": 4, "label": "Escalation 1" },
+          { "step": 3, "dose_mg": 7.5, "duration_weeks": 4, "label": "Escalation 2" },
+          { "step": 4, "dose_mg": 10.0, "duration_weeks": 4, "label": "Escalation 3 — PROVIDER GATE", "gate": true },
+          { "step": 5, "dose_mg": 12.5, "duration_weeks": 4, "label": "Escalation 4" },
+          { "step": 6, "dose_mg": 15.0, "duration_weeks": null, "label": "Maintenance (max)" }
+        ],
+        "starting_dose_mg": 2.5,
+        "max_dose_mg": 15.0,
+        "ten_mg_gate": {
+          "trigger": "reaching_10mg_step",
+          "pause_condition": "weight_loss_less_than_0.5_lbs_per_week_for_4_weeks",
+          "action": "If losing <0.5 lbs/week for 4 consecutive weeks at 10mg → escalate to 12.5mg. Otherwise maintain 10mg. Provider task required — cannot auto-escalate past 10mg.",
+          "provider_task_required": true
+        },
+        "dose_reduction_protocol": {
+          "trigger": "intolerable_gi_side_effects",
+          "action": "Drop one titration step for 4 weeks, then re-attempt. Same as semaglutide pattern."
+        }
+      },
+      "disqualifiers": [
+        { "field": "gastroparesis", "value": "yes", "block_type": "hard", "reason": "GLP-1 class CI" },
+        { "field": "triglycerides-600", "value": "yes", "block_type": "hard", "reason": "Pancreatitis risk" },
+        { "field": "pancreatic-cancer", "value": "yes", "block_type": "hard", "reason": "Absolute CI" },
+        { "field": "pancreatitis", "value": "yes", "block_type": "hard", "reason": "Absolute CI" },
+        { "field": "type-1-diabetes", "value": "yes", "block_type": "hard", "reason": "Not indicated" },
+        { "field": "insulin-dependent", "value": "yes", "block_type": "hard", "reason": "Hypoglycemia risk" },
+        { "field": "thyroid-cancer-family", "value": "yes", "block_type": "hard", "reason": "MTC risk" },
+        { "field": "men-2", "value": "yes", "block_type": "hard", "reason": "MEN-2 — absolute CI" },
+        { "field": "pregnancy", "value": "yes", "block_type": "hard", "reason": "Discontinue before planned pregnancy" }
+      ],
+      "disqualifying_medications": [
+        "insulin", "glimepiride", "meglitinides", "glipizide", "glyburide",
+        "sitagliptin", "saxagliptin", "linagliptin", "alogliptin"
+      ],
+      "required_labs": [],
+      "monitoring": {
+        "schedule": "4 weeks after each escalation. Weekly weight log at 10mg gate. Every 3 months at maintenance.",
+        "checks": ["weight", "gi_tolerability", "weight_velocity_at_10mg"]
+      },
+      "escalation_triggers": [
+        { "trigger": "Severe GI at any dose", "action": "Drop one step, provider review" },
+        { "trigger": "Pancreatitis symptoms", "action": "HOLD. ER referral." },
+        { "trigger": "At 10mg for 4 weeks with <0.5 lbs/week loss", "action": "Generate provider task to review escalation to 12.5mg" }
+      ],
+      "visit_model": { "initial": "async", "follow_up": "async" }
+    },
+
+    "sildenafil": {
+      "status": "active",
+      "product_name": "Sildenafil (generic Viagra)",
+      "schedule": "none",
+      "automation_level": "fully_automated",
+      "dosing": {
+        "route": "oral",
+        "mode": "prn",
+        "frequency": "as needed, max once daily",
+        "starting_dose_mg": 50,
+        "max_dose_mg": 100,
+        "timing": "30-60 minutes before sexual activity",
+        "adjustment_rules": [
+          {
+            "condition": "age_gte_65",
+            "field": "age",
+            "threshold": 65,
+            "action": "Start at 25mg instead of 50mg",
+            "adjusted_starting_dose_mg": 25
+          },
+          {
+            "condition": "renal_impairment_severe",
+            "field": "creatinine_clearance",
+            "threshold_below": 30,
+            "action": "Max 25mg",
+            "adjusted_max_dose_mg": 25
+          },
+          {
+            "condition": "hepatic_impairment_any",
+            "field": "hepatic_impairment",
+            "value": true,
+            "action": "Start at 25mg, max 25mg",
+            "adjusted_starting_dose_mg": 25,
+            "adjusted_max_dose_mg": 25
+          },
+          {
+            "condition": "inadequate_response_at_50mg",
+            "action": "Increase to 100mg PRN. Provider approval required for dose increase."
+          },
+          {
+            "condition": "side_effects_at_50mg",
+            "action": "Decrease to 25mg PRN"
+          }
+        ]
+      },
+      "disqualifiers": [
+        { "field": "nitrate_use", "value": "yes", "block_type": "hard", "reason": "Absolute CI — severe hypotension risk with nitrates (nitroglycerin, isosorbide)" },
+        { "field": "alpha_blocker_use", "value": "yes", "block_type": "soft_review", "reason": "Hypotension risk — timing separation required. Provider review." },
+        { "field": "recent_mi_stroke", "condition": "within_6_months", "block_type": "hard", "reason": "Cardiac risk — defer prescribing" },
+        { "field": "unstable_angina", "value": "yes", "block_type": "hard", "reason": "Absolute CI" },
+        { "field": "retinitis_pigmentosa", "value": "yes", "block_type": "hard", "reason": "PDE5 inhibitor CI" },
+        { "field": "priapism_history", "value": "yes", "block_type": "soft_review", "reason": "Provider review required" }
+      ],
+      "required_labs": [],
+      "monitoring": {
+        "schedule": "4 weeks: async efficacy + side effects. Every 6 months: refill + check.",
+        "checks": ["efficacy", "side_effects", "blood_pressure_if_reported"]
+      },
+      "escalation_triggers": [
+        { "trigger": "Priapism (erection >4 hours)", "action": "ER referral. HOLD medication." },
+        { "trigger": "Sudden vision loss", "action": "HOLD. ER referral. NAION risk." },
+        { "trigger": "Sudden hearing loss", "action": "HOLD. Provider review." }
+      ],
+      "visit_model": { "initial": "async", "follow_up": "async" }
+    },
+
+    "tadalafil": {
+      "status": "active",
+      "product_name": "Tadalafil (generic Cialis)",
+      "schedule": "none",
+      "automation_level": "fully_automated",
+      "dosing": {
+        "route": "oral",
+        "modes": {
+          "prn": {
+            "starting_dose_mg": 10,
+            "max_dose_mg": 20,
+            "frequency": "as needed, max once daily",
+            "timing": "30 minutes before sexual activity (effective up to 36 hours)"
+          },
+          "daily": {
+            "starting_dose_mg": 2.5,
+            "max_dose_mg": 5,
+            "frequency": "once daily at same time"
+          }
+        },
+        "adjustment_rules": [
+          {
+            "condition": "renal_impairment_severe",
+            "field": "creatinine_clearance",
+            "threshold_below": 30,
+            "action": "No daily dosing. PRN max 5mg once every 72 hours.",
+            "daily_blocked": true,
+            "adjusted_prn_max_mg": 5,
+            "prn_min_interval_hours": 72
+          },
+          {
+            "condition": "hepatic_impairment_child_pugh_c",
+            "field": "hepatic_impairment_severe",
+            "value": true,
+            "block_type": "hard",
+            "action": "Absolute CI — Child-Pugh C"
+          },
+          {
+            "condition": "hepatic_impairment_mild_moderate",
+            "field": "hepatic_impairment",
+            "value": true,
+            "action": "PRN max 10mg. No daily dosing recommended.",
+            "adjusted_prn_max_mg": 10,
+            "daily_blocked": true
+          },
+          {
+            "condition": "prn_inadequate_at_10mg",
+            "action": "Increase to 20mg PRN"
+          },
+          {
+            "condition": "daily_inadequate_at_2.5mg",
+            "action": "Increase to 5mg daily"
+          }
+        ]
+      },
+      "disqualifiers": [
+        { "field": "nitrate_use", "value": "yes", "block_type": "hard", "reason": "Absolute CI — severe hypotension" },
+        { "field": "alpha_blocker_use", "value": "yes", "block_type": "soft_review", "reason": "Hypotension risk — timing counseling needed" },
+        { "field": "recent_mi_stroke", "condition": "within_6_months", "block_type": "hard", "reason": "Cardiac risk" },
+        { "field": "unstable_angina", "value": "yes", "block_type": "hard", "reason": "Absolute CI" },
+        { "field": "retinitis_pigmentosa", "value": "yes", "block_type": "hard", "reason": "PDE5 inhibitor CI" },
+        { "field": "hepatic_impairment_severe", "value": "yes", "block_type": "hard", "reason": "Child-Pugh C — absolute CI" }
+      ],
+      "required_labs": [],
+      "monitoring": {
+        "schedule": "4 weeks: async efficacy check. Every 6 months: refill.",
+        "checks": ["efficacy", "side_effects"]
+      },
+      "escalation_triggers": [
+        { "trigger": "Priapism", "action": "ER referral. HOLD." },
+        { "trigger": "Sudden vision loss", "action": "HOLD. ER referral." },
+        { "trigger": "Sudden hearing loss", "action": "HOLD. Provider review." },
+        { "trigger": "Back pain or myalgia (common at higher doses)", "action": "Counseling. Reduce dose if persistent." }
+      ],
+      "visit_model": { "initial": "async", "follow_up": "async" }
+    },
+
+    "testosterone-injectable": {
+      "status": "active",
+      "product_name": "Testosterone Cypionate Injectable",
+      "schedule": "III",
+      "automation_level": "decision_support",
+      "dosing": {
+        "route": "subcutaneous injection",
+        "frequency": "weekly",
+        "starting_dose_mg": 100,
+        "max_dose_mg": 200,
+        "target_range": "400-900 ng/dL (trough)",
+        "titration": [
+          { "step": 1, "dose_mg": 100, "duration_weeks": 6, "label": "Initiation — lab check at 6 weeks" },
+          { "step": 2, "action": "adjust_by_labs", "label": "Dose adjustment based on trough T level" }
+        ],
+        "adjustment_rules": [
+          {
+            "condition": "trough_T_below_400",
+            "action": "Increase by 20mg/week. Recheck at 6 weeks."
+          },
+          {
+            "condition": "trough_T_above_900",
+            "action": "Decrease by 20mg/week. Recheck at 6 weeks."
+          },
+          {
+            "condition": "hematocrit_above_54",
+            "action": "HOLD testosterone. Sync visit. Therapeutic phlebotomy may be indicated. Do not resume until Hct <50%."
+          },
+          {
+            "condition": "estradiol_elevated",
+            "action": "Provider review. Consider anastrozole if symptomatic gynecomastia. Do not auto-prescribe AI."
+          }
+        ]
+      },
+      "disqualifiers": [
+        { "field": "total_testosterone_x2", "condition": "NOT_both_below_300", "block_type": "hard", "reason": "Two low T measurements required for diagnosis (<300 ng/dL each, morning draw, ≥1 week apart)" },
+        { "field": "hematocrit_baseline", "condition": "above_54", "block_type": "hard", "reason": "Polycythemia — absolute CI" },
+        { "field": "prostate_cancer_history", "value": "active", "block_type": "hard", "reason": "Active prostate cancer — absolute CI per FDA labeling" },
+        { "field": "male_breast_cancer_history", "value": "active", "block_type": "hard", "reason": "Active male breast cancer — absolute CI per FDA labeling" },
+        { "field": "psa_elevated", "condition": "gte_4_or_rapid_rise", "block_type": "hard_pending_review", "reason": "Sync visit + urology referral before prescribing" },
+        { "field": "sleep_apnea_untreated", "value": "yes", "block_type": "soft_review", "reason": "Untreated severe OSA — provider review. Not absolute CI but monitor." },
+        { "field": "fertility_desire", "value": "yes", "block_type": "soft_review", "reason": "Exogenous T suppresses spermatogenesis. Counsel on fertility impact. Consider enclomiphene instead." }
+      ],
+      "required_labs": [
+        { "panel": "Total testosterone x2 (morning, fasting, ≥1 week apart)", "required_before_start": true },
+        { "panel": "CBC (hematocrit/hemoglobin)", "frequency": "Baseline + every 6 months", "required_before_start": true },
+        { "panel": "CMP", "frequency": "Baseline + annually", "required_before_start": true },
+        { "panel": "Lipid panel", "frequency": "Baseline + annually", "required_before_start": true },
+        { "panel": "Estradiol (sensitive)", "frequency": "Baseline + 6-month labs", "required_before_start": true },
+        { "panel": "PSA", "frequency": "Baseline if age ≥40, then every 6 months", "required_before_start": false, "condition": "age_gte_40" },
+        { "panel": "Total testosterone (trough)", "frequency": "6 weeks post-start, then every 6 months", "required_before_start": false }
+      ],
+      "monitoring": {
+        "schedule": "6 weeks: trough T + CBC. 3 months: trough T + CBC + E2. Every 6 months: full panel (T, CBC, E2, CMP, lipids, PSA if ≥40).",
+        "checks": ["trough_testosterone", "hematocrit", "estradiol", "psa_if_applicable", "symptoms"]
+      },
+      "escalation_triggers": [
+        { "trigger": "Hematocrit >54%", "action": "HOLD. Sync visit. Phlebotomy evaluation." },
+        { "trigger": "PSA ≥4 or rapid rise (>1.4 ng/mL/year)", "action": "Sync visit. Urology referral." },
+        { "trigger": "Chest pain, SOB, or neurological symptoms", "action": "HOLD. ER referral." },
+        { "trigger": "Gynecomastia or breast tenderness", "action": "Check E2. Provider review." }
+      ],
+      "dea_note": "Schedule III — requires synchronous video visit per DEA telehealth waiver (through Dec 31, 2026). One sync visit satisfies requirement.",
+      "visit_model": { "initial": "sync", "follow_up": "async" }
+    },
+
+    "estrogen-patches": {
+      "status": "active",
+      "product_name": "Estradiol Transdermal Patch",
+      "schedule": "none",
+      "automation_level": "decision_support",
+      "dosing": {
+        "route": "transdermal patch",
+        "frequency": "twice weekly (change every 3-4 days)",
+        "starting_dose_range": "0.025-0.05 mg/day",
+        "starting_dose_default_mg_per_day": 0.05,
+        "max_dose_mg_per_day": 0.1,
+        "titration": [
+          { "step": 1, "dose": "0.05 mg/day patch", "duration_weeks": 6, "label": "Initiation" },
+          { "step": 2, "action": "Titrate based on symptoms + E2 level. Increase to 0.075 or 0.1 mg/day if inadequate response." }
+        ],
+        "adjustment_rules": [
+          {
+            "condition": "symptoms_persist_at_6_weeks",
+            "action": "Increase patch dose by one step (0.05→0.075→0.1). Recheck E2 at 6 weeks."
+          },
+          {
+            "condition": "intact_uterus",
+            "action": "MANDATORY: Co-prescribe progesterone (Prometrium). Postmenopause: 100mg/day continuous. Perimenopause: 200mg x12 days/month.",
+            "system_behavior": "Auto-generate progesterone co-prescription task. Cannot issue estrogen prescription alone."
+          },
+          {
+            "condition": "patch_adhesion_issues",
+            "action": "Counsel on application technique. Consider switch to estrogen-cream-systemic if persistent."
+          }
+        ]
+      },
+      "progesterone_co_prescribing_rule": {
+        "trigger": "intact_uterus",
+        "drug": "Progesterone micronized (Prometrium)",
+        "postmenopause_dose": "100mg/day continuous",
+        "perimenopause_dose": "200mg x12 days/month",
+        "system_behavior": "Auto-generate co-prescription task if intact uterus. Block estrogen-only prescription without task acknowledgment."
+      },
+      "mammogram_workflow": {
+        "trigger": "annual_refill",
+        "action": "Mammogram acknowledgment required before refill authorized. System blocks refill until patient confirms current mammogram."
+      },
+      "disqualifiers": [
+        { "field": "unexplained_vaginal_bleeding", "value": "yes", "block_type": "hard", "reason": "Must rule out endometrial pathology before prescribing" },
+        { "field": "breast_cancer_history", "value": "active", "block_type": "hard", "reason": "Absolute CI" },
+        { "field": "vte_history_active_or_recent", "value": "yes", "block_type": "hard", "reason": "High VTE risk with systemic estrogen" },
+        { "field": "e2_baseline_lab", "condition": "not_obtained", "block_type": "hard", "reason": "Cannot prescribe without baseline E2" }
+      ],
+      "required_labs": [
+        { "panel": "Estradiol (E2)", "frequency": "Baseline + 6 weeks if dose change + every 6 months", "required_before_start": true },
+        { "panel": "FSH", "frequency": "Baseline", "required_before_start": true, "skip_condition": "age >45 + >12mo amenorrhea + classic symptoms — provider documents rationale" },
+        { "panel": "CBC + CMP + Lipid panel", "frequency": "Baseline + annually", "required_before_start": true },
+        { "panel": "TSH", "frequency": "Baseline", "required_before_start": true }
+      ],
+      "monitoring": {
+        "schedule": "6 weeks: async symptoms + E2 if dose adjusted. 3 months: async. 6 months: labs (E2, FSH if needed). Annually: labs + mammogram acknowledgment.",
+        "checks": ["symptoms", "e2_level", "mammogram_status"]
+      },
+      "escalation_triggers": [
+        { "trigger": "New unexplained vaginal bleeding", "action": "HOLD. Same-day sync visit." },
+        { "trigger": "VTE symptoms (leg swelling, chest pain, SOB)", "action": "HOLD. ER referral." },
+        { "trigger": "New breast mass or abnormal mammogram", "action": "HOLD. Sync visit." }
+      ],
+      "visit_model": { "initial": "sync", "follow_up": "async" }
+    },
+
+    "testosterone-oral": {
+      "status": "active",
+      "product_name": "Jatenzo (testosterone undecanoate 158mg)",
+      "schedule": "III",
+      "automation_level": "decision_support",
+      "dosing": {
+        "route": "oral capsule",
+        "frequency": "twice daily (BID) with food",
+        "food_requirement": "MUST be taken with food — absorption requires dietary fat",
+        "starting_dose_mg": 158,
+        "max_dose_mg_bid": 237,
+        "max_daily_mg": 474,
+        "target_range": "400-900 ng/dL at 3-5hr post-morning-dose (NOT trough)",
+        "lab_timing_critical": "Draw 3-5 hours after morning dose. NOT trough. Fundamentally different from injectable TRT monitoring.",
+        "titration": [
+          { "step": 1, "dose": "158mg BID with food", "duration_weeks": 6, "label": "Initiation" },
+          {
+            "step": 2, "label": "6-week lab review",
+            "lab_timing": "3-5 hours post morning dose",
+            "if_T_below_300": "Increase to 237mg BID",
+            "if_T_300_to_900": "Maintain 158mg BID",
+            "if_T_above_900": "Decrease to 158mg QD or switch to injectable"
+          },
+          { "step": 3, "label": "12-week recheck if dose adjusted" }
+        ],
+        "adjustment_rules": [
+          { "condition": "bp_sbp_above_140_or_dbp_above_90_new_onset", "action": "FLAG — provider review. Assess CV risk per black box." },
+          { "condition": "bp_above_160_100", "action": "HOLD medication. Sync visit. Address hypertension before resuming." },
+          { "condition": "hematocrit_above_54", "action": "HOLD. Sync visit. Same rule as injectable." },
+          { "condition": "food_noncompliance", "action": "Reinforce food requirement. Do not increase dose until compliance confirmed." },
+          { "condition": "patient_prefers_injectable", "action": "Switch to testosterone-injectable at 100mg/week SC. Discontinue Jatenzo." }
+        ],
+        "black_box_warning": "HYPERTENSION — can increase BP and MACE risk. Evaluate CV risk before prescribing. Monitor BP."
+      },
+      "disqualifiers": [
+        { "field": "total_testosterone_x2", "condition": "NOT_both_below_300", "block_type": "hard", "reason": "Two low measurements mandatory" },
+        { "field": "hematocrit_baseline", "condition": "above_54", "block_type": "hard", "reason": "Polycythemia — absolute CI" },
+        { "field": "prostate_cancer_history", "value": "active", "block_type": "hard", "reason": "Absolute CI per FDA labeling" },
+        { "field": "male_breast_cancer_history", "value": "active", "block_type": "hard", "reason": "Absolute CI per FDA labeling" },
+        { "field": "blood_pressure_self_reported", "condition": "sbp_above_160_or_dbp_above_100", "block_type": "hard", "reason": "Uncontrolled hypertension — black box warning" },
+        { "field": "prior_mi_stroke_heart_failure", "condition": "within_12_months", "block_type": "hard_pending_review", "reason": "MACE black box — likely contraindicated" },
+        { "field": "psa_elevated", "condition": "gte_4_or_rapid_rise", "block_type": "hard_pending_review", "reason": "Sync visit + urology referral" }
+      ],
+      "required_labs": [
+        { "panel": "Total testosterone x2 (morning, ≥1 week apart)", "required_before_start": true },
+        { "panel": "CBC (hematocrit)", "frequency": "Baseline + every 6 months", "required_before_start": true },
+        { "panel": "Total T post-initiation (3-5hr post-dose)", "frequency": "6 weeks, 12 weeks, then every 6 months", "required_before_start": false },
+        { "panel": "Blood pressure", "frequency": "Baseline + every check-in", "required_before_start": false },
+        { "panel": "PSA", "frequency": "Baseline if ≥40, then every 6 months", "required_before_start": false, "condition": "age_gte_40" }
+      ],
+      "visit_model": { "initial": "sync", "follow_up": "async" }
+    },
+
+    "estrogen-cream-vaginal": {
+      "status": "active",
+      "product_name": "Vaginal Estradiol Cream — GSM",
+      "schedule": "none",
+      "automation_level": "decision_support",
+      "dosing": {
+        "route": "intravaginal",
+        "loading_phase": { "dose": "0.5g daily", "duration_days": 14, "estradiol_mcg": 50 },
+        "maintenance_phase": { "dose": "0.5g 2x/week", "example": "Sunday and Wednesday" },
+        "max_dose": "1g daily (rarely needed)",
+        "progesterone_not_required": "At standard vaginal doses (0.5g 2x/week), systemic absorption minimal — no progesterone co-prescribing needed"
+      },
+      "routing_rule": "Intake symptom question: GSM/vaginal only → here. Systemic symptoms (hot flashes, night sweats) → estrogen-patches or estrogen-cream-systemic.",
+      "disqualifiers": [
+        { "field": "unexplained_vaginal_bleeding", "value": "yes", "block_type": "hard", "reason": "Must rule out endometrial pathology" },
+        { "field": "breast_cancer_history", "value": "active", "block_type": "hard", "reason": "Absolute CI" },
+        { "field": "active_vaginal_infection", "value": "yes", "block_type": "soft_defer", "reason": "Defer until treated" },
+        { "field": "systemic_menopause_symptoms_present", "value": "yes_primary", "block_type": "route_redirect", "reason": "Redirect to systemic therapy" }
+      ],
+      "required_labs": [],
+      "visit_model": { "initial": "sync", "follow_up": "async" }
+    },
+
+    "estrogen-cream-systemic": {
+      "status": "active",
+      "product_name": "Compounded Systemic Estradiol Cream — Topical HRT",
+      "schedule": "none",
+      "automation_level": "decision_support",
+      "dosing": {
+        "route": "topical (skin)",
+        "application": "Inner upper arm or inner thigh, rotate sites",
+        "starting_dose_mg": 0.5,
+        "frequency": "daily",
+        "max_dose_mg": 2.0,
+        "titration_interval_weeks": 4,
+        "titration_increment_mg": 0.5
+      },
+      "progesterone_co_prescribing_rule": {
+        "trigger": "intact_uterus",
+        "drug": "Progesterone micronized (Prometrium)",
+        "postmenopause_dose": "100mg/day continuous",
+        "perimenopause_dose": "200mg x12 days/month"
+      },
+      "mammogram_workflow": "Same as estrogen-patches — annual acknowledgment required before refill.",
+      "disqualifiers": [
+        { "field": "unexplained_vaginal_bleeding", "value": "yes", "block_type": "hard", "reason": "Absolute CI" },
+        { "field": "breast_cancer_history", "value": "active", "block_type": "hard", "reason": "Absolute CI" },
+        { "field": "vte_history_active_or_recent", "value": "yes", "block_type": "hard", "reason": "High VTE risk" },
+        { "field": "e2_baseline_lab", "condition": "not_obtained", "block_type": "hard", "reason": "Cannot prescribe without baseline E2" }
+      ],
+      "required_labs": [
+        { "panel": "Estradiol (E2)", "required_before_start": true },
+        { "panel": "FSH", "required_before_start": true }
+      ],
+      "visit_model": { "initial": "sync", "follow_up": "async" }
+    },
+
+    "nad-plus": {
+      "status": "active",
+      "product_name": "NAD+ Subcutaneous Injection",
+      "schedule": "none",
+      "automation_level": "decision_support",
+      "regulatory": { "pathway": "Off-label, 503A/503B compounding", "informed_consent_required": true },
+      "dosing": {
+        "route": "subcutaneous injection",
+        "starting_dose_mg": 100,
+        "frequency": "daily or 3x/week",
+        "titration_to_mg": 250,
+        "titration_at_week": 3,
+        "max_dose_mg": 500,
+        "cycle": "continuous"
+      },
+      "disqualifiers": [
+        { "field": "current_pregnancy", "value": "yes", "block_type": "hard", "reason": "No safety data" },
+        { "field": "cancer_history_active", "value": "yes", "block_type": "soft_review", "reason": "Theoretical concern — tumor energetics" },
+        { "field": "off_label_informed_consent_signed", "value": "false", "block_type": "hard", "reason": "Consent required" }
+      ],
+      "required_labs": [],
+      "injection_training_required": true,
+      "visit_model": { "initial": "sync", "follow_up": "async" }
+    },
+
+    "retatrutide": {
+      "status": "active",
+      "product_name": "Retatrutide (compounded)",
+      "schedule": "none",
+      "automation_level": "decision_support",
+      "dosing": {
+        "route": "subcutaneous injection",
+        "frequency": "weekly",
+        "titration": [
+          { "step": 1, "dose_mg": 2, "duration_weeks": 4, "label": "Initiation" },
+          { "step": 2, "dose_mg": 4, "duration_weeks": 4, "label": "Escalation 1" },
+          { "step": 3, "dose_mg": 8, "duration_weeks": 4, "label": "Escalation 2" },
+          { "step": 4, "dose_mg": 12, "duration_weeks": null, "label": "Maintenance (max)" }
+        ],
+        "starting_dose_mg": 2,
+        "max_dose_mg": 12,
+        "off_label_consent_required": true,
+        "md_consent_note": "Off-label use acknowledged. TRIUMPH Phase 3 dose-escalation protocol used as clinical reference. Patient informed that retatrutide is not FDA-approved. Patient counseled on GLP-1 class risks. Signed informed consent on file."
+      },
+      "disqualifiers": [
+        { "field": "gastroparesis", "value": "yes", "block_type": "hard", "reason": "GLP-1 class CI" },
+        { "field": "triglycerides-600", "value": "yes", "block_type": "hard", "reason": "Pancreatitis risk" },
+        { "field": "pancreatic-cancer", "value": "yes", "block_type": "hard", "reason": "Absolute CI" },
+        { "field": "pancreatitis", "value": "yes", "block_type": "hard", "reason": "Absolute CI" },
+        { "field": "type-1-diabetes", "value": "yes", "block_type": "hard", "reason": "Not indicated" },
+        { "field": "insulin-dependent", "value": "yes", "block_type": "hard", "reason": "Hypoglycemia risk" },
+        { "field": "thyroid-cancer-family", "value": "yes", "block_type": "hard", "reason": "MTC risk" },
+        { "field": "men-2", "value": "yes", "block_type": "hard", "reason": "MEN-2 — absolute CI" },
+        { "field": "pregnancy", "value": "yes", "block_type": "hard", "reason": "Discontinue before planned pregnancy" },
+        { "field": "off_label_informed_consent_signed", "value": "false", "block_type": "hard", "reason": "Off-label consent required" }
+      ],
+      "disqualifying_medications": [
+        "insulin", "glimepiride", "meglitinides", "glipizide", "glyburide",
+        "sitagliptin", "saxagliptin", "linagliptin", "alogliptin"
+      ],
+      "required_labs": [],
+      "monitoring": {
+        "schedule": "4 weeks after each dose escalation (async symptom check). Every 3 months at maintenance.",
+        "checks": ["weight", "gi_tolerability"]
+      },
+      "escalation_triggers": [
+        { "trigger": "Severe GI at any dose", "action": "Drop one step, provider review" },
+        { "trigger": "Pancreatitis symptoms", "action": "HOLD. ER referral." }
+      ],
+      "visit_model": { "initial": "async", "follow_up": "async" }
+    },
+
+    "enclomiphene": {
+      "status": "active",
+      "product_name": "Enclomiphene Citrate",
+      "schedule": "none",
+      "automation_level": "decision_support",
+      "dosing": {
+        "route": "oral",
+        "frequency": "daily",
+        "starting_dose_mg": 12.5,
+        "max_dose_mg": 25,
+        "target_range": "400-700 ng/dL total testosterone",
+        "titration": [
+          { "step": 1, "dose_mg": 12.5, "duration_weeks": 6, "label": "Initiation" },
+          { "step": 2, "condition": "T_below_400_at_6_weeks", "dose_mg": 25, "label": "Escalation if T still <400" }
+        ],
+        "off_label_consent_required": true
+      },
+      "disqualifiers": [
+        { "field": "visual_disturbance", "value": "yes", "block_type": "hard", "reason": "Visual symptoms are hard block — SERM class risk" },
+        { "field": "primary_hypogonadism", "value": "yes", "block_type": "hard", "reason": "Enclomiphene works via HPG axis — requires functional testes. Primary hypogonadism → route to TRT." }
+      ],
+      "required_labs": [
+        { "panel": "Total testosterone", "required_before_start": true },
+        { "panel": "LH + FSH", "required_before_start": true, "reason": "Distinguish primary vs secondary hypogonadism" }
+      ],
+      "visit_model": { "initial": "sync", "follow_up": "async" }
+    },
+
+    "mots-c": {
+      "status": "active",
+      "product_name": "MOTS-c Peptide",
+      "schedule": "none",
+      "automation_level": "decision_support",
+      "regulatory": { "pathway": "Off-label, 503B compounding", "informed_consent_required": true },
+      "dosing": {
+        "route": "subcutaneous injection",
+        "starting_dose_mg": 5,
+        "frequency": "3x/week",
+        "max_dose_mg": 10,
+        "titration_at_week": 4,
+        "cycle": "continuous",
+        "off_label_consent_required": true,
+        "md_consent_note": "MOTS-c is a mitochondrial-derived peptide with no FDA approval and limited human clinical trial data. Patient informed of experimental status. Signed investigational/experimental compound consent on file. Compound dispensed by 503B facility."
+      },
+      "disqualifiers": [
+        { "field": "current_pregnancy", "value": "yes", "block_type": "hard", "reason": "No safety data" },
+        { "field": "cancer_history_active", "value": "yes", "block_type": "hard", "reason": "Absolute CI" },
+        { "field": "off_label_informed_consent_signed", "value": "false", "block_type": "hard", "reason": "Consent required" }
+      ],
+      "required_labs": [],
+      "injection_training_required": true,
+      "monitoring": {
+        "schedule": "2 weeks: async tolerability. 4 weeks: async response + titration decision. Every 3 months thereafter.",
+        "checks": ["tolerability", "injection_site", "response"]
+      },
+      "escalation_triggers": [
+        { "trigger": "Significant injection site reactions", "action": "Hold. Sync visit." },
+        { "trigger": "Any unexpected adverse event", "action": "Hold. Provider review." }
+      ],
+      "visit_model": { "initial": "sync", "follow_up": "async" }
+    },
+
+    "bpc-157": {
+      "status": "active",
+      "product_name": "BPC-157 (Body Protection Compound)",
+      "schedule": "none",
+      "automation_level": "decision_support",
+      "regulatory": { "pathway": "Off-label, 503B compounding", "informed_consent_required": true },
+      "dosing": {
+        "routes": {
+          "subcutaneous": { "dose_mcg": 250, "frequency": "daily", "indication": "systemic/MSK" },
+          "oral": { "dose_mcg": 500, "frequency": "daily", "indication": "GI" }
+        },
+        "cycle": "4-12 weeks on, 4 weeks off",
+        "off_label_consent_required": true,
+        "md_consent_note": "BPC-157 is a research peptide with no FDA approval. Available human data is limited; most efficacy data is derived from animal models. Long-term safety in humans is unknown. Route selected based on clinical indication documented in chart. Signed consent on file. 503B sourced."
+      },
+      "disqualifiers": [
+        { "field": "current_pregnancy", "value": "yes", "block_type": "hard", "reason": "No safety data" },
+        { "field": "cancer_history_active", "value": "yes", "block_type": "soft_review", "reason": "Growth-promoting — provider review" },
+        { "field": "off_label_informed_consent_signed", "value": "false", "block_type": "hard", "reason": "Consent required" }
+      ],
+      "required_labs": [],
+      "injection_training_required": true,
+      "monitoring": {
+        "schedule": "2 weeks: async tolerability. 4-12 weeks: end-of-cycle assessment. Resume or adjust at provider discretion.",
+        "checks": ["tolerability", "injection_site", "symptom_response"]
+      },
+      "escalation_triggers": [
+        { "trigger": "Significant injection site reactions", "action": "Hold. Sync visit." },
+        { "trigger": "Any unexpected adverse event", "action": "Hold. Provider review." }
+      ],
+      "visit_model": { "initial": "sync", "follow_up": "async" }
+    },
+
+    "tb-500": {
+      "status": "active",
+      "product_name": "TB-500 (Thymosin Beta-4 Fragment)",
+      "schedule": "none",
+      "automation_level": "decision_support",
+      "regulatory": { "pathway": "Off-label, 503B compounding", "informed_consent_required": true },
+      "dosing": {
+        "route": "subcutaneous injection",
+        "loading": { "dose_mg": 2, "frequency": "2x/week", "duration_weeks": 4 },
+        "maintenance": { "dose_mg": 2, "frequency": "monthly" },
+        "off_label_consent_required": true,
+        "md_consent_note": "TB-500 (Thymosin Beta-4 synthetic fragment) is not FDA-approved. Dosing protocols are practitioner-consensus-based. Prescriber retained clinical discretion over loading duration. Signed consent on file. 503B pharmacy sourced."
+      },
+      "disqualifiers": [
+        { "field": "current_pregnancy", "value": "yes", "block_type": "hard", "reason": "No safety data" },
+        { "field": "cancer_history_active", "value": "yes", "block_type": "soft_review", "reason": "Growth-promoting — provider review" },
+        { "field": "off_label_informed_consent_signed", "value": "false", "block_type": "hard", "reason": "Consent required" }
+      ],
+      "required_labs": [],
+      "injection_training_required": true,
+      "monitoring": {
+        "schedule": "2 weeks: async tolerability. 4 weeks (end loading): async outcome check. Monthly during maintenance.",
+        "checks": ["tolerability", "injection_site", "symptom_response"]
+      },
+      "escalation_triggers": [
+        { "trigger": "Significant injection site reactions", "action": "Hold. Sync visit." },
+        { "trigger": "Any unexpected adverse event", "action": "Hold. Provider review." }
+      ],
+      "visit_model": { "initial": "sync", "follow_up": "async" }
+    },
+
+    "wolverine": {
+      "status": "active",
+      "product_name": "Wolverine (BPC-157 + TB-500)",
+      "schedule": "none",
+      "automation_level": "decision_support",
+      "regulatory": { "pathway": "Off-label blend, 503B compounding", "informed_consent_required": true },
+      "dosing": {
+        "route": "subcutaneous injection",
+        "blend_ratio": { "bpc157_mcg": 250, "tb500_mg": 2 },
+        "loading": { "frequency": "2x/week", "duration_weeks": "4-6" },
+        "maintenance": { "frequency": "1 injection monthly" },
+        "off_label_consent_required": true,
+        "md_consent_note": "Wolverine blend (BPC-157 + TB-500) is a compounded combination peptide with no FDA approval. Combination data in humans is absent. Blend ratio confirmed with dispensing 503B pharmacy; CoA on file. Signed combination compound consent on file."
+      },
+      "disqualifiers": [
+        { "field": "current_pregnancy", "value": "yes", "block_type": "hard", "reason": "No safety data" },
+        { "field": "cancer_history_active", "value": "yes", "block_type": "soft_review", "reason": "Growth-promoting — provider review" },
+        { "field": "off_label_informed_consent_signed", "value": "false", "block_type": "hard", "reason": "Consent required" }
+      ],
+      "required_labs": [],
+      "injection_training_required": true,
+      "monitoring": {
+        "schedule": "4 weeks (end loading): async tolerability + outcome. Monthly during maintenance.",
+        "checks": ["tolerability", "injection_site", "symptom_response"]
+      },
+      "escalation_triggers": [
+        { "trigger": "Significant injection site reactions", "action": "Hold. Sync visit." },
+        { "trigger": "Any unexpected adverse event", "action": "Hold. Provider review." }
+      ],
+      "visit_model": { "initial": "sync", "follow_up": "async" }
+    },
+
+    "glo": {
+      "status": "active",
+      "product_name": "GLO (GHK-Cu + BPC-157 + TB-500)",
+      "schedule": "none",
+      "automation_level": "decision_support",
+      "regulatory": { "pathway": "Off-label blend, all 3 components 503B confirmed", "informed_consent_required": true },
+      "dosing": {
+        "route": "subcutaneous injection",
+        "blend_ratio": { "ghkcu_mg": 2, "bpc157_mcg": 250, "tb500_mg": 2 },
+        "loading": { "frequency": "2x/week", "duration_weeks": "4-6" },
+        "maintenance": { "frequency": "1 injection monthly" },
+        "off_label_consent_required": true,
+        "md_consent_note": "GLO blend is a compounded three-component peptide with no FDA approval. Patient screened negative for Wilson's disease. Combination safety data unavailable. Blend confirmed with 503B pharmacy; CoA on file. Signed consent on file."
+      },
+      "disqualifiers": [
+        { "field": "wilson_disease_history", "value": "yes", "block_type": "hard", "reason": "GHK-Cu contains copper — absolute CI in Wilson's disease" },
+        { "field": "current_pregnancy", "value": "yes", "block_type": "hard", "reason": "No safety data" },
+        { "field": "cancer_history_active", "value": "yes", "block_type": "soft_review", "reason": "Growth-promoting + angiogenic — provider review" },
+        { "field": "copper_sensitivity", "value": "yes", "block_type": "soft_review", "reason": "Relative CI — provider review" },
+        { "field": "off_label_informed_consent_signed", "value": "false", "block_type": "hard", "reason": "Consent required" }
+      ],
+      "required_labs": [],
+      "injection_training_required": true,
+      "monitoring": {
+        "schedule": "4 weeks (end loading): async tolerability + outcome. Monthly during maintenance.",
+        "checks": ["tolerability", "injection_site", "symptom_response"]
+      },
+      "escalation_triggers": [
+        { "trigger": "Significant injection site reactions", "action": "Hold. Sync visit." },
+        { "trigger": "Any unexpected adverse event", "action": "Hold. Provider review." }
+      ],
+      "visit_model": { "initial": "sync", "follow_up": "async" }
+    },
+
+    "klow": {
+      "status": "active",
+      "product_name": "KLOW (GHK-Cu + BPC-157 + TB-500 + KPV)",
+      "schedule": "none",
+      "automation_level": "decision_support",
+      "regulatory": { "pathway": "Off-label blend, all 4 components 503B confirmed", "informed_consent_required": true },
+      "dosing": {
+        "route": "subcutaneous injection",
+        "blend_ratio": { "ghkcu_mg": 2, "bpc157_mcg": 250, "tb500_mg": 2, "kpv_mcg": 500 },
+        "loading": { "frequency": "2x/week", "duration_weeks": "4-6" },
+        "maintenance": { "frequency": "1 injection monthly" },
+        "off_label_consent_required": true,
+        "kpv_note": "KPV preferred over GLO for GI/gut inflammatory indications",
+        "md_consent_note": "KLOW blend is a compounded four-component peptide with no FDA approval. Patient screened negative for Wilson's disease. Medication list reviewed for immunosuppressant use — KPV has immunomodulatory activity. KLOW selected over GLO based on documented GI/gut inflammatory indication. Combination safety data unavailable. Blend confirmed with 503B pharmacy; CoA on file. Signed consent on file."
+      },
+      "disqualifiers": [
+        { "field": "wilson_disease_history", "value": "yes", "block_type": "hard", "reason": "GHK-Cu contains copper — absolute CI in Wilson's disease" },
+        { "field": "current_pregnancy", "value": "yes", "block_type": "hard", "reason": "No safety data" },
+        { "field": "cancer_history_active", "value": "yes", "block_type": "soft_review", "reason": "Growth-promoting — provider review" },
+        { "field": "copper_sensitivity", "value": "yes", "block_type": "soft_review", "reason": "Relative CI — provider review" },
+        { "field": "immunosuppressive_medications", "value": "yes", "block_type": "soft_review", "reason": "KPV immune-modulating — flag for provider review, not hard block" },
+        { "field": "off_label_informed_consent_signed", "value": "false", "block_type": "hard", "reason": "Consent required" }
+      ],
+      "required_labs": [],
+      "injection_training_required": true,
+      "monitoring": {
+        "schedule": "4 weeks (end loading): async tolerability + outcome. Monthly during maintenance.",
+        "checks": ["tolerability", "injection_site", "gi_symptoms", "symptom_response"]
+      },
+      "escalation_triggers": [
+        { "trigger": "Significant injection site reactions", "action": "Hold. Sync visit." },
+        { "trigger": "Any unexpected adverse event", "action": "Hold. Provider review." }
+      ],
+      "visit_model": { "initial": "sync", "follow_up": "async" }
+    }
+  }
+}

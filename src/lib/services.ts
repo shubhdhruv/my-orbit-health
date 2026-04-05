@@ -946,6 +946,31 @@ const KLOW_EXTRA_STEPS: FormStep[] = [
   },
 ];
 
+// Tadalafil: PRN vs daily preference — drives dosing engine mode selection
+const TADALAFIL_DOSING_PREFERENCE: FormStep = {
+  id: "dosing_preference",
+  question: "How would you prefer to take your medication?",
+  subtitle: "Your doctor will confirm the best option for you",
+  type: "radio",
+  options: [
+    { label: "As needed before sexual activity (works up to 36 hours)", value: "prn" },
+    { label: "Daily low dose for spontaneous readiness", value: "daily" },
+    { label: "I'm not sure — let my doctor decide", value: "prn" },
+  ],
+};
+
+// Off-label informed consent — required for all peptides and blends
+const OFF_LABEL_CONSENT_STEP: FormStep = {
+  id: "off_label_informed_consent_signed",
+  question: "Off-Label / Investigational Compound Consent",
+  subtitle: "This therapy uses a compounded peptide that is not FDA-approved for any indication. It is prescribed off-label based on your doctor's clinical judgment. By proceeding, you acknowledge that you understand this is not an FDA-approved treatment, that long-term safety data may be limited, and that you consent to off-label prescribing. Your doctor will review this with you on your video visit.",
+  type: "radio",
+  options: [
+    { label: "I understand and consent to proceed", value: "yes" },
+    { label: "I do not consent", value: "no", disqualifying: true },
+  ],
+};
+
 // ============================================================
 // SERVICE CATALOG
 // ============================================================
@@ -974,7 +999,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "weight-loss",
     description: "Triple hormone receptor agonist for weight management",
     requiresBloodwork: false,
-    intakeSteps: GLP1_STEPS,
+    intakeSteps: [...GLP1_STEPS, OFF_LABEL_CONSENT_STEP],
   },
 
   // ED Medications
@@ -992,7 +1017,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "ed",
     description: "Daily or on-demand erectile dysfunction treatment",
     requiresBloodwork: false,
-    intakeSteps: ED_STEPS,
+    intakeSteps: [...ED_STEPS, TADALAFIL_DOSING_PREFERENCE],
   },
 
   // HRT Male
@@ -1026,10 +1051,18 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
 
   // HRT Female
   {
-    id: "estrogen-cream",
-    label: "Estrogen Cream",
+    id: "estrogen-cream-vaginal",
+    label: "Estrogen Cream (Vaginal/GSM)",
     category: "hrt-female",
-    description: "Topical estradiol cream for menopause symptom relief",
+    description: "Vaginal estradiol cream for genitourinary syndrome of menopause",
+    requiresBloodwork: false,
+    intakeSteps: ESTROGEN_STEPS,
+  },
+  {
+    id: "estrogen-cream-systemic",
+    label: "Estrogen Cream (Systemic/Topical)",
+    category: "hrt-female",
+    description: "Topical estradiol cream for systemic menopause symptom relief",
     requiresBloodwork: true,
     bloodworkPanels: ["FSH", "Estradiol", "TSH", "Free T4", "CBC", "CMP", "Lipid Panel", "Fasting Glucose"],
     intakeSteps: ESTROGEN_STEPS,
@@ -1051,7 +1084,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "peptide",
     description: "Mitochondrial peptide for metabolic optimization",
     requiresBloodwork: false,
-    intakeSteps: [...MOTSC_EXTRA_STEPS, ...PEPTIDE_BASE_STEPS],
+    intakeSteps: [...MOTSC_EXTRA_STEPS, ...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
   },
   {
     id: "nad",
@@ -1059,7 +1092,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "peptide",
     description: "Cellular energy and DNA repair coenzyme therapy",
     requiresBloodwork: false,
-    intakeSteps: [...NAD_EXTRA_STEPS, ...PEPTIDE_BASE_STEPS],
+    intakeSteps: [...NAD_EXTRA_STEPS, ...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
   },
   {
     id: "bpc-157",
@@ -1067,7 +1100,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "peptide",
     description: "Body protection compound for tissue repair",
     requiresBloodwork: false,
-    intakeSteps: PEPTIDE_BASE_STEPS,
+    intakeSteps: [...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
   },
   {
     id: "tb-500",
@@ -1075,7 +1108,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "peptide",
     description: "Thymosin beta-4 for injury recovery and flexibility",
     requiresBloodwork: false,
-    intakeSteps: PEPTIDE_BASE_STEPS,
+    intakeSteps: [...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
   },
 
   // Blends
@@ -1085,7 +1118,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "blend",
     description: "BPC-157 + TB-500 regenerative healing combination",
     requiresBloodwork: false,
-    intakeSteps: PEPTIDE_BASE_STEPS,
+    intakeSteps: [...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
   },
   {
     id: "glo",
@@ -1093,7 +1126,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "blend",
     description: "GHK-Cu + BPC-157 + TB-500 for skin and tissue regeneration",
     requiresBloodwork: false,
-    intakeSteps: [...GLO_EXTRA_STEPS, ...PEPTIDE_BASE_STEPS],
+    intakeSteps: [...GLO_EXTRA_STEPS, ...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
   },
   {
     id: "klow",
@@ -1101,7 +1134,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "blend",
     description: "GHK-Cu + BPC-157 + TB-500 + KPV for regeneration and inflammation",
     requiresBloodwork: false,
-    intakeSteps: [...KLOW_EXTRA_STEPS, ...PEPTIDE_BASE_STEPS],
+    intakeSteps: [...KLOW_EXTRA_STEPS, ...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
   },
 ];
 

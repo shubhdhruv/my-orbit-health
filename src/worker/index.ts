@@ -5,6 +5,7 @@ import onboard from "./onboard";
 import intake from "./intake";
 import webhooks from "./webhooks";
 import admin from "./admin";
+import mdReview from "./md-review";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -26,6 +27,9 @@ app.route("/webhooks", webhooks);
 
 // Admin panel (password protected)
 app.route("/admin", admin);
+
+// MD protocol review (password protected)
+app.route("/md-review", mdReview);
 
 // Health check
 app.get("/", (c) => {

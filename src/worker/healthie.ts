@@ -336,6 +336,74 @@ export async function requestFormCompletion(
 }
 
 // ============================================================
+// Appointments (for sync video visits)
+// ============================================================
+
+export async function createAppointment(
+  client: HealthieClient,
+  params: {
+    patientId: string;
+    providerId: string;
+    appointmentTypeId?: string;
+    notes?: string;
+  }
+): Promise<{ appointmentId: string }> {
+  const data = (await gql(client, `
+    mutation CreateAppointment(
+      $patientId: String,
+      $providerId: String,
+      $appointmentTypeId: String,
+      $notes: String
+    ) {
+      createAppointment(input: {
+        user_id: $patientId,
+        other_party_id: $providerId,
+        appointment_type_id: $appointmentTypeId,
+        notes: $notes,
+        pm_status: "Needs_Action"
+      }) {
+        appointment {
+          id
+        }
+        messages {
+          field
+          message
+        }
+      }
+    }
+  `, {
+    patientId: params.patientId,
+    providerId: params.providerId,
+    appointmentTypeId: params.appointmentTypeId,
+    notes: params.notes || "",
+  })) as { createAppointment: { appointment: { id: string } } };
+
+  return { appointmentId: data.createAppointment.appointment.id };
+}
+
+// ============================================================
+// Provider lookup
+// ============================================================
+
+export async function getProviders(client: HealthieClient): Promise<Array<{ id: string; email: string; name: string }>> {
+  const data = (await gql(client, `
+    query GetProviders {
+      organizationMembers(page_size: 50) {
+        id
+        email
+        full_name
+      }
+    }
+  `)) as { organizationMembers: Array<{ id: string; email: string; full_name: string }> };
+
+  return data.organizationMembers.map((m) => ({
+    id: m.id,
+    email: m.email,
+    name: m.full_name,
+  }));
+}
+
+// ============================================================
 // Build full intake form in Healthie from ServiceDefinition
 // ============================================================
 

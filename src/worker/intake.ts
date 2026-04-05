@@ -7,6 +7,9 @@ import { generateRecommendationHTML } from "../templates/recommendation";
 import { generateCheckoutHTML } from "../templates/checkout";
 import { createStripeClient, authorizePayment } from "./stripe";
 import { createHealthieClient, createPatient, createFormCompletion } from "./healthie";
+import { routePatient, RoutingResult } from "../lib/router";
+import { evaluateDosing, DosingResult } from "../lib/dosing";
+import { notifyOnIntake } from "./notify";
 
 const intake = new Hono<{ Bindings: Env }>();
 
@@ -82,6 +85,30 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
   // Determine charge amount based on selected plan
   const chargeAmount = body.selectedPlan?.price || serviceConfig.initialPrice;
 
+  // Route patient: determine sync vs async based on state + service
+  const patientState = body.shipping?.state || body.answers?.state || "";
+  let routing: RoutingResult | undefined;
+  if (patientState) {
+    try {
+      routing = routePatient(patientState, serviceType, true, body.daysSinceLastVisit);
+    } catch (err) {
+      console.error("Routing lookup failed:", err);
+    }
+  }
+
+  // 0.5. Run dosing engine — evaluate eligibility, starting dose, flags
+  const dosingResult = evaluateDosing(serviceType, body.answers || {}, body.labResults);
+
+  // If hard blocked by dosing engine, return immediately — don't authorize payment
+  if (dosingResult.hardBlocked) {
+    return c.json({
+      success: false,
+      disqualified: true,
+      reasons: dosingResult.disqualifiers.filter(d => d.blockType === "hard").map(d => d.reason),
+      message: "Based on your responses, this service is not available for you. Our team will reach out to discuss alternative options.",
+    });
+  }
+
   // 1. Authorize payment (don't charge yet)
   const stripe = createStripeClient(c.env.STRIPE_SECRET_KEY);
   let paymentIntentId: string;
@@ -132,6 +159,20 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
           disqualified: body.disqualified,
           disqualify_reasons: JSON.stringify(body.disqualifyReasons || []),
           shipping_address: JSON.stringify(body.shipping),
+          patient_state: patientState,
+          visit_type: routing?.visitType || "async",
+          routing_constraints: JSON.stringify(routing?.constraints || []),
+          dosing_eligible: dosingResult.eligible,
+          dosing_starting_dose: dosingResult.startingDose || "",
+          dosing_max_dose: dosingResult.maxDose || "",
+          dosing_route: dosingResult.route,
+          dosing_frequency: dosingResult.frequency,
+          dosing_automation_level: dosingResult.automationLevel,
+          dosing_soft_review: dosingResult.softReviewRequired,
+          dosing_provider_notes: JSON.stringify(dosingResult.providerNotes),
+          dosing_titration: JSON.stringify(dosingResult.titrationSchedule),
+          dosing_adjustments: JSON.stringify(dosingResult.doseAdjustments.filter(a => a.applied)),
+          dosing_lab_requirements: JSON.stringify(dosingResult.labRequirements),
         });
       } catch (err) {
         console.error("Form completion failed:", err);
@@ -139,11 +180,40 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
     }
   }
 
+  // 4. Notify doctor + patient based on routing result
+  let notifyResult;
+  if (patientState) {
+    try {
+      notifyResult = await notifyOnIntake(c.env, {
+        partnerSlug: slug,
+        serviceType,
+        patientName: `${body.answers?.firstName || ""} ${body.answers?.lastName || ""}`.trim(),
+        patientEmail: body.answers?.email || body.shipping?.email || "",
+        patientState,
+        patientId,
+        isFirstVisit: true,
+        daysSinceLastVisit: body.daysSinceLastVisit,
+        dosingResult,
+      });
+    } catch (err) {
+      console.error("Notification orchestration failed:", err);
+    }
+  }
+
+  const visitType = notifyResult?.visitType || routing?.visitType || "async";
+
   return c.json({
     success: true,
     patientId,
     paymentIntentId,
-    message: "Your intake form has been submitted. A provider will review your information and you will only be charged if your prescription is approved.",
+    visitType,
+    message: visitType === "sync"
+      ? "Your intake form has been submitted. A video visit is required for your state — you'll receive a link to schedule your appointment."
+      : visitType === "in_person_required"
+        ? "Your intake form has been submitted. An in-person visit is required in your state before we can proceed. Our team will reach out with next steps."
+        : visitType === "blocked"
+          ? "Unfortunately, this service is not available via telehealth in your state. Our team will contact you to discuss options."
+          : "Your intake form has been submitted. A provider will review your information and you will only be charged if your prescription is approved.",
   });
 });
 

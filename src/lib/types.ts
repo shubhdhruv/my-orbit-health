@@ -7,6 +7,7 @@ export interface Env {
   RESEND_API_KEY: string;
   ADMIN_EMAIL: string;
   ADMIN_PASSWORD_HASH: string;
+  DOCTOR_HEALTHIE_ID: string;
   ENVIRONMENT: string;
 }
 
@@ -19,7 +20,8 @@ export type ServiceId =
   | "testosterone-injectable"
   | "testosterone-oral"
   | "enclomiphene"
-  | "estrogen-cream"
+  | "estrogen-cream-vaginal"
+  | "estrogen-cream-systemic"
   | "estrogen-patches"
   | "mots-c"
   | "nad"

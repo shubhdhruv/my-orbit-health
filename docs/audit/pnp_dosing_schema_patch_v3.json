@@ -1,0 +1,657 @@
+/**
+ * PNP DOSING SCHEMA — FINAL PATCH (v2 → v3)
+ * 
+ * These entries REPLACE or ADD to pnp_dosing_schema_v2.json as follows:
+ *
+ * REPLACE:  testosterone-oral     (was PENDING — now Jatenzo protocol)
+ * REPLACE:  estrogen-cream        (was single PENDING — now split into two service IDs)
+ * REPLACE:  nad-plus              (was PENDING route — now SQ protocol)
+ * UPDATE:   glo                   (regulatory status: GHK-Cu 503B confirmed)
+ * UPDATE:   klow                  (regulatory status: GHK-Cu + KPV 503B confirmed)
+ *
+ * All other service IDs in v2 remain unchanged.
+ * 
+ * FINAL SCHEMA = v2 entries + these patch entries (replacing where noted above)
+ */
+
+[
+  {
+    "service_id": "testosterone-oral",
+    "product_name": "Jatenzo (testosterone undecanoate 158mg)",
+    "protocol_status": "COVERED — FDA APPROVED, SCHEDULE III",
+    "regulatory_context": {
+      "fda_approval_status": "FDA-approved — testosterone undecanoate oral capsules (Jatenzo). NDC confirmed.",
+      "schedule": "III — same DEA waiver applies through December 31, 2026",
+      "black_box_warning": "HYPERTENSION — Jatenzo can cause increases in blood pressure that can increase the risk of major adverse cardiovascular events (MACE). Before prescribing, evaluate CV risk. Monitor BP. Do not use in patients with pre-existing uncontrolled hypertension.",
+      "rems_program": "None for Jatenzo specifically. Standard testosterone REMS does not apply to oral undecanoate — confirm with prescribing provider.",
+      "dea_waiver": "Active through December 31, 2026. ONE synchronous video visit satisfies DEA requirement."
+    },
+    "dosing": {
+      "formulation": "Testosterone undecanoate oral capsule",
+      "starting_dose": {
+        "value": "158mg",
+        "frequency": "twice daily (BID)",
+        "food_requirement": "MUST be taken with food — absorption requires dietary fat. Without food, bioavailability is significantly reduced. Document food requirement in prescription instructions.",
+        "timing": "Morning and evening with meals"
+      },
+      "titration": [
+        {
+          "step": "Initiation",
+          "dose": "158mg BID with food",
+          "duration": "6 weeks before first dose check"
+        },
+        {
+          "step": "6-week lab review",
+          "lab_timing": "Check total testosterone 3-5 hours after morning dose (NOT trough — oral T is peak-based monitoring, not trough-based)",
+          "dose_adjustment": {
+            "if_T_below_300": "Increase to 237mg BID with food",
+            "if_T_300_to_900": "Maintain 158mg BID",
+            "if_T_above_900": "Decrease to 158mg once daily (QD) at provider discretion, or consider switching to injectable"
+          }
+        },
+        {
+          "step": "12-week review (if dose adjusted)",
+          "action": "Recheck total T at 3-5 hours post-dose. Confirm dose is appropriate."
+        }
+      ],
+      "max_dose": "237mg BID (474mg/day) — FDA-labeled maximum",
+      "target_range": "400-900 ng/dL checked at 3-5 hours post-morning dose (NOT trough — fundamentally different monitoring from injectable TRT)",
+      "adjustment_rules": [
+        {
+          "condition": "Total T <300 ng/dL at 6-week check (3-5 hrs post-dose)",
+          "action": "Increase to 237mg BID. Recheck at 6 weeks."
+        },
+        {
+          "condition": "Total T >900 ng/dL at 6-week check",
+          "action": "Reduce dose or switch to injectable. Provider decision."
+        },
+        {
+          "condition": "BP elevation at any point (SBP >140 or DBP >90 new onset)",
+          "action": "FLAG — generate provider review task. Assess cardiovascular risk. May require dose reduction or discontinuation per black box warning."
+        },
+        {
+          "condition": "BP >160/100 at any point",
+          "action": "HOLD medication. Sync visit. Address hypertension before resuming."
+        },
+        {
+          "condition": "Patient forgets food requirement and reports poor response",
+          "action": "Reinforce food requirement via async message. Counsel on dietary fat at time of dose. Do not increase dose until food compliance confirmed."
+        },
+        {
+          "condition": "Hematocrit >54% at any lab",
+          "action": "HOLD. Sync visit. Same rule as injectable TRT."
+        },
+        {
+          "condition": "Patient preference to switch to injectable",
+          "action": "Route to testosterone-injectable protocol. Restart injectable at 100mg/week SC. Discontinue Jatenzo."
+        }
+      ]
+    },
+    "intake_dependencies": [
+      "age",
+      "symptoms_of_low_testosterone",
+      "two_prior_total_testosterone_lab_values",
+      "testosterone_draw_time_morning_fasting_confirmed",
+      "hematocrit_cbc_result",
+      "prostate_cancer_history",
+      "male_breast_cancer_history",
+      "blood_pressure_baseline_self_reported",
+      "cardiovascular_history",
+      "prior_mi_stroke_heart_failure",
+      "fertility_preservation_desire",
+      "psa_value_if_age_40_plus",
+      "current_medications",
+      "sleep_apnea_history",
+      "has_established_local_physician",
+      "injectable_preference_or_aversion"
+    ],
+    "disqualifiers": [
+      {
+        "field": "total_testosterone_x2",
+        "condition": "NOT both_below_300_ngdl",
+        "reason": "Diagnosis required — same as injectable TRT. Two low measurements mandatory.",
+        "block_type": "hard"
+      },
+      {
+        "field": "hematocrit_baseline",
+        "condition": "> 54%",
+        "reason": "Absolute CI — polycythemia. Same as injectable TRT.",
+        "block_type": "hard"
+      },
+      {
+        "field": "prostate_cancer_history",
+        "value": "active",
+        "reason": "Absolute CI per FDA labeling.",
+        "block_type": "hard"
+      },
+      {
+        "field": "male_breast_cancer_history",
+        "value": "active",
+        "reason": "Absolute CI per FDA labeling.",
+        "block_type": "hard"
+      },
+      {
+        "field": "blood_pressure_self_reported",
+        "condition": "SBP > 160 OR DBP > 100",
+        "reason": "Uncontrolled hypertension — black box warning. Do not prescribe until BP controlled.",
+        "block_type": "hard"
+      },
+      {
+        "field": "prior_mi_stroke_heart_failure",
+        "condition": "within_12_months",
+        "reason": "High-risk cardiovascular event — Jatenzo MACE black box warning. Route to provider review. Likely contraindicated.",
+        "block_type": "hard_pending_review"
+      },
+      {
+        "field": "psa_value",
+        "condition": ">= 4 OR rapid_rise",
+        "reason": "Sync visit + urology referral before prescribing.",
+        "block_type": "hard_pending_review"
+      },
+      {
+        "field": "has_established_local_physician",
+        "value": "no",
+        "reason": "Flag only — DEA continuity note. Not a disqualifier.",
+        "block_type": "flag_only"
+      }
+    ],
+    "required_labs": [
+      {
+        "panel": "Total testosterone x2 (morning, ≥1 week apart)",
+        "frequency": "Diagnostic — before initiation",
+        "required_before_start": true,
+        "notes": "MANDATORY. Both <300 ng/dL required for diagnosis."
+      },
+      {
+        "panel": "CBC (hematocrit/hemoglobin)",
+        "frequency": "Baseline + every 6 months",
+        "required_before_start": true,
+        "notes": "MANDATORY. Hct >54% = absolute CI."
+      },
+      {
+        "panel": "Total testosterone — POST-INITIATION monitoring",
+        "frequency": "6 weeks, 12 weeks, then every 6 months",
+        "required_before_start": false,
+        "notes": "CRITICAL DIFFERENCE FROM INJECTABLE: Draw 3-5 hours after morning dose. NOT a trough draw. Document draw timing in lab order."
+      },
+      {
+        "panel": "Blood pressure",
+        "frequency": "Baseline self-report + at 6 weeks + 3 months + every 6 months",
+        "required_before_start": false,
+        "notes": "Self-reported BP at each async check-in. If SBP >140 or DBP >90: provider review flag. If >160/100: HOLD."
+      },
+      {
+        "panel": "PSA",
+        "frequency": "Baseline if age ≥40, then 6-month labs",
+        "required_before_start": false,
+        "condition": "Age-gated: ≥40 only."
+      }
+    ],
+    "follow_up_schedule": "6 weeks: async lab (total T at 3-5hr post-dose + hematocrit + BP self-report) + dose adjustment. 3 months: async (total T + BP + hematocrit). 6 months: async labs (total T + hematocrit + PSA if ≥40 + BP). Every 6 months thereafter.",
+    "escalation_triggers": [
+      { "trigger": "BP >160/100 at any check", "action": "HOLD Jatenzo. Sync visit." },
+      { "trigger": "New BP >140/90 (new onset hypertension)", "action": "Provider review flag. Do not auto-refill." },
+      { "trigger": "Hematocrit >54%", "action": "HOLD. Sync visit." },
+      { "trigger": "MACE symptoms (chest pain, SOB, arm pain, sudden neurological symptoms)", "action": "HOLD. Direct to ER immediately." },
+      { "trigger": "PSA ≥4 or rapid rise", "action": "Sync visit. Urology referral." }
+    ],
+    "routing_note": "Route to testosterone-oral (Jatenzo) if: patient reports needle aversion OR patient preference for oral over injectable AND labs confirm eligibility. Route to testosterone-injectable if: patient has uncontrolled or borderline hypertension, prior MACE history, or post-initiation BP elevation on Jatenzo.",
+    "visit_model": {
+      "initial": "ONE synchronous video visit. Labs at or before visit. BP confirmed verbally on video.",
+      "follow_up": "Async lab + BP self-report. No video required for stable patients."
+    },
+    "automation_level": "decision_support",
+    "automation_notes": "Starting dose is fixed at 158mg BID once labs confirm eligibility. Dose adjustment at 6 weeks is rule-based on T level (3-5hr post-dose) — automatable once lab ingested. BP monitoring flag is rule-based: SBP >140 = review flag; >160 = hard hold. Key difference from injectable: system must flag lab draw timing instruction (3-5hr post-dose) in lab order, not standard trough instruction."
+  },
+
+  {
+    "service_id": "estrogen-cream-vaginal",
+    "product_name": "Vaginal Estradiol Cream — GSM (Genitourinary Syndrome of Menopause)",
+    "protocol_status": "COVERED",
+    "indication": "Genitourinary syndrome of menopause (GSM): vaginal dryness, dyspareunia, urinary urgency/frequency, vaginal atrophy. LOCAL therapy — not indicated for systemic menopausal symptoms (hot flashes, night sweats). Patients with systemic symptoms should be routed to estrogen-patches or estrogen-cream-systemic.",
+    "routing_rule": "Intake question determines routing: 'What are your primary symptoms?' → GSM/vaginal symptoms only → estrogen-cream-vaginal. Hot flashes, night sweats, mood, sleep → estrogen-patches or estrogen-cream-systemic.",
+    "dosing": {
+      "formulation": "Compounded vaginal estradiol cream OR Estrace vaginal cream (0.01% estradiol = 100mcg/g)",
+      "loading_phase": {
+        "dose": "0.5g intravaginally",
+        "frequency": "daily",
+        "duration": "14 days",
+        "note": "0.5g = 50mcg estradiol at 0.01% concentration. Applied with applicator at bedtime."
+      },
+      "maintenance_phase": {
+        "dose": "0.5g intravaginally",
+        "frequency": "2x/week (e.g., Sunday and Wednesday)",
+        "note": "Maintenance indefinitely. Reassess need annually."
+      },
+      "max_dose": "1g daily (100mcg estradiol) — rarely needed. Standard 0.5g 2x/week is sufficient for most patients.",
+      "adjustment_rules": [
+        {
+          "condition": "Inadequate symptom response at 8 weeks on maintenance 2x/week",
+          "action": "Increase frequency to 3x/week OR increase dose to 1g 2x/week. Provider approval required."
+        },
+        {
+          "condition": "Patient reports systemic symptoms (hot flashes, night sweats) in addition to GSM",
+          "action": "Vaginal cream alone insufficient for systemic symptoms. Consider adding systemic therapy (estrogen-patches or estrogen-cream-systemic). Sync visit recommended for combined regimen decision."
+        },
+        {
+          "condition": "Intact uterus",
+          "action": "Progesterone co-prescribing NOT required at standard vaginal doses (0.5g 2x/week) — systemic absorption is minimal and insufficient to stimulate endometrium. If dose exceeds standard (>1g daily regularly): reassess progesterone need. Document clinical rationale in chart."
+        }
+      ]
+    },
+    "intake_dependencies": [
+      "primary_gsm_symptoms",
+      "systemic_menopause_symptoms_present",
+      "months_since_last_menstrual_period",
+      "age",
+      "uterus_intact_hysterectomy_history",
+      "unexplained_vaginal_bleeding",
+      "breast_cancer_history_personal",
+      "active_vaginal_infection",
+      "current_medications",
+      "prior_vaginal_estrogen_use"
+    ],
+    "disqualifiers": [
+      {
+        "field": "unexplained_vaginal_bleeding",
+        "value": "yes",
+        "reason": "Absolute CI — must rule out endometrial pathology before prescribing any estrogen. Hard block + sync visit.",
+        "block_type": "hard"
+      },
+      {
+        "field": "breast_cancer_history",
+        "value": "active",
+        "reason": "Absolute CI.",
+        "block_type": "hard"
+      },
+      {
+        "field": "active_vaginal_infection",
+        "value": "yes",
+        "reason": "Defer prescribing until infection treated. Soft block — route to provider review.",
+        "block_type": "soft_defer"
+      },
+      {
+        "field": "systemic_menopause_symptoms_present",
+        "value": "yes_primary",
+        "reason": "Route redirect — vaginal cream insufficient for systemic symptoms. Auto-redirect to estrogen-patches or estrogen-cream-systemic intake flow.",
+        "block_type": "route_redirect"
+      }
+    ],
+    "required_labs": [
+      {
+        "panel": "None required at baseline",
+        "frequency": "N/A",
+        "required_before_start": false,
+        "notes": "Local vaginal therapy with minimal systemic absorption. FSH and E2 not clinically required for dosing decisions on vaginal-only therapy."
+      },
+      {
+        "panel": "FSH / E2 — at provider discretion",
+        "required_before_start": false,
+        "condition": "Order if patient has ambiguous menopause status and diagnosis is unclear. Not required for dosing decision on vaginal cream."
+      }
+    ],
+    "progesterone_rule": "NOT required at standard doses (0.5g 2x/week). Document rationale in chart. If patient requires high-dose or daily vaginal estrogen long-term: reassess progesterone need at that point.",
+    "follow_up_schedule": "8 weeks: async symptom form (vaginal dryness, dyspareunia, urinary symptoms — improvement assessment). 6 months: async (symptom control, refill, assess if systemic symptoms have emerged). Annually: async (refill, symptom reassessment, mammogram reminder).",
+    "escalation_triggers": [
+      { "trigger": "New unexplained vaginal bleeding at any point", "action": "HOLD estrogen. Same-day sync visit. Do not resume until evaluated." },
+      { "trigger": "New breast mass", "action": "HOLD. Sync visit." },
+      { "trigger": "Systemic symptoms emerge (hot flashes, night sweats, mood)", "action": "Async note to provider. Consider adding systemic estrogen. Sync visit for combination regimen discussion." }
+    ],
+    "visit_model": {
+      "initial": "ONE synchronous video visit — confirms GSM diagnosis, absolute contraindications, and consent.",
+      "follow_up": "Async."
+    },
+    "automation_level": "decision_support",
+    "automation_notes": "Simpler automation profile than systemic HRT — no lab gates. Routing is driven by symptom type at intake (GSM vs. systemic). Hard blocks (vaginal bleeding, active cancer) fully automatable. Dose escalation at 8 weeks is suggestion-based. Intact uterus does NOT trigger progesterone co-prescribing task for this service ID — unlike estrogen-patches."
+  },
+
+  {
+    "service_id": "estrogen-cream-systemic",
+    "product_name": "Compounded Systemic Estradiol Cream — Topical HRT",
+    "protocol_status": "COVERED",
+    "indication": "Systemic hormone replacement therapy for menopausal symptoms (hot flashes, night sweats, mood disruption, sleep disturbance, cognitive symptoms). Applied to skin for systemic absorption. Same clinical indication as estrogen-patches and estrogen-gel.",
+    "routing_rule": "Route here if patient: (a) reports systemic menopausal symptoms AND (b) prefers cream over patch due to patch adhesion issues, skin irritation, or personal preference. Vaginal symptoms alone → route to estrogen-cream-vaginal instead.",
+    "dosing": {
+      "formulation": "Compounded estradiol cream, typically 0.5mg/g or 1mg/g concentration",
+      "starting_dose": {
+        "value": "0.5mg estradiol",
+        "frequency": "daily",
+        "application": "Apply to inner upper arm or inner thigh. Rotate sites. Allow to dry before dressing.",
+        "concentration_example": "If 1mg/g cream: 0.5g of cream = 0.5mg estradiol"
+      },
+      "titration": [
+        { "step": "Initiation", "dose": "0.5mg/day", "duration": "4-6 weeks" },
+        { "step": "Every 4-6 weeks", "action": "Titrate based on symptom control and E2 serum level. Increase to 1mg/day if symptoms persist." }
+      ],
+      "max_dose": "2mg/day — rarely required. Most patients controlled at 0.5-1mg/day.",
+      "adjustment_rules": [
+        {
+          "condition": "Symptom persistence at 6-week check",
+          "action": "Titrate up by 0.5mg increments. Order E2 serum level to guide."
+        },
+        {
+          "condition": "Intact uterus — no hysterectomy",
+          "action": "MANDATORY: Co-prescribe progesterone (Prometrium). Same rule as estrogen-patches: 100mg/day continuous (postmenopause) or 200mg x12 days/month (perimenopause)."
+        },
+        {
+          "condition": "Patient previously on estrogen patches and switching to cream",
+          "action": "Begin cream at dose approximately equivalent to prior patch dose. 0.05mg patch ≈ 0.5mg cream daily (rough equivalence — titrate by symptom and E2 level, not rigid conversion)."
+        }
+      ]
+    },
+    "intake_dependencies": [
+      "fsh_lab_value",
+      "e2_estradiol_baseline_lab_value",
+      "menopause_status",
+      "months_since_last_menstrual_period",
+      "age",
+      "uterus_intact_hysterectomy_history",
+      "unexplained_vaginal_bleeding",
+      "breast_cancer_history_personal",
+      "vte_history",
+      "cardiovascular_history",
+      "smoking_status",
+      "current_medications",
+      "skin_application_site_preference",
+      "prior_hrt_formulation_and_dose",
+      "mammogram_current_status"
+    ],
+    "disqualifiers": [
+      { "field": "unexplained_vaginal_bleeding", "value": "yes", "reason": "Absolute CI. Hard block + sync visit.", "block_type": "hard" },
+      { "field": "breast_cancer_history", "value": "active", "reason": "Absolute CI.", "block_type": "hard" },
+      { "field": "vte_history_active_or_recent", "value": "yes", "reason": "High-risk CI.", "block_type": "hard" },
+      { "field": "e2_baseline_lab", "condition": "not_obtained", "reason": "Cannot prescribe without baseline E2. System block.", "block_type": "hard" }
+    ],
+    "required_labs": [
+      {
+        "panel": "Estradiol (E2)",
+        "frequency": "Baseline required. 6-week check if dose adjustment. 6 months. Annually.",
+        "required_before_start": true,
+        "notes": "Same requirement as estrogen-patches. Cannot dose-titrate without baseline."
+      },
+      {
+        "panel": "FSH",
+        "frequency": "Baseline strongly recommended",
+        "required_before_start": true,
+        "notes": "Skip only if age >45 + >12 months amenorrhea + classic symptoms — provider documents rationale."
+      },
+      {
+        "panel": "Total + free testosterone",
+        "required_before_start": false,
+        "condition": "Only if testosterone therapy also planned."
+      }
+    ],
+    "progesterone_co_prescribing_rule": {
+      "trigger": "intact_uterus = true",
+      "drug": "Progesterone micronized (Prometrium)",
+      "postmenopause_dose": "100mg/day continuous",
+      "perimenopause_dose": "200mg x12 days/month",
+      "system_behavior": "Same as estrogen-patches — auto-generate progesterone co-prescription task if intact uterus. Cannot issue estrogen prescription alone without task acknowledged."
+    },
+    "mammogram_workflow": "Same as estrogen-patches — annual mammogram acknowledgment required before refill authorized.",
+    "follow_up_schedule": "6 weeks: async symptom form + E2 if dose adjustment. 3 months: async symptom + titration. 6 months: async labs (E2, FSH if needed). Annually: async form + labs + mammogram acknowledgment.",
+    "escalation_triggers": [
+      { "trigger": "New unexplained vaginal bleeding", "action": "HOLD. Same-day sync visit." },
+      { "trigger": "VTE symptoms", "action": "HOLD. ER referral." },
+      { "trigger": "New breast mass or abnormal mammogram", "action": "HOLD. Sync visit." }
+    ],
+    "visit_model": {
+      "initial": "ONE synchronous video visit. Lab results at or before visit.",
+      "follow_up": "Async."
+    },
+    "automation_level": "decision_support",
+    "automation_notes": "Identical automation profile to estrogen-patches. E2 lab gate is hard block. Progesterone co-prescribing rule automatable by intact uterus flag. Dose titration suggestion-based with provider confirmation. Mammogram acknowledgment automatable via annual refill trigger."
+  },
+
+  {
+    "service_id": "nad-plus",
+    "product_name": "NAD+ Subcutaneous Injection",
+    "protocol_status": "COVERED — OFF-LABEL COMPOUNDED, 503A/503B AVAILABLE",
+    "regulatory_context": {
+      "fda_approval_status": "Not FDA-approved for any indication as injectable. No Category 2 restriction — available via 503A compounding pharmacy.",
+      "prescribing_pathway": "Off-label prescribing via licensed physician. 503A or 503B compounding pharmacy. Informed consent required.",
+      "informed_consent_required": true,
+      "route": "Subcutaneous injection — self-administered at home"
+    },
+    "md_sign_off_required": true,
+    "md_sign_off_note": "MEDICAL DIRECTOR: Dosing below reflects common practitioner protocols for SQ NAD+. No large RCT defines optimal human SQ dosing. Please confirm starting dose, max dose, and frequency before go-live.",
+    "dosing": {
+      "route": "subcutaneous injection — self-administered",
+      "starting_dose": {
+        "value": "100mg",
+        "frequency": "daily or 3x/week",
+        "site": "Abdomen or thigh — rotate sites",
+        "note": "Daily dosing preferred for metabolic/energy indications. 3x/week acceptable for recovery/longevity indications. MD to confirm preferred default frequency."
+      },
+      "titration": [
+        {
+          "step": "Weeks 1-2",
+          "dose": "100mg SQ daily or 3x/week",
+          "note": "Tolerance assessment phase. SQ is generally well tolerated vs. IV — flushing and nausea less common but can occur."
+        },
+        {
+          "step": "Week 3+",
+          "dose": "Increase to 250mg if well tolerated and clinical response insufficient",
+          "note": "MD to confirm whether 250mg is the standard maintenance or if 100mg is sufficient for most patients."
+        }
+      ],
+      "max_dose": "500mg/day SQ — MD MUST CONFIRM THIS CEILING",
+      "cycle": "MD to specify: continuous daily dosing vs. cycles (e.g., 5 days on / 2 days off, or 3 months on / 1 month break). Common practitioner approach: continuous daily, reassess at 3 months.",
+      "adjustment_rules": [
+        {
+          "condition": "Patient reports injection site reactions (redness, swelling, nodules)",
+          "action": "Counsel on site rotation technique. Reduce dose to 50mg and re-titrate slowly. Warm compress at injection site."
+        },
+        {
+          "condition": "Patient reports flushing or nausea post-injection",
+          "action": "Less common with SQ than IV but can occur. Counsel that this typically resolves within 15-30 min. Slow injection rate (over 30-60 seconds). If persistent: reduce dose."
+        },
+        {
+          "condition": "Diabetic patient or pre-diabetic",
+          "action": "Monitor glucose — NAD+ activates SIRT1/AMPK pathways with potential glucose effects. Provider awareness flagged."
+        },
+        {
+          "condition": "Patient on glucose-lowering medications",
+          "action": "Provider review before prescribing. Monitor glucose closely after initiation."
+        }
+      ]
+    },
+    "intake_dependencies": [
+      "primary_indication",
+      "age",
+      "cancer_history_active",
+      "current_pregnancy",
+      "diabetes_history",
+      "glucose_lowering_medications",
+      "current_medications",
+      "cardiovascular_history",
+      "prior_nad_use",
+      "injection_comfort_and_technique",
+      "off_label_informed_consent_signed"
+    ],
+    "disqualifiers": [
+      {
+        "field": "current_pregnancy",
+        "value": "yes",
+        "reason": "No safety data in pregnancy. Hard block.",
+        "block_type": "hard"
+      },
+      {
+        "field": "cancer_history_active",
+        "value": "yes",
+        "reason": "NAD+ promotes cellular energy and repair — theoretical concern in active malignancy (tumor cell energetics). Route to provider review. Relative CI.",
+        "block_type": "soft_review"
+      },
+      {
+        "field": "off_label_informed_consent_signed",
+        "value": "false",
+        "reason": "Hard block — cannot prescribe without signed off-label consent.",
+        "block_type": "hard"
+      }
+    ],
+    "required_labs": [
+      {
+        "panel": "None required at baseline for healthy adults",
+        "required_before_start": false,
+        "notes": "No established lab monitoring protocol for SQ NAD+."
+      },
+      {
+        "panel": "Fasting glucose / HbA1c",
+        "required_before_start": false,
+        "condition": "ORDER IF diabetic or pre-diabetic. Baseline glucose before prescribing."
+      },
+      {
+        "panel": "CMP",
+        "required_before_start": false,
+        "condition": "At provider discretion for general baseline safety. Not mandatory."
+      }
+    ],
+    "injection_training": "Provider or nurse must confirm patient understands SQ injection technique at initial video visit. Patient demonstrates or verbally confirms technique. Document in chart. Injection guide sent via Healthie after visit.",
+    "follow_up_schedule": "2 weeks: async tolerability check (injection site reactions, flushing, nausea). 6 weeks: async (energy, sleep, recovery response assessment). 3 months: async outcome assessment + refill decision. Every 3 months thereafter.",
+    "escalation_triggers": [
+      { "trigger": "Significant injection site reactions (abscess, severe inflammation)", "action": "Hold. Sync visit." },
+      { "trigger": "Chest tightness or palpitations post-injection", "action": "Hold. Sync visit. Evaluate cardiac history." },
+      { "trigger": "Hypoglycemia symptoms in diabetic patient", "action": "Hold. Sync visit. Glucose review." }
+    ],
+    "visit_model": {
+      "initial": "ONE synchronous video visit. Off-label consent on video. Injection technique confirmed.",
+      "follow_up": "Async."
+    },
+    "automation_level": "decision_support",
+    "automation_notes": "Consent gate is hard block. Starting dose fixed at 100mg once cleared. Titration to 250mg is suggestion-based at week 3 check-in. Cancer soft block routes to provider review queue — does not hard stop, surfaces for physician decision. Injection technique confirmation must be documented in video visit note — cannot be async-only."
+  },
+
+  {
+    "service_id": "glo",
+    "protocol_status": "COVERED — OFF-LABEL BLEND, ALL COMPONENTS 503B CONFIRMED",
+    "regulatory_context": {
+      "composition": "GHK-Cu + BPC-157 + TB-500",
+      "previous_status": "BPC-157 + TB-500 confirmed. GHK-Cu was unconfirmed.",
+      "current_status": "ALL THREE COMPONENTS confirmed via 503B registered outsourcing facility. Written pharmacy confirmation should be on file.",
+      "prescribing_pathway": "Off-label. 503B facility. Informed consent required covering all three components.",
+      "informed_consent_required": true,
+      "documentation_note": "Written 503B confirmation for all three components must be on file. If pharmacy relationship changes, this service is immediately suspended."
+    },
+    "md_sign_off_required": true,
+    "md_sign_off_note": "MEDICAL DIRECTOR: Regulatory resolved. Need you to confirm: (1) blend ratio (GHK-Cu mg + BPC-157 mcg + TB-500 mg per dose); (2) dosing frequency; (3) loading/maintenance distinction. Typical practitioner starting points: GHK-Cu 1-2mg + BPC-157 250mcg + TB-500 2mg per injection, 2x/week loading x4-6 weeks, then monthly maintenance. Confirm or modify.",
+    "dosing": {
+      "indication": "Anti-aging, skin/collagen support, musculoskeletal repair, wound healing, anti-inflammatory — combined mechanism of all three components. Off-label.",
+      "route": "subcutaneous injection",
+      "blend_ratio": "PENDING MD CONFIRMATION — typical practitioner range: GHK-Cu 1-2mg + BPC-157 250mcg + TB-500 2mg per injection",
+      "loading_phase": {
+        "frequency": "2x/week",
+        "duration": "4-6 weeks",
+        "note": "MD to confirm"
+      },
+      "maintenance_phase": {
+        "frequency": "1-2x/month",
+        "note": "MD to confirm"
+      },
+      "max_dose": "PENDING MD CONFIRMATION",
+      "adjustment_rules": [
+        {
+          "condition": "Patient with primary skin/collagen goal",
+          "action": "GHK-Cu component is primary driver — route to GLO. Dose as specified."
+        },
+        {
+          "condition": "Patient with primary musculoskeletal/recovery goal",
+          "action": "TB-500 + BPC-157 are primary drivers — GLO or Wolverine are both appropriate. Provider selects based on patient profile."
+        }
+      ]
+    },
+    "intake_dependencies": [
+      "primary_indication",
+      "cancer_history_active",
+      "current_pregnancy",
+      "copper_sensitivity",
+      "wilson_disease_history",
+      "current_medications",
+      "prior_bpc157_use",
+      "prior_tb500_use",
+      "prior_ghk_cu_use",
+      "off_label_informed_consent_signed"
+    ],
+    "disqualifiers": [
+      { "field": "current_pregnancy", "value": "yes", "reason": "Hard block. No safety data for any component.", "block_type": "hard" },
+      { "field": "wilson_disease_history", "value": "yes", "reason": "GHK-Cu contains copper — absolute CI in Wilson's disease. Hard block.", "block_type": "hard" },
+      { "field": "copper_sensitivity", "value": "yes", "reason": "Relative CI. Route to provider review.", "block_type": "soft_review" },
+      { "field": "cancer_history_active", "value": "yes", "reason": "Growth-promoting components — angiogenic risk in active malignancy. Route to provider review.", "block_type": "soft_review" },
+      { "field": "off_label_informed_consent_signed", "value": "false", "reason": "Hard block.", "block_type": "hard" }
+    ],
+    "required_labs": [
+      { "panel": "None required at baseline", "required_before_start": false }
+    ],
+    "follow_up_schedule": "4 weeks (end of loading): async tolerability + outcome check. Monthly during maintenance: async.",
+    "visit_model": { "initial": "ONE synchronous video visit. Off-label consent on video.", "follow_up": "Async." },
+    "automation_level": "decision_support",
+    "automation_notes": "Hard blocks (pregnancy, Wilson's disease, consent) buildable now. Wilson's disease disqualifier is unique to this service and KLOW — must be in intake form. All dose logic blocked until MD confirms blend ratio and frequency."
+  },
+
+  {
+    "service_id": "klow",
+    "protocol_status": "COVERED — OFF-LABEL BLEND, ALL COMPONENTS 503B CONFIRMED",
+    "regulatory_context": {
+      "composition": "GHK-Cu + BPC-157 + TB-500 + KPV",
+      "previous_status": "BPC-157 + TB-500 confirmed. GHK-Cu and KPV were unconfirmed.",
+      "current_status": "ALL FOUR COMPONENTS confirmed via 503B registered outsourcing facility. Written pharmacy confirmation should be on file for all four.",
+      "prescribing_pathway": "Off-label. 503B facility. Informed consent required covering all four components.",
+      "informed_consent_required": true,
+      "documentation_note": "Written 503B confirmation for all four components required on file."
+    },
+    "md_sign_off_required": true,
+    "md_sign_off_note": "MEDICAL DIRECTOR: Regulatory resolved for all four components. Need you to confirm: (1) blend ratio for all four components per dose; (2) dosing frequency; (3) loading/maintenance distinction. KPV typical range: 500mcg-1mg per injection. Consider whether KLOW is appropriate for general use vs. specific anti-inflammatory/gut indications given KPV's alpha-MSH fragment mechanism. Confirm any additional contraindications for KPV specifically.",
+    "dosing": {
+      "indication": "Anti-inflammatory, gut health, wound healing, anti-aging, skin support — all four components contribute. KPV adds alpha-MSH anti-inflammatory mechanism. Off-label.",
+      "route": "subcutaneous injection",
+      "blend_ratio": "PENDING MD CONFIRMATION — typical ranges: GHK-Cu 1-2mg + BPC-157 250mcg + TB-500 2mg + KPV 500mcg-1mg per injection",
+      "loading_phase": {
+        "frequency": "2x/week",
+        "duration": "4-6 weeks",
+        "note": "MD to confirm. Follows TB-500 loading convention."
+      },
+      "maintenance_phase": {
+        "frequency": "1-2x/month",
+        "note": "MD to confirm."
+      },
+      "max_dose": "PENDING MD CONFIRMATION",
+      "kpv_note": "KPV (Lys-Pro-Val) is a C-terminal tripeptide of alpha-MSH. Anti-inflammatory mechanism via NF-κB inhibition. Particular utility for gut inflammation and IBD — consider KLOW over GLO for patients with GI inflammatory indications.",
+      "adjustment_rules": [
+        {
+          "condition": "Patient with primary GI/gut inflammatory indication",
+          "action": "KLOW preferred over GLO due to KPV component. Route here."
+        },
+        {
+          "condition": "Patient on immunosuppressive therapy",
+          "action": "KPV has immune-modulating properties — flag for provider review before prescribing. Theoretical interaction with immunosuppressants."
+        }
+      ]
+    },
+    "intake_dependencies": [
+      "primary_indication",
+      "gi_inflammatory_condition",
+      "cancer_history_active",
+      "current_pregnancy",
+      "copper_sensitivity",
+      "wilson_disease_history",
+      "autoimmune_disease_history",
+      "immunosuppressive_medications",
+      "current_medications",
+      "off_label_informed_consent_signed"
+    ],
+    "disqualifiers": [
+      { "field": "current_pregnancy", "value": "yes", "reason": "Hard block. No safety data.", "block_type": "hard" },
+      { "field": "wilson_disease_history", "value": "yes", "reason": "GHK-Cu — absolute CI. Hard block.", "block_type": "hard" },
+      { "field": "copper_sensitivity", "value": "yes", "reason": "Relative CI. Provider review.", "block_type": "soft_review" },
+      { "field": "cancer_history_active", "value": "yes", "reason": "Growth-promoting components. Provider review.", "block_type": "soft_review" },
+      { "field": "immunosuppressive_medications", "value": "yes", "reason": "KPV immune-modulating — flag for provider review. Potential interaction.", "block_type": "soft_review" },
+      { "field": "off_label_informed_consent_signed", "value": "false", "reason": "Hard block.", "block_type": "hard" }
+    ],
+    "required_labs": [
+      { "panel": "None required at baseline", "required_before_start": false }
+    ],
+    "follow_up_schedule": "4 weeks (end of loading): async tolerability + outcome check. Monthly during maintenance: async.",
+    "visit_model": { "initial": "ONE synchronous video visit. Off-label consent on video.", "follow_up": "Async." },
+    "automation_level": "decision_support",
+    "automation_notes": "Hard blocks (pregnancy, Wilson's disease, consent) buildable now. Immunosuppressant flag is a soft route to provider review — buildable. Wilson's disease disqualifier shared with GLO. KPV-specific immunosuppressant interaction flag is unique to KLOW. Dose logic blocked until MD confirms blend ratio."
+  }
+]

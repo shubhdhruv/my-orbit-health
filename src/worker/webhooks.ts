@@ -93,7 +93,9 @@ webhooks.post("/healthie", async (c) => {
     return c.json({ success: true, action: "payment_cancelled" });
   }
 
-  // Acknowledge other event types
+  // Acknowledge other event types (including custom_module_form.created)
+  // Notifications are handled at intake submit time, not via webhook,
+  // so we just ACK these to keep Healthie happy.
   return c.json({ received: true });
 });
 

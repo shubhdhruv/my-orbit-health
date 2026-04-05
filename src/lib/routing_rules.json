@@ -1,0 +1,1105 @@
+{
+  "meta": {
+    "version": "1.1.0",
+    "effective_date": "2026-04-01",
+    "dea_extension_expires": "2026-12-31",
+    "last_audit": "2026-04-05",
+    "audit_changes": [
+      "LA: follow_up for Sch III/II changed async → sync. Louisiana requires sync AV for ALL controlled substance encounters, not only first visits. Category renamed SYNCHRONOUS_REQUIRED.",
+      "NJ: Sch II follow_up value normalized from non-standard 'in_person_every_3_months' → 'in_person_required'. Frequency captured in constraints as 'quarterly_in_person_frequency'. Previous value broke orchestrator switch statement silently.",
+      "TX: Moved 'async_ok_if_seen_within_90_days' from first_visit constraints to follow_up constraints where it semantically belongs. Added to follow_up constraints block which was previously empty.",
+      "AL: Removed 'licensed_staff_at_originating_site' constraint. Alabama Act 2018-509 eliminated originating-site staffing requirement for general telehealth. Constraint was Medicaid CMS-origin and inapplicable to private-pay DTC model. Pending AL counsel confirmation.",
+      "CA: Retained first_visit sync for Sch III. B&P 2290.5 permits async good-faith exam but sync is the conservative standard-of-care position for controlled substance prescribing. Revisit with legal counsel before downgrading to async.",
+      "WA: No changes. Permanently-sync follow-up is conservative but defensible per MQAC guidance.",
+      "NY: No changes. In-person-first for all scheduled substances confirmed correct.",
+      "FL: No changes. Sch II blocked, Sch III async with DOH registration confirmed correct."
+    ],
+    "notes": "DEA telemedicine flexibilities extended through Dec 31, 2026. Schedule III includes testosterone (injectable + oral). All other MOH services are non-scheduled. service_id keys use hyphen format — normalize on intake (see router.py)."
+  },
+  "schedule_map": {
+    "semaglutide": "none",
+    "tirzepatide": "none",
+    "retatrutide": "none",
+    "sildenafil": "none",
+    "tadalafil": "none",
+    "testosterone-injectable": "III",
+    "testosterone-oral": "III",
+    "enclomiphene": "none",
+    "estrogen-cream-vaginal": "none",
+    "estrogen-cream-systemic": "none",
+    "estrogen-patches": "none",
+    "mots-c": "none",
+    "nad": "none",
+    "bpc-157": "none",
+    "tb-500": "none",
+    "wolverine": "none",
+    "glo": "none",
+    "klow": "none"
+  },
+  "states": {
+    "AL": {
+      "category": "SYNCHRONOUS_REQUIRED",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "sync",
+        "follow_up": "sync",
+        "first_visit_constraints": ["in_person_within_12_months"],
+        "follow_up_constraints": ["in_person_within_12_months"]
+      },
+      "schedule_II": {
+        "first_visit": "sync",
+        "follow_up": "sync",
+        "first_visit_constraints": ["in_person_within_12_months"],
+        "follow_up_constraints": ["in_person_within_12_months"]
+      },
+      "license_note": "AL license required",
+      "routing_note": "Sync-only for all controlled substances per Alabama Board of Medical Examiners rules. In-person within 12 months required as prerequisite to telehealth relationship. Note: if in_person_within_12_months is enforced as a prerequisite, first_visit for new patients with no prior in-person should route to in_person_required — verify with AL counsel.",
+      "audit_note": "CHANGED: Removed 'licensed_staff_at_originating_site' — Alabama Act 2018-509 eliminated this for general telehealth. Was CMS Medicaid originating-site rule, not applicable to private-pay DTC. Confirm with AL counsel."
+    },
+    "AK": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "AK license required",
+      "routing_note": "Any modality. Flag buprenorphine patients — nursing board requires physical presence. Not applicable to current MOH formulary."
+    },
+    "AZ": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "AZ license required",
+      "routing_note": "Any modality."
+    },
+    "AR": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "AR license required",
+      "routing_note": "Async is the default route. Sync available as clinical override per provider judgment. Routing note previously said 'sync preferred' — clarified: async is the system default, sync is a provider-initiated escalation.",
+      "audit_note": "CLARIFIED: Routing note previously contradicted JSON default. Async is correct default; sync is not required by AR law for Sch III."
+    },
+    "CA": {
+      "category": "FLEXIBLE_EVOLVING",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "sync",
+        "follow_up": "async",
+        "first_visit_constraints": ["good_faith_prior_exam"],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "sync",
+        "follow_up": "async",
+        "first_visit_constraints": ["good_faith_prior_exam"],
+        "follow_up_constraints": []
+      },
+      "license_note": "CA license required. Monitor AB 1503 for final status — may tighten controlled substance prescribing requirements.",
+      "routing_note": "B&P 2290.5 allows async store-and-forward to satisfy good faith exam, but sync is retained as conservative standard-of-care position for controlled substance prescribing. Do not downgrade to async without explicit legal counsel opinion. Medi-Cal: ensure in-person referral pathway documented.",
+      "audit_note": "RETAINED sync. Legal review recommended before changing to async. CA permits async good-faith exam but enforcement history favors sync for controlled substances."
+    },
+    "CO": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "CO license required. Practice occurs where patient is located.",
+      "routing_note": "Any modality."
+    },
+    "CT": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "Full CT license required. Out-of-state registration expired June 30, 2025.",
+      "routing_note": "Verify CT license for all providers."
+    },
+    "DE": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "DE license required",
+      "routing_note": "Any modality including audio-only. SB 101 resolved prior conflicts."
+    },
+    "FL": {
+      "category": "RESTRICTED",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": ["doh_registration_controlled_substance"],
+        "follow_up_constraints": ["doh_registration_controlled_substance"]
+      },
+      "schedule_II": {
+        "first_visit": "blocked",
+        "follow_up": "blocked",
+        "first_visit_constraints": ["telehealth_prohibited_except_hospice_nursing_home"],
+        "follow_up_constraints": ["telehealth_prohibited_except_hospice_nursing_home"]
+      },
+      "license_note": "FL DOH registration required for controlled substance prescribing via telehealth.",
+      "routing_note": "Sch III-V OK via telehealth. Sch II BLOCKED (except hospice/nursing home per FL § 456.44). Confirm DOH registration in provider credentialing before any FL controlled substance prescription."
+    },
+    "GA": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "GA license or telemedicine license required for out-of-state providers.",
+      "routing_note": "Confirm liability insurance compliance for Medicaid."
+    },
+    "HI": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "HI license required",
+      "routing_note": "Any modality."
+    },
+    "ID": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "No prior relationship required",
+      "routing_note": "Most permissive state."
+    },
+    "IL": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "Full IL license required. Out-of-state waiver expired May 31, 2022.",
+      "routing_note": "IL-licensed providers only. Block out-of-state providers without full IL license."
+    },
+    "IN": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "IN license required",
+      "routing_note": "Any modality."
+    },
+    "IA": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "IA license required",
+      "routing_note": "Any modality."
+    },
+    "KS": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "KS license required",
+      "routing_note": "Any modality."
+    },
+    "KY": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "KY license required",
+      "routing_note": "Any modality."
+    },
+    "LA": {
+      "category": "SYNCHRONOUS_REQUIRED",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "sync",
+        "follow_up": "sync",
+        "first_visit_constraints": ["sync_av_required_audio_only_if_av_unavailable_documented"],
+        "follow_up_constraints": ["sync_av_required_audio_only_if_av_unavailable_documented"]
+      },
+      "schedule_II": {
+        "first_visit": "sync",
+        "follow_up": "sync",
+        "first_visit_constraints": ["sync_av_required_audio_only_if_av_unavailable_documented"],
+        "follow_up_constraints": ["sync_av_required_audio_only_if_av_unavailable_documented"]
+      },
+      "license_note": "LA license required. HIPAA-compliant platform mandatory.",
+      "routing_note": "Louisiana Board of Medical Examiners requires synchronous AV for ALL controlled substance encounters — first visit AND follow-ups. Audio-only is a documented-exception-only fallback when AV is technically unavailable, not a routine option. Async is never permitted for controlled substance prescribing.",
+      "audit_note": "CHANGED: follow_up was incorrectly set to 'async'. Louisiana rules require sync for every controlled substance encounter, not only first visits. Category renamed from FLEXIBLE_SYNC_PREFERRED to SYNCHRONOUS_REQUIRED. Constraint renamed to clarify AV is required, not preferred."
+    },
+    "ME": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "ME license required",
+      "routing_note": "Any modality except text-only."
+    },
+    "MD": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "MD license required",
+      "routing_note": "Any modality."
+    },
+    "MA": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "Full MA license required",
+      "routing_note": "MA-licensed providers only; any modality."
+    },
+    "MI": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "MI license required",
+      "routing_note": "Any modality; async billing clearly supported."
+    },
+    "MN": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "MN license required",
+      "routing_note": "Any modality."
+    },
+    "MS": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "MS license required",
+      "routing_note": "Any modality."
+    },
+    "MO": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "MO license required",
+      "routing_note": "Any modality."
+    },
+    "MT": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "MT license required",
+      "routing_note": "Any modality. Sch II in-person requirement removed 2024."
+    },
+    "NE": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "NE license required",
+      "routing_note": "Any modality."
+    },
+    "NV": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "NV license required",
+      "routing_note": "Any modality."
+    },
+    "NH": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": ["annual_evaluation_required"],
+        "follow_up_constraints": ["annual_evaluation_required"]
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": ["annual_evaluation_required"],
+        "follow_up_constraints": ["annual_evaluation_required"]
+      },
+      "license_note": "NH license required. SB 252 removed in-person requirement Aug 2025.",
+      "routing_note": "Telehealth-only fully supported post-SB 252. Annual evaluation scheduling required for Sch II-IV — verify whether SB 252 modified or retained this requirement.",
+      "audit_note": "VERIFY: Confirm annual_evaluation_required constraint is still accurate post-SB 252 (Aug 2025). May have been modified by the same bill."
+    },
+    "NJ": {
+      "category": "SYNC_FIRST_HYBRID",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "in_person_required",
+        "follow_up": "in_person_required",
+        "first_visit_constraints": ["in_person_first", "parental_consent_minors_stimulants"],
+        "follow_up_constraints": ["quarterly_in_person_frequency", "parental_consent_minors_stimulants"]
+      },
+      "license_note": "NJ license required",
+      "routing_note": "Sch III-V telehealth OK including testosterone. Sch II requires in-person first visit plus in-person every 3 months for follow-ups.",
+      "audit_note": "CHANGED: Sch II follow_up was 'in_person_every_3_months' — non-standard value broke orchestrator switch statement silently (no notification fired). Normalized to 'in_person_required'. Quarterly frequency captured in follow_up_constraints as 'quarterly_in_person_frequency'."
+    },
+    "NM": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "NM license required",
+      "routing_note": "Any modality."
+    },
+    "NY": {
+      "category": "SYNC_FIRST_HYBRID",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "in_person_required",
+        "follow_up": "async",
+        "first_visit_constraints": ["in_person_first_or_referral_within_12_months", "emergency_exception"],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "in_person_required",
+        "follow_up": "async",
+        "first_visit_constraints": ["in_person_first_or_referral_within_12_months", "emergency_exception"],
+        "follow_up_constraints": []
+      },
+      "license_note": "NY license required",
+      "routing_note": "Controlled substances (all schedules including testosterone/Sch III): in-person eval required FIRST, then telehealth OK for follow-ups. Exception: referring provider completed in-person within prior 12 months. Per NY PHL § 2999-cc."
+    },
+    "NC": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "NC license required",
+      "routing_note": "Any modality."
+    },
+    "ND": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "ND license required",
+      "routing_note": "Any modality."
+    },
+    "OH": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": ["pdmp_check_required"],
+        "follow_up_constraints": ["pdmp_check_required"]
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": ["pdmp_check_required"],
+        "follow_up_constraints": ["pdmp_check_required"]
+      },
+      "license_note": "OH license required",
+      "routing_note": "Async explicitly supported. PDMP check mandatory for all controlled substance prescriptions — must be operationally enforced in intake flow, not just tagged in schema."
+    },
+    "OK": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "OK license required",
+      "routing_note": "Any modality."
+    },
+    "OR": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "OR license required",
+      "routing_note": "Any modality."
+    },
+    "PA": {
+      "category": "HYBRID_OTP",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "otp_override": {
+        "first_visit": "sync",
+        "follow_up": "async",
+        "first_visit_constraints": ["in_person_within_14_days"],
+        "follow_up_constraints": [],
+        "note": "OTP override (buprenorphine/methadone) — NOT applicable to current MOH formulary. Router does not read this block; add explicit handling before adding any OTP-class products."
+      },
+      "license_note": "PA license required",
+      "routing_note": "General Sch III-V OK via telehealth. OTP patients (buprenorphine/methadone) need in-person within 14 days — not applicable to MOH services. otp_override block is present for future use but currently ignored by router."
+    },
+    "RI": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "RI license required",
+      "routing_note": "Any modality."
+    },
+    "SC": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "SC license required",
+      "routing_note": "Any modality."
+    },
+    "SD": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "SD license required",
+      "routing_note": "Any modality."
+    },
+    "TN": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "TN license required",
+      "routing_note": "Any modality."
+    },
+    "TX": {
+      "category": "SYNC_FIRST_HYBRID",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "sync",
+        "follow_up": "async",
+        "first_visit_constraints": ["sync_av_new_patient"],
+        "follow_up_constraints": ["async_ok_if_seen_within_90_days"]
+      },
+      "schedule_II": {
+        "first_visit": "in_person_required",
+        "follow_up": "sync",
+        "first_visit_constraints": ["in_person_first_non_mental_health"],
+        "follow_up_constraints": ["chronic_pain_sync_av_only"]
+      },
+      "license_note": "TX license required",
+      "routing_note": "Testosterone (Sch III): sync AV required for new patients. Async OK on follow-up ONLY if patient was seen within prior 90 days — router must enforce 90-day window via days_since_last_visit param, not just is_first_visit boolean. If >90 days since last visit, treat as new patient and route sync.",
+      "audit_note": "CHANGED: Moved 'async_ok_if_seen_within_90_days' from first_visit_constraints to follow_up_constraints. Was semantically wrong in first_visit block — a new patient has no prior visit, so the constraint could never apply there. Also removed 'async_ok_if_seen_within_90_days' as a router-readable constraint; enforcement requires days_since_last_visit parameter in route_patient()."
+    },
+    "UT": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "UT license required",
+      "routing_note": "Audio-only limited to specific Medicaid services. AV or async for others."
+    },
+    "VT": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "VT license required",
+      "routing_note": "Any modality."
+    },
+    "VA": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "VA license required",
+      "routing_note": "Any modality."
+    },
+    "WA": {
+      "category": "SYNCHRONOUS_REQUIRED",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "sync",
+        "follow_up": "sync",
+        "first_visit_constraints": ["in_person_within_12_months", "sync_audio_or_av"],
+        "follow_up_constraints": ["in_person_within_12_months", "sync_audio_or_av"]
+      },
+      "schedule_II": {
+        "first_visit": "sync",
+        "follow_up": "sync",
+        "first_visit_constraints": ["in_person_within_12_months", "sync_audio_or_av"],
+        "follow_up_constraints": ["in_person_within_12_months", "sync_audio_or_av"]
+      },
+      "license_note": "WA license required",
+      "routing_note": "Controlled substances: in-person within 12 months required plus sync for all visits per WAC 246-919-863. Permanently-sync follow-ups are conservative but defensible — WA MQAC has not provided an explicit relaxation for established patients. Non-controlled: flexible."
+    },
+    "WV": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "WV license required",
+      "routing_note": "Any modality; recently expanded Medicaid coverage."
+    },
+    "WI": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "WI license required",
+      "routing_note": "Any modality."
+    },
+    "WY": {
+      "category": "FLEXIBLE",
+      "non_controlled": {
+        "first_visit": "async",
+        "follow_up": "async"
+      },
+      "schedule_III_V": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "schedule_II": {
+        "first_visit": "async",
+        "follow_up": "async",
+        "first_visit_constraints": [],
+        "follow_up_constraints": []
+      },
+      "license_note": "WY license required",
+      "routing_note": "Any modality; document provider-patient relationship establishment."
+    }
+  }
+}

@@ -119,7 +119,8 @@ onboard.post("/", async (c) => {
     'testosterone-injectable': 'Testosterone Injectable',
     'testosterone-oral': 'Testosterone Oral',
     'enclomiphene': 'Enclomiphene (Male Hormone Optimization)',
-    'estrogen-cream': 'Estrogen Cream',
+    'estrogen-cream-vaginal': 'Estrogen Cream (Vaginal/GSM)',
+    'estrogen-cream-systemic': 'Estrogen Cream (Systemic/Topical)',
     'estrogen-patches': 'Estrogen Patches',
     'mots-c': 'MOTS-c (Metabolic Peptide)',
     'nad': 'NAD+ (Cellular Energy)',
@@ -358,9 +359,13 @@ const ONBOARDING_FORM_HTML = `<!DOCTYPE html>
 
       <div class="category">
         <div class="category-title">Women's Hormone Therapy</div>
-        <div class="service-card" data-service="estrogen-cream" onclick="toggleService(this)">
+        <div class="service-card" data-service="estrogen-cream-vaginal" onclick="toggleService(this)">
           <div class="service-checkbox"></div>
-          <div class="service-info"><h3>Estrogen Cream</h3><p>Topical estradiol for menopause relief</p></div>
+          <div class="service-info"><h3>Estrogen Cream (Vaginal/GSM)</h3><p>Vaginal estradiol for genitourinary syndrome of menopause</p></div>
+        </div>
+        <div class="service-card" data-service="estrogen-cream-systemic" onclick="toggleService(this)">
+          <div class="service-checkbox"></div>
+          <div class="service-info"><h3>Estrogen Cream (Systemic)</h3><p>Topical estradiol cream for systemic menopause relief</p></div>
         </div>
         <div class="service-card" data-service="estrogen-patches" onclick="toggleService(this)">
           <div class="service-checkbox"></div>
@@ -475,7 +480,7 @@ const ONBOARDING_FORM_HTML = `<!DOCTYPE html>
       'semaglutide': 'Semaglutide', 'tirzepatide': 'Tirzepatide', 'retatrutide': 'Retatrutide',
       'sildenafil': 'Sildenafil', 'tadalafil': 'Tadalafil',
       'testosterone-injectable': 'Testosterone Injectable', 'testosterone-oral': 'Testosterone Oral',
-      'enclomiphene': 'Enclomiphene', 'estrogen-cream': 'Estrogen Cream', 'estrogen-patches': 'Estrogen Patches',
+      'enclomiphene': 'Enclomiphene', 'estrogen-cream-vaginal': 'Estrogen Cream (Vaginal)', 'estrogen-cream-systemic': 'Estrogen Cream (Systemic)', 'estrogen-patches': 'Estrogen Patches',
       'mots-c': 'MOTS-c', 'nad': 'NAD+', 'bpc-157': 'BPC-157', 'tb-500': 'TB-500',
       'wolverine': 'Wolverine Blend', 'glo': 'GLO Blend', 'klow': 'KLOW Blend'
     };
