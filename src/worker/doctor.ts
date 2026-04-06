@@ -1,0 +1,840 @@
+import { Hono } from "hono";
+import { Env } from "../lib/types";
+import { getPartner, getPendingCase, listPendingCases, listAllCases, savePendingCase } from "../lib/kv";
+import { createStripeClient, capturePayment, createSubscription } from "./stripe";
+import { sendEmail, buildPatientApprovedEmail, buildPatientDeniedEmail } from "./email";
+import { createHealthieClient, saveSoapNote, createSoapTemplate, SoapTemplate } from "./healthie";
+
+const doctor = new Hono<{ Bindings: Env }>();
+
+// ─── Auth ────────────────────────────────────────────────────
+
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+doctor.use("*", async (c, next) => {
+  const path = c.req.path;
+  if (path === "/doctor/login" || path === "/doctor/auth") return next();
+
+  const sessionCookie = c.req.header("Cookie")?.match(/doctor_session=([^;]+)/)?.[1];
+  if (!sessionCookie) return c.redirect("/doctor/login");
+
+  const today = new Date().toISOString().split("T")[0];
+  const expectedSession = await hashPassword(c.env.ADMIN_PASSWORD_HASH + "doctor" + today);
+  if (sessionCookie !== expectedSession) return c.redirect("/doctor/login");
+
+  return next();
+});
+
+// ─── Login ───────────────────────────────────────────────────
+
+doctor.get("/login", (c) => c.html(LOGIN_HTML));
+
+doctor.post("/auth", async (c) => {
+  const body = await c.req.parseBody();
+  const password = body.password as string || "";
+  const passwordHash = await hashPassword(password);
+
+  if (passwordHash === c.env.ADMIN_PASSWORD_HASH.trim()) {
+    const today = new Date().toISOString().split("T")[0];
+    const sessionToken = await hashPassword(c.env.ADMIN_PASSWORD_HASH + "doctor" + today);
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: "/doctor",
+        "Set-Cookie": `doctor_session=${sessionToken}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=86400`,
+      },
+    });
+  }
+
+  return c.html(LOGIN_HTML.replace("</form>", '<p style="color:#dc2626;margin-top:12px;font-size:14px">Invalid password</p></form>'));
+});
+
+// ─── Dashboard ───────────────────────────────────────────────
+
+doctor.get("/", async (c) => {
+  const cases = await listAllCases(c.env.PARTNERS);
+  return c.html(renderDashboard(cases));
+});
+
+// ─── Case Detail ─────────────────────────────────────────────
+
+doctor.get("/case/:id", async (c) => {
+  const id = c.req.param("id");
+  const pendingCase = await getPendingCase(c.env.PARTNERS, id);
+  if (!pendingCase) return c.text("Case not found", 404);
+  return c.html(renderCaseDetail(pendingCase));
+});
+
+// ─── Approve ─────────────────────────────────────────────────
+
+doctor.post("/case/:id/approve", async (c) => {
+  const id = c.req.param("id");
+  const pendingCase = await getPendingCase(c.env.PARTNERS, id);
+  if (!pendingCase) return c.json({ error: "Case not found" }, 404);
+  if (pendingCase.status !== "pending") return c.json({ error: "Case already resolved" }, 400);
+
+  // Check expiry
+  const now = new Date();
+  const expires = new Date(pendingCase.authExpiresAt);
+  if (now > expires) return c.json({ error: "Payment authorization has expired. The patient will need to resubmit." }, 400);
+
+  const partner = await getPartner(c.env.PARTNERS, pendingCase.partnerSlug);
+  if (!partner) return c.json({ error: "Partner not found" }, 500);
+
+  // 1. Capture payment
+  if (c.env.STRIPE_BYPASS !== "true") {
+    const stripe = createStripeClient(c.env.STRIPE_SECRET_KEY);
+    try {
+      await capturePayment(stripe, pendingCase.paymentIntentId, partner);
+    } catch (err) {
+      const msg = String(err);
+      if (msg.includes("expired") || msg.includes("canceled") || msg.includes("cancelled")) {
+        return c.json({ error: "Payment authorization has expired or was cancelled. The patient will need to resubmit." }, 400);
+      }
+      return c.json({ error: `Payment capture failed: ${msg}` }, 500);
+    }
+
+    // 2. Create subscription if applicable
+    if (pendingCase.subscriptionPrice > 0 && pendingCase.paymentMethodId) {
+      try {
+        await createSubscription(
+          stripe,
+          partner,
+          pendingCase.patientEmail,
+          pendingCase.paymentMethodId,
+          pendingCase.subscriptionPrice,
+          pendingCase.serviceType
+        );
+      } catch (err) {
+        console.error("Subscription creation failed (payment was captured):", err);
+      }
+    }
+  }
+
+  // 3. Email patient
+  try {
+    await sendEmail(c.env.RESEND_API_KEY, {
+      to: pendingCase.patientEmail,
+      subject: `Your ${pendingCase.serviceName} prescription has been approved!`,
+      html: buildPatientApprovedEmail({
+        patientName: pendingCase.patientName,
+        serviceName: pendingCase.serviceName,
+        partnerName: pendingCase.partnerName,
+      }),
+    });
+  } catch (err) {
+    console.error("Approved email failed:", err);
+  }
+
+  // 4. Update case
+  pendingCase.status = "approved";
+  pendingCase.resolvedAt = new Date().toISOString();
+  await savePendingCase(c.env.PARTNERS, pendingCase);
+
+  return c.json({ success: true });
+});
+
+// ─── Deny ────────────────────────────────────────────────────
+
+doctor.post("/case/:id/deny", async (c) => {
+  const id = c.req.param("id");
+  const pendingCase = await getPendingCase(c.env.PARTNERS, id);
+  if (!pendingCase) return c.json({ error: "Case not found" }, 404);
+  if (pendingCase.status !== "pending") return c.json({ error: "Case already resolved" }, 400);
+
+  const body = await c.req.json();
+  const reason = body.reason || "No reason provided";
+
+  const partner = await getPartner(c.env.PARTNERS, pendingCase.partnerSlug);
+
+  // 1. Cancel payment intent
+  if (c.env.STRIPE_BYPASS !== "true") {
+    const stripe = createStripeClient(c.env.STRIPE_SECRET_KEY);
+    try {
+      await stripe.paymentIntents.cancel(
+        pendingCase.paymentIntentId,
+        partner?.paymentMode === "direct" && partner?.stripeDirectAccountId
+          ? { stripeAccount: partner.stripeDirectAccountId }
+          : undefined
+      );
+    } catch (err) {
+      console.error("Payment cancellation failed (may already be expired):", err);
+    }
+  }
+
+  // 2. Email patient
+  try {
+    await sendEmail(c.env.RESEND_API_KEY, {
+      to: pendingCase.patientEmail,
+      subject: `About your ${pendingCase.serviceName} request`,
+      html: buildPatientDeniedEmail({
+        patientName: pendingCase.patientName,
+        serviceName: pendingCase.serviceName,
+        partnerName: pendingCase.partnerName,
+        reason,
+      }),
+    });
+  } catch (err) {
+    console.error("Denied email failed:", err);
+  }
+
+  // 3. Update case
+  pendingCase.status = "denied";
+  pendingCase.denyReason = reason;
+  pendingCase.resolvedAt = new Date().toISOString();
+  await savePendingCase(c.env.PARTNERS, pendingCase);
+
+  return c.json({ success: true });
+});
+
+// ─── Generate SOAP Note (Claude API) ────────────────────────
+
+doctor.post("/case/:id/generate-soap", async (c) => {
+  const id = c.req.param("id");
+  const pendingCase = await getPendingCase(c.env.PARTNERS, id);
+  if (!pendingCase) return c.json({ error: "Case not found" }, 404);
+
+  // Build the prompt from all available patient data
+  const d = pendingCase.dosingResult;
+  const answersText = Object.entries(pendingCase.answers || {})
+    .map(([k, v]) => `- ${k}: ${Array.isArray(v) ? v.join(", ") : String(v)}`)
+    .join("\n");
+
+  const dosingText = d ? [
+    d.startingDose ? `Starting Dose: ${d.startingDose}` : null,
+    d.maxDose ? `Max Dose: ${d.maxDose}` : null,
+    `Route: ${d.route}`,
+    `Frequency: ${d.frequency}`,
+    d.titrationSchedule.length > 0 ? `Titration: ${d.titrationSchedule.map(s => `${s.dose} (${s.durationWeeks ? s.durationWeeks + " weeks" : "maintenance"})`).join(" → ")}` : null,
+    d.providerNotes.length > 0 ? `Provider Notes: ${d.providerNotes.join("; ")}` : null,
+    d.disqualifiers.length > 0 ? `Flags: ${d.disqualifiers.map(q => `${q.field}: ${q.reason} (${q.blockType})`).join("; ")}` : null,
+    d.labRequirements.length > 0 ? `Lab Requirements: ${d.labRequirements.map(l => `${l.panel} (${l.met ? "met" : "not met"})`).join("; ")}` : null,
+  ].filter(Boolean).join("\n") : "No dosing data available";
+
+  const prompt = `You are a medical documentation assistant. Generate a SOAP note for the following telehealth encounter. This is an asynchronous telehealth visit for prescription approval.
+
+PATIENT:
+- Name: ${pendingCase.patientName}
+- DOB: ${pendingCase.patientDob}
+- State: ${pendingCase.patientState}
+- Gender: (from intake)
+
+SERVICE: ${pendingCase.serviceName} (${pendingCase.serviceType})
+VISIT TYPE: ${pendingCase.visitType}
+PARTNER: ${pendingCase.partnerName}
+
+INTAKE ANSWERS:
+${answersText}
+
+DOSING EVALUATION:
+${dosingText}
+
+Generate a structured SOAP note with these four sections. Be clinically accurate and concise. Use the intake answers as the basis for Subjective. For Objective, note this is an asynchronous telehealth visit — document what data is available (BMI, reported vitals, lab status). For Assessment, provide the clinical reasoning based on the intake data and dosing evaluation. For Plan, include the specific medication, dose, frequency, and any follow-up requirements.
+
+Return ONLY valid JSON in this exact format:
+{
+  "subjective": "...",
+  "objective": "...",
+  "assessment": "...",
+  "plan": "..."
+}`;
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": c.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1500,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      return c.json({ error: `Claude API error: ${res.status} ${errText}` }, 500);
+    }
+
+    const result = (await res.json()) as { content: Array<{ type: string; text: string }> };
+    const text = result.content?.[0]?.text || "";
+
+    // Parse JSON from response (handle markdown code fences)
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return c.json({ error: "Failed to parse SOAP note from AI response" }, 500);
+
+    const soapNote = JSON.parse(jsonMatch[0]);
+    return c.json({ success: true, soapNote });
+  } catch (err) {
+    return c.json({ error: `SOAP generation failed: ${String(err)}` }, 500);
+  }
+});
+
+// ─── Save SOAP Note to Healthie ─────────────────────────────
+
+async function getSoapTemplate(kv: KVNamespace, healthieClient: ReturnType<typeof createHealthieClient>): Promise<SoapTemplate> {
+  const existing = await kv.get("soap-template", "json") as SoapTemplate | null;
+  if (existing) return existing;
+
+  // Auto-create template in Healthie on first use, cache in KV
+  const template = await createSoapTemplate(healthieClient);
+  await kv.put("soap-template", JSON.stringify(template));
+  return template;
+}
+
+doctor.post("/case/:id/save-soap", async (c) => {
+  const id = c.req.param("id");
+  const pendingCase = await getPendingCase(c.env.PARTNERS, id);
+  if (!pendingCase) return c.json({ error: "Case not found" }, 404);
+  if (!pendingCase.healthiePatientId) return c.json({ error: "No Healthie patient ID on this case" }, 400);
+
+  const body = await c.req.json();
+  const { subjective, objective, assessment, plan } = body;
+  if (!subjective || !objective || !assessment || !plan) {
+    return c.json({ error: "All four SOAP sections are required" }, 400);
+  }
+
+  try {
+    const healthie = createHealthieClient(c.env.HEALTHIE_API_KEY);
+    const template = await getSoapTemplate(c.env.PARTNERS, healthie);
+
+    const { noteId } = await saveSoapNote(healthie, template, {
+      patientId: pendingCase.healthiePatientId,
+      subjective,
+      objective,
+      assessment,
+      plan,
+    });
+
+    pendingCase.soapNoteId = noteId;
+    await savePendingCase(c.env.PARTNERS, pendingCase);
+
+    return c.json({ success: true, noteId });
+  } catch (err) {
+    return c.json({ error: `Failed to save to Healthie: ${String(err)}` }, 500);
+  }
+});
+
+// ============================================================
+// HTML
+// ============================================================
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function timeSince(dateStr: string): string {
+  const ms = Date.now() - new Date(dateStr).getTime();
+  const hours = Math.floor(ms / 3600000);
+  if (hours < 1) return "< 1 hour ago";
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function expiryBadge(expiresAt: string): string {
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  const hours = Math.floor(ms / 3600000);
+  if (hours <= 0) return `<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fecaca;color:#991b1b">EXPIRED</span>`;
+  if (hours <= 48) return `<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fef3c7;color:#92400e">${hours}h left</span>`;
+  const days = Math.floor(hours / 24);
+  return `<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534">${days}d left</span>`;
+}
+
+const LOGIN_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Doctor Portal - My Orbit Health</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #f8f9fa; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .login-card { background: #fff; border-radius: 12px; padding: 40px; width: 100%; max-width: 400px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    h1 { font-size: 24px; margin-bottom: 8px; }
+    .subtitle { color: #666; font-size: 14px; margin-bottom: 32px; }
+    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; margin-top: 16px; color: #333; }
+    input { width: 100%; padding: 12px 14px; border: 1.5px solid #d9d9d9; border-radius: 8px; font-size: 14px; font-family: inherit; }
+    input:focus { outline: none; border-color: #4F46E5; box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
+    button { width: 100%; padding: 14px; background: #4F46E5; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 24px; font-family: inherit; }
+    button:hover { background: #4338CA; }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <h1>Doctor Portal</h1>
+    <p class="subtitle">My Orbit Health — Review &amp; Approve Prescriptions</p>
+    <form method="POST" action="/doctor/auth">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" required placeholder="Enter password">
+      <button type="submit">Sign In</button>
+    </form>
+  </div>
+</body>
+</html>`;
+
+function statusBadge(status: string): string {
+  const colors: Record<string, { bg: string; text: string }> = {
+    pending: { bg: "#fef3c7", text: "#92400e" },
+    approved: { bg: "#dcfce7", text: "#166534" },
+    denied: { bg: "#fecaca", text: "#991b1b" },
+  };
+  const c = colors[status] || colors.pending;
+  return `<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${c.bg};color:${c.text}">${status.toUpperCase()}</span>`;
+}
+
+function renderCaseCard(c: import("../lib/types").PendingCase): string {
+  const expired = c.status === "pending" && new Date(c.authExpiresAt).getTime() < Date.now();
+  return `
+    <a href="/doctor/case/${encodeURIComponent(c.paymentIntentId)}" style="text-decoration:none;color:inherit;display:block">
+      <div style="background:#fff;border:1px solid #e8e8e8;border-radius:10px;padding:20px;${expired ? "opacity:0.7;" : ""}">
+        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px">
+          <div>
+            <p style="font-size:16px;font-weight:700;margin:0">${escapeHtml(c.patientName)}</p>
+            <p style="font-size:13px;color:#888;margin:4px 0 0 0">${escapeHtml(c.serviceName)} · ${escapeHtml(c.partnerName)}</p>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            ${statusBadge(c.status)}
+            ${c.status === "pending" ? expiryBadge(c.authExpiresAt) : ""}
+          </div>
+        </div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap">
+          <div style="font-size:12px;color:#666"><strong>State:</strong> ${escapeHtml(c.patientState)}</div>
+          <div style="font-size:12px;color:#666"><strong>Visit:</strong> ${escapeHtml(c.visitType)}</div>
+          <div style="font-size:12px;color:#666"><strong>Charge:</strong> $${c.chargeAmount}</div>
+          <div style="font-size:12px;color:#666"><strong>${c.resolvedAt ? "Resolved" : "Submitted"}:</strong> ${timeSince(c.resolvedAt || c.createdAt)}</div>
+        </div>
+        ${c.status === "pending" && c.dosingResult?.softReviewRequired ? '<div style="margin-top:8px;font-size:11px;font-weight:600;color:#f59e0b">⚠ Requires Provider Review</div>' : ""}
+        ${c.status === "pending" && c.dosingResult?.startingDose ? `<div style="margin-top:4px;font-size:12px;color:#666"><strong>Dose:</strong> ${escapeHtml(c.dosingResult.startingDose)}</div>` : ""}
+        ${c.status === "denied" && c.denyReason ? `<div style="margin-top:8px;font-size:12px;color:#991b1b"><strong>Reason:</strong> ${escapeHtml(c.denyReason)}</div>` : ""}
+      </div>
+    </a>`;
+}
+
+function renderDashboard(cases: import("../lib/types").PendingCase[]): string {
+  const pending = cases.filter(c => c.status === "pending");
+  const approved = cases.filter(c => c.status === "approved");
+  const denied = cases.filter(c => c.status === "denied");
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Doctor Portal - My Orbit Health</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #f8f9fa; color: #1a1a2e; }
+    .header { background: #fff; border-bottom: 1px solid #e8e8e8; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; }
+    .header h1 { font-size: 20px; }
+    .container { max-width: 800px; margin: 0 auto; padding: 32px; }
+    .grid { display: grid; gap: 12px; }
+    a.logout { color: #888; font-size: 13px; text-decoration: none; }
+    .empty { text-align: center; padding: 40px; color: #888; font-size: 14px; }
+    .stats { display: flex; gap: 12px; margin-bottom: 24px; }
+    .stat { background: #fff; border: 1px solid #e8e8e8; border-radius: 10px; padding: 16px 20px; flex: 1; text-align: center; }
+    .stat .val { font-size: 28px; font-weight: 700; }
+    .stat .lbl { font-size: 12px; color: #888; margin-top: 2px; }
+    .tabs { display: flex; gap: 0; margin-bottom: 20px; border-bottom: 2px solid #e8e8e8; }
+    .tab { padding: 10px 20px; font-size: 14px; font-weight: 600; color: #888; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab.active { color: #4F46E5; border-bottom-color: #4F46E5; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Doctor Portal <span style="font-size:12px;color:#888">My Orbit Health</span></h1>
+    <a class="logout" href="/doctor/login">Logout</a>
+  </div>
+  <div class="container">
+    <div class="stats">
+      <div class="stat"><div class="val" style="color:#f59e0b">${pending.length}</div><div class="lbl">Pending Review</div></div>
+      <div class="stat"><div class="val" style="color:#22c55e">${approved.length}</div><div class="lbl">Approved</div></div>
+      <div class="stat"><div class="val" style="color:#dc2626">${denied.length}</div><div class="lbl">Denied</div></div>
+      <div class="stat"><div class="val">${cases.length}</div><div class="lbl">Total</div></div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('pending')">Pending (${pending.length})</div>
+      <div class="tab" onclick="switchTab('approved')">Approved (${approved.length})</div>
+      <div class="tab" onclick="switchTab('denied')">Denied (${denied.length})</div>
+      <div class="tab" onclick="switchTab('all')">All (${cases.length})</div>
+    </div>
+
+    <div id="tab-pending" class="tab-content active">
+      ${pending.length > 0
+        ? `<div class="grid">${pending.map(renderCaseCard).join("")}</div>`
+        : '<div class="empty">No cases pending review.</div>'}
+    </div>
+    <div id="tab-approved" class="tab-content">
+      ${approved.length > 0
+        ? `<div class="grid">${approved.map(renderCaseCard).join("")}</div>`
+        : '<div class="empty">No approved cases yet.</div>'}
+    </div>
+    <div id="tab-denied" class="tab-content">
+      ${denied.length > 0
+        ? `<div class="grid">${denied.map(renderCaseCard).join("")}</div>`
+        : '<div class="empty">No denied cases.</div>'}
+    </div>
+    <div id="tab-all" class="tab-content">
+      ${cases.length > 0
+        ? `<div class="grid">${cases.map(renderCaseCard).join("")}</div>`
+        : '<div class="empty">No cases yet.</div>'}
+    </div>
+  </div>
+
+  <script>
+    function switchTab(name) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById('tab-' + name).classList.add('active');
+    }
+  </script>
+</body>
+</html>`;
+}
+
+function renderCaseDetail(c: import("../lib/types").PendingCase): string {
+  const expired = new Date(c.authExpiresAt).getTime() < Date.now();
+
+  // Build dosing section
+  let dosingHtml = "";
+  if (c.dosingResult) {
+    const d = c.dosingResult;
+    dosingHtml = `
+      <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:16px;margin-bottom:20px">
+        <h3 style="font-size:14px;color:#0369a1;margin:0 0 12px 0">Dosing Recommendation</h3>
+        ${d.softReviewRequired ? '<div style="display:inline-block;background:#f59e0b20;color:#f59e0b;font-size:12px;font-weight:600;padding:2px 8px;border-radius:4px;margin-bottom:12px">Requires Provider Review</div>' : '<div style="display:inline-block;background:#22c55e20;color:#22c55e;font-size:12px;font-weight:600;padding:2px 8px;border-radius:4px;margin-bottom:12px">Eligible — Decision Support</div>'}
+        <table style="width:100%;border-collapse:collapse">
+          ${d.startingDose ? `<tr><td style="padding:4px 0;color:#666;font-size:13px;width:140px">Starting Dose</td><td style="padding:4px 0;font-size:13px;font-weight:600">${escapeHtml(d.startingDose)}</td></tr>` : ""}
+          ${d.maxDose ? `<tr><td style="padding:4px 0;color:#666;font-size:13px">Max Dose</td><td style="padding:4px 0;font-size:13px">${escapeHtml(d.maxDose)}</td></tr>` : ""}
+          <tr><td style="padding:4px 0;color:#666;font-size:13px">Route</td><td style="padding:4px 0;font-size:13px">${escapeHtml(d.route)}</td></tr>
+          <tr><td style="padding:4px 0;color:#666;font-size:13px">Frequency</td><td style="padding:4px 0;font-size:13px">${escapeHtml(d.frequency)}</td></tr>
+        </table>
+        ${d.titrationSchedule.length > 0 ? `
+          <p style="font-size:13px;font-weight:600;color:#0369a1;margin:12px 0 6px 0">Titration Schedule</p>
+          <ol style="margin:0;padding-left:20px">${d.titrationSchedule.map(s => {
+            const gate = s.gate ? ' <span style="color:#dc2626;font-weight:600">[PROVIDER GATE]</span>' : "";
+            const dur = s.durationWeeks ? ` (${s.durationWeeks} weeks)` : " (maintenance)";
+            return `<li style="font-size:12px;color:#333;margin-bottom:4px">${escapeHtml(s.dose)}${dur} — ${escapeHtml(s.label)}${gate}</li>`;
+          }).join("")}</ol>` : ""}
+        ${d.providerNotes.length > 0 ? `
+          <p style="font-size:13px;font-weight:600;color:#0369a1;margin:12px 0 6px 0">Provider Notes</p>
+          <ul style="margin:0;padding-left:20px">${d.providerNotes.map(n => `<li style="font-size:12px;color:#333;margin-bottom:4px">${escapeHtml(n)}</li>`).join("")}</ul>` : ""}
+        ${d.disqualifiers.filter(q => q.blockType === "soft_review" || q.blockType === "hard_pending_review").length > 0 ? `
+          <p style="font-size:13px;font-weight:600;color:#dc2626;margin:12px 0 6px 0">Review Flags</p>
+          <ul style="margin:0;padding-left:20px">${d.disqualifiers.filter(q => q.blockType === "soft_review" || q.blockType === "hard_pending_review").map(q => `<li style="font-size:12px;color:#991b1b;margin-bottom:4px">${escapeHtml(q.field)}: ${escapeHtml(q.reason)}</li>`).join("")}</ul>` : ""}
+      </div>`;
+  }
+
+  // Build answers section
+  const answerRows = Object.entries(c.answers || {}).map(([key, val]) => {
+    const display = Array.isArray(val) ? val.join(", ") : String(val);
+    return `<tr><td style="padding:6px 0;color:#666;font-size:13px;width:200px;vertical-align:top">${escapeHtml(key)}</td><td style="padding:6px 0;font-size:13px">${escapeHtml(display)}</td></tr>`;
+  }).join("");
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(c.patientName)} - Doctor Portal</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #f8f9fa; color: #1a1a2e; }
+    .header { background: #fff; border-bottom: 1px solid #e8e8e8; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; }
+    .back { color: #4F46E5; text-decoration: none; font-size: 14px; }
+    .container { max-width: 800px; margin: 0 auto; padding: 32px; }
+    .card { background: #fff; border-radius: 10px; border: 1px solid #e8e8e8; padding: 24px; margin-bottom: 20px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; border: none; cursor: pointer; font-family: inherit; }
+    .btn:hover { opacity: 0.9; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-approve { background: #22c55e; color: #fff; }
+    .btn-deny { background: #dc2626; color: #fff; }
+    textarea { width: 100%; padding: 12px; border: 1.5px solid #d9d9d9; border-radius: 8px; font-size: 14px; font-family: inherit; resize: vertical; }
+    textarea:focus { outline: none; border-color: #4F46E5; }
+    .toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; border-radius: 8px; font-size: 14px; display: none; z-index: 100; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1 style="font-size:20px">${escapeHtml(c.patientName)}</h1>
+    <a class="back" href="/doctor">&larr; All Cases</a>
+  </div>
+  <div class="container">
+    <!-- Patient Info -->
+    <div class="card">
+      <h3 style="font-size:16px;margin-bottom:16px">Patient Information</h3>
+      <table style="width:100%;border-collapse:collapse">
+        <tr><td style="padding:6px 0;color:#666;font-size:13px;width:140px">Name</td><td style="padding:6px 0;font-size:14px;font-weight:600">${escapeHtml(c.patientName)}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;font-size:13px">Email</td><td style="padding:6px 0;font-size:14px">${escapeHtml(c.patientEmail)}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;font-size:13px">Phone</td><td style="padding:6px 0;font-size:14px">${escapeHtml(c.patientPhone)}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;font-size:13px">State</td><td style="padding:6px 0;font-size:14px;font-weight:600">${escapeHtml(c.patientState)}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;font-size:13px">DOB</td><td style="padding:6px 0;font-size:14px">${escapeHtml(c.patientDob)}</td></tr>
+        ${c.healthiePatientId ? `<tr><td style="padding:6px 0;color:#666;font-size:13px">Healthie ID</td><td style="padding:6px 0;font-size:14px">${escapeHtml(c.healthiePatientId)}</td></tr>` : ""}
+      </table>
+    </div>
+
+    <!-- Service & Payment -->
+    <div class="card">
+      <h3 style="font-size:16px;margin-bottom:16px">Service &amp; Payment</h3>
+      <table style="width:100%;border-collapse:collapse">
+        <tr><td style="padding:6px 0;color:#666;font-size:13px;width:140px">Service</td><td style="padding:6px 0;font-size:14px">${escapeHtml(c.serviceName)}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;font-size:13px">Partner</td><td style="padding:6px 0;font-size:14px">${escapeHtml(c.partnerName)}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;font-size:13px">Visit Type</td><td style="padding:6px 0;font-size:14px;font-weight:600">${escapeHtml(c.visitType)}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;font-size:13px">Charge Amount</td><td style="padding:6px 0;font-size:14px;font-weight:600">$${c.chargeAmount}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;font-size:13px">Monthly Sub</td><td style="padding:6px 0;font-size:14px">${c.subscriptionPrice > 0 ? `$${c.subscriptionPrice}/mo` : "None"}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;font-size:13px">Auth Expiry</td><td style="padding:6px 0;font-size:14px">${expiryBadge(c.authExpiresAt)} ${new Date(c.authExpiresAt).toLocaleDateString()}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;font-size:13px">Submitted</td><td style="padding:6px 0;font-size:14px">${new Date(c.createdAt).toLocaleString()}</td></tr>
+      </table>
+    </div>
+
+    <!-- Dosing -->
+    ${dosingHtml}
+
+    <!-- Intake Answers -->
+    <div class="card">
+      <h3 style="font-size:16px;margin-bottom:16px">Intake Answers</h3>
+      <table style="width:100%;border-collapse:collapse">${answerRows}</table>
+    </div>
+
+    <!-- Actions -->
+    <div class="card">
+      ${c.status === "pending" ? `
+        <h3 style="font-size:16px;margin-bottom:16px">Decision</h3>
+        ${expired ? '<div style="background:#fecaca;border-radius:8px;padding:12px 16px;margin-bottom:16px"><p style="font-size:13px;font-weight:600;color:#991b1b;margin:0">Payment authorization has expired. The patient will need to resubmit their intake to proceed.</p></div>' : ""}
+
+        <!-- SOAP Note -->
+        <div style="margin-bottom:20px">
+          ${c.soapNoteId
+            ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+                <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534">SOAP NOTE SAVED</span>
+                <span style="font-size:12px;color:#888">Healthie Note ID: ${escapeHtml(c.soapNoteId)}</span>
+              </div>`
+            : ""}
+          <button class="btn" id="btnGenerateSoap" onclick="generateSoap()" style="background:#4F46E5;color:#fff;width:100%" ${expired ? "disabled" : ""}>
+            ${c.soapNoteId ? "Regenerate SOAP Note" : "Generate SOAP Note"}
+          </button>
+        </div>
+
+        <div style="margin-bottom:16px">
+          <button class="btn btn-approve" id="btnApprove" onclick="approveCase()" ${expired || !c.soapNoteId ? "disabled" : ""}>Approve — Charge $${c.chargeAmount}</button>
+          ${!c.soapNoteId ? '<p style="font-size:12px;color:#888;margin-top:6px">Generate and save a SOAP note before approving</p>' : ""}
+        </div>
+        <div>
+          <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:#333">Deny Reason</label>
+          <textarea id="denyReason" rows="3" placeholder="Explain why this patient is not eligible..."></textarea>
+          <button class="btn btn-deny" onclick="denyCase()" style="margin-top:8px">Deny — Cancel Authorization</button>
+        </div>
+      ` : c.status === "approved" ? `
+        <h3 style="font-size:16px;margin-bottom:16px;color:#22c55e">Approved</h3>
+        <p style="font-size:14px;color:#666">This prescription was approved on ${c.resolvedAt ? new Date(c.resolvedAt).toLocaleString() : "—"}.</p>
+        <p style="font-size:14px;color:#666;margin-top:8px">Payment of $${c.chargeAmount} was captured and the patient was notified.</p>
+        ${c.soapNoteId ? `<p style="font-size:12px;color:#888;margin-top:8px">SOAP Note ID: ${escapeHtml(c.soapNoteId)}</p>` : ""}
+      ` : `
+        <h3 style="font-size:16px;margin-bottom:16px;color:#dc2626">Denied</h3>
+        <p style="font-size:14px;color:#666">This prescription was denied on ${c.resolvedAt ? new Date(c.resolvedAt).toLocaleString() : "—"}.</p>
+        ${c.denyReason ? `<div style="background:#f8f9fa;border-radius:8px;padding:12px 16px;margin-top:12px"><p style="font-size:13px;font-weight:600;color:#666;margin:0 0 4px 0">Reason</p><p style="font-size:14px;color:#333;margin:0">${escapeHtml(c.denyReason)}</p></div>` : ""}
+        <p style="font-size:14px;color:#666;margin-top:8px">Payment authorization was cancelled and the patient was notified.</p>
+      `}
+    </div>
+
+    <!-- SOAP Note Modal -->
+    <div id="soapModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;overflow-y:auto">
+      <div style="max-width:700px;margin:40px auto;background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+        <div style="padding:20px 24px;border-bottom:1px solid #e8e8e8;display:flex;justify-content:space-between;align-items:center">
+          <h2 style="font-size:18px;margin:0">SOAP Note</h2>
+          <button onclick="closeSoapModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#888">&times;</button>
+        </div>
+        <div style="padding:24px">
+          <div style="margin-bottom:20px">
+            <label style="display:block;font-size:13px;font-weight:700;color:#333;margin-bottom:6px">S — Subjective</label>
+            <textarea id="soapS" rows="5" style="width:100%;padding:12px;border:1.5px solid #d9d9d9;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
+          </div>
+          <div style="margin-bottom:20px">
+            <label style="display:block;font-size:13px;font-weight:700;color:#333;margin-bottom:6px">O — Objective</label>
+            <textarea id="soapO" rows="5" style="width:100%;padding:12px;border:1.5px solid #d9d9d9;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
+          </div>
+          <div style="margin-bottom:20px">
+            <label style="display:block;font-size:13px;font-weight:700;color:#333;margin-bottom:6px">A — Assessment</label>
+            <textarea id="soapA" rows="5" style="width:100%;padding:12px;border:1.5px solid #d9d9d9;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
+          </div>
+          <div style="margin-bottom:20px">
+            <label style="display:block;font-size:13px;font-weight:700;color:#333;margin-bottom:6px">P — Plan</label>
+            <textarea id="soapP" rows="5" style="width:100%;padding:12px;border:1.5px solid #d9d9d9;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
+          </div>
+          <div style="display:flex;gap:12px;justify-content:flex-end">
+            <button onclick="generateSoap()" class="btn" style="background:#f3f4f6;color:#333">Regenerate</button>
+            <button onclick="closeSoapModal()" class="btn" style="background:#f3f4f6;color:#333">Cancel</button>
+            <button id="btnSaveSoap" onclick="saveSoapToHealthie()" class="btn" style="background:#4F46E5;color:#fff">Save to Healthie</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const CASE_ID = "${c.paymentIntentId.replace(/"/g, '\\"')}";
+    let soapNoteStatus = '${c.soapNoteId ? "saved" : "idle"}'; // idle | generating | ready | saving | saved
+
+    function showToast(msg, color) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.style.background = color || '#1a1a2e';
+      t.style.color = '#fff';
+      t.style.display = 'block';
+      setTimeout(() => t.style.display = 'none', 4000);
+    }
+
+    // ─── SOAP Note Functions ────────────────────────────
+    async function generateSoap() {
+      const btn = document.getElementById('btnGenerateSoap');
+      btn.disabled = true;
+      btn.textContent = 'Generating SOAP Note...';
+      soapNoteStatus = 'generating';
+
+      try {
+        const res = await fetch('/doctor/case/' + encodeURIComponent(CASE_ID) + '/generate-soap', { method: 'POST' });
+        const data = await res.json();
+        if (!data.success) {
+          showToast(data.error || 'Generation failed', '#dc2626');
+          btn.disabled = false;
+          btn.textContent = 'Generate SOAP Note';
+          soapNoteStatus = 'idle';
+          return;
+        }
+
+        // Fill the modal
+        document.getElementById('soapS').value = data.soapNote.subjective || '';
+        document.getElementById('soapO').value = data.soapNote.objective || '';
+        document.getElementById('soapA').value = data.soapNote.assessment || '';
+        document.getElementById('soapP').value = data.soapNote.plan || '';
+
+        soapNoteStatus = 'ready';
+        btn.disabled = false;
+        btn.textContent = 'Regenerate SOAP Note';
+
+        // Open modal
+        document.getElementById('soapModal').style.display = 'block';
+      } catch (err) {
+        showToast('Network error generating SOAP note', '#dc2626');
+        btn.disabled = false;
+        btn.textContent = 'Generate SOAP Note';
+        soapNoteStatus = 'idle';
+      }
+    }
+
+    function closeSoapModal() {
+      document.getElementById('soapModal').style.display = 'none';
+    }
+
+    async function saveSoapToHealthie() {
+      const btn = document.getElementById('btnSaveSoap');
+      const s = document.getElementById('soapS').value.trim();
+      const o = document.getElementById('soapO').value.trim();
+      const a = document.getElementById('soapA').value.trim();
+      const p = document.getElementById('soapP').value.trim();
+
+      if (!s || !o || !a || !p) {
+        showToast('All four SOAP sections are required', '#f59e0b');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+      soapNoteStatus = 'saving';
+
+      try {
+        const res = await fetch('/doctor/case/' + encodeURIComponent(CASE_ID) + '/save-soap', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subjective: s, objective: o, assessment: a, plan: p }),
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          soapNoteStatus = 'saved';
+          showToast('SOAP note saved to Healthie (ID: ' + data.noteId + ')', '#22c55e');
+          closeSoapModal();
+
+          // Enable the approve button
+          const approveBtn = document.getElementById('btnApprove');
+          if (approveBtn) approveBtn.disabled = false;
+
+          // Update the generate button text
+          document.getElementById('btnGenerateSoap').textContent = 'Regenerate SOAP Note';
+        } else {
+          showToast(data.error || 'Save failed', '#dc2626');
+          btn.disabled = false;
+          btn.textContent = 'Save to Healthie';
+          soapNoteStatus = 'ready';
+        }
+      } catch (err) {
+        showToast('Network error saving SOAP note', '#dc2626');
+        btn.disabled = false;
+        btn.textContent = 'Save to Healthie';
+        soapNoteStatus = 'ready';
+      }
+    }
+
+    // ─── Approve / Deny ─────────────────────────────────
+    async function approveCase() {
+      if (!confirm('Approve this prescription and charge the patient?')) return;
+      try {
+        const res = await fetch('/doctor/case/' + encodeURIComponent(CASE_ID) + '/approve', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Approved! Payment captured.', '#22c55e');
+          setTimeout(() => window.location.href = '/doctor', 1500);
+        } else {
+          showToast(data.error || 'Failed', '#dc2626');
+        }
+      } catch (err) {
+        showToast('Network error', '#dc2626');
+      }
+    }
+
+    async function denyCase() {
+      const reason = document.getElementById('denyReason').value.trim();
+      if (!reason) { showToast('Please enter a deny reason', '#f59e0b'); return; }
+      if (!confirm('Deny this prescription? The payment authorization will be cancelled.')) return;
+      try {
+        const res = await fetch('/doctor/case/' + encodeURIComponent(CASE_ID) + '/deny', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Denied. Patient notified.', '#dc2626');
+          setTimeout(() => window.location.href = '/doctor', 1500);
+        } else {
+          showToast(data.error || 'Failed', '#dc2626');
+        }
+      } catch (err) {
+        showToast('Network error', '#dc2626');
+      }
+    }
+  </script>
+</body>
+</html>`;
+}
+
+export default doctor;

@@ -1,3 +1,5 @@
+import type { DosingResult } from "./dosing";
+
 export interface Env {
   PARTNERS: KVNamespace;
   HEALTHIE_API_KEY: string;
@@ -9,6 +11,8 @@ export interface Env {
   ADMIN_PASSWORD_HASH: string;
   DOCTOR_HEALTHIE_ID: string;
   ENVIRONMENT: string;
+  STRIPE_BYPASS?: string;
+  ANTHROPIC_API_KEY: string;
 }
 
 export type ServiceId =
@@ -69,6 +73,45 @@ export interface PartnerConfig {
   platformFees?: Record<string, number>; // serviceId → flat dollar amount MOH keeps
   enabled: boolean;
   createdAt: string;
+}
+
+export interface PendingCase {
+  paymentIntentId: string;
+  status: "pending" | "approved" | "denied";
+
+  // Patient
+  patientName: string;
+  patientEmail: string;
+  patientPhone: string;
+  patientState: string;
+  patientDob: string;
+  healthiePatientId?: string;
+
+  // Service
+  partnerSlug: string;
+  partnerName: string;
+  serviceType: string;
+  serviceName: string;
+
+  // Payment
+  chargeAmount: number;
+  subscriptionPrice: number;
+  paymentMethodId: string;
+
+  // Clinical
+  visitType: string;
+  dosingResult?: DosingResult;
+  answers: Record<string, string | string[] | boolean>;
+  routingConstraints: string[];
+
+  // SOAP Note
+  soapNoteId?: string;
+
+  // Timestamps
+  createdAt: string;
+  authExpiresAt: string;
+  resolvedAt?: string;
+  denyReason?: string;
 }
 
 export interface IntakeSubmission {

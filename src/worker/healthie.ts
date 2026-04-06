@@ -80,9 +80,14 @@ export async function createCustomModuleForm(
         }
       }
     }
-  `, { name })) as { createCustomModuleForm: { customModuleForm: { id: string } } };
+  `, { name })) as { createCustomModuleForm: { customModuleForm: { id: string } | null; messages: Array<{ field: string; message: string }> } };
 
-  return data.createCustomModuleForm.customModuleForm.id;
+  const result = data.createCustomModuleForm;
+  if (!result.customModuleForm) {
+    const msgs = result.messages?.map(m => `${m.field}: ${m.message}`).join(", ") || "unknown error";
+    throw new Error(`Failed to create form "${name}": ${msgs}`);
+  }
+  return result.customModuleForm.id;
 }
 
 export interface CustomModuleInput {
@@ -138,9 +143,14 @@ export async function createCustomModule(
     options: module.options || "",
     required: module.required ?? true,
     index: module.index,
-  })) as { createCustomModule: { customModule: { id: string } } };
+  })) as { createCustomModule: { customModule: { id: string } | null; messages: Array<{ field: string; message: string }> } };
 
-  return data.createCustomModule.customModule.id;
+  const result = data.createCustomModule;
+  if (!result.customModule) {
+    const msgs = result.messages?.map(m => `${m.field}: ${m.message}`).join(", ") || "unknown error";
+    throw new Error(`Failed to create module "${module.label}" (index ${module.index}): ${msgs}`);
+  }
+  return result.customModule.id;
 }
 
 // ============================================================
@@ -407,6 +417,120 @@ export async function getProviders(client: HealthieClient): Promise<Array<{ id: 
 // Build full intake form in Healthie from ServiceDefinition
 // ============================================================
 
+// ============================================================
+// SOAP Notes (charting notes on patient chart)
+// ============================================================
+
+// SOAP note template: a CustomModuleForm with 4 textarea fields (S, O, A, P)
+// Created once via /admin/setup-soap-template, IDs stored in KV as "soap-template"
+
+export interface SoapTemplate {
+  formId: string;
+  subjectiveModuleId: string;
+  objectiveModuleId: string;
+  assessmentModuleId: string;
+  planModuleId: string;
+}
+
+export async function createSoapTemplate(client: HealthieClient): Promise<SoapTemplate> {
+  // Create charting form
+  const data = (await gql(client, `
+    mutation CreateSoapForm($name: String) {
+      createCustomModuleForm(input: { name: $name, use_for_charting: true }) {
+        customModuleForm { id }
+        messages { field message }
+      }
+    }
+  `, { name: "SOAP Note" })) as { createCustomModuleForm: { customModuleForm: { id: string } | null; messages: Array<{ field: string; message: string }> } };
+
+  const form = data.createCustomModuleForm;
+  if (!form.customModuleForm) {
+    throw new Error(`Failed to create SOAP form: ${form.messages?.map(m => `${m.field}: ${m.message}`).join(", ")}`);
+  }
+  const formId = form.customModuleForm.id;
+
+  // Create the 4 SOAP fields sequentially (Healthie rate-limits)
+  const fields = [
+    { label: "Subjective", sublabel: "Patient-reported symptoms and history", index: 0 },
+    { label: "Objective", sublabel: "Vitals, exam findings, labs", index: 1 },
+    { label: "Assessment", sublabel: "Diagnosis and clinical reasoning", index: 2 },
+    { label: "Plan", sublabel: "Treatment plan, prescriptions, follow-up", index: 3 },
+  ];
+
+  const moduleIds: string[] = [];
+  for (const f of fields) {
+    const id = await createCustomModule(client, formId, {
+      label: f.label,
+      sublabel: f.sublabel,
+      modType: "textarea",
+      required: true,
+      index: f.index,
+    });
+    moduleIds.push(id);
+  }
+
+  return {
+    formId,
+    subjectiveModuleId: moduleIds[0],
+    objectiveModuleId: moduleIds[1],
+    assessmentModuleId: moduleIds[2],
+    planModuleId: moduleIds[3],
+  };
+}
+
+export async function saveSoapNote(
+  client: HealthieClient,
+  template: SoapTemplate,
+  params: {
+    patientId: string;
+    subjective: string;
+    objective: string;
+    assessment: string;
+    plan: string;
+  }
+): Promise<{ noteId: string }> {
+  const formAnswers = [
+    { custom_module_id: template.subjectiveModuleId, answer: params.subjective, label: "Subjective" },
+    { custom_module_id: template.objectiveModuleId, answer: params.objective, label: "Objective" },
+    { custom_module_id: template.assessmentModuleId, answer: params.assessment, label: "Assessment" },
+    { custom_module_id: template.planModuleId, answer: params.plan, label: "Plan" },
+  ];
+
+  const data = (await gql(client, `
+    mutation CreateSoapNote(
+      $formId: String,
+      $patientId: String,
+      $formAnswers: [FormAnswerInput]
+    ) {
+      createFormAnswerGroup(input: {
+        custom_module_form_id: $formId,
+        user_id: $patientId,
+        finished: true,
+        form_answers: $formAnswers
+      }) {
+        form_answer_group {
+          id
+        }
+        messages {
+          field
+          message
+        }
+      }
+    }
+  `, {
+    formId: template.formId,
+    patientId: params.patientId,
+    formAnswers,
+  })) as { createFormAnswerGroup: { form_answer_group: { id: string } | null; messages: Array<{ field: string; message: string }> } };
+
+  const result = data.createFormAnswerGroup;
+  if (!result.form_answer_group) {
+    const msgs = result.messages?.map(m => `${m.field}: ${m.message}`).join(", ") || "unknown error";
+    throw new Error(`Failed to save SOAP note: ${msgs}`);
+  }
+  return { noteId: result.form_answer_group.id };
+}
+
 import { ServiceDefinition, FormStep } from "../lib/services";
 
 function stepToModType(step: FormStep): string {
@@ -434,45 +558,52 @@ export async function buildIntakeFormInHealthie(
   service: ServiceDefinition,
   influencerName: string
 ): Promise<{ formId: string; moduleIds: string[] }> {
-  // 1. Create the form
-  const formName = `${influencerName} - ${service.label} Intake`;
+  // 1. Create the form (Healthie has a 50-char limit on form names)
+  const shortName = influencerName.trim().slice(0, 18);
+  const ts = Date.now().toString(36).slice(-4);
+  let formName = `${shortName} ${service.id} ${ts}`;
+  if (formName.length > 50) formName = formName.slice(0, 50);
   const formId = await createCustomModuleForm(client, formName);
 
-  // 2. Add each step as a custom module
-  const moduleIds: string[] = [];
+  // 2. Build all module creation promises in parallel
+  interface ModuleTask {
+    index: number;
+    input: CustomModuleInput;
+  }
+
+  const tasks: ModuleTask[] = [];
   let index = 0;
 
   for (const step of service.intakeSteps) {
     if (step.type === "bmi") {
-      // BMI needs multiple fields
-      const weightId = await createCustomModule(client, formId, {
-        label: "Weight (pounds)",
-        sublabel: "Enter your current weight",
-        modType: "number",
-        required: true,
-        index: index++,
+      tasks.push({
+        index: index,
+        input: { label: "Weight (pounds)", sublabel: "Enter your current weight", modType: "number", required: true, index: index++ },
       });
-      moduleIds.push(weightId);
-
-      const heightId = await createCustomModule(client, formId, {
-        label: "Height (total inches)",
-        sublabel: "e.g., 5'10\" = 70 inches",
-        modType: "number",
-        required: true,
-        index: index++,
+      tasks.push({
+        index: index,
+        input: { label: "Height (total inches)", sublabel: "e.g., 5'10\" = 70 inches", modType: "number", required: true, index: index++ },
       });
-      moduleIds.push(heightId);
     } else {
-      const moduleId = await createCustomModule(client, formId, {
-        label: step.question,
-        sublabel: step.subtitle,
-        modType: stepToModType(step),
-        options: stepToOptions(step),
-        required: step.required !== false,
-        index: index++,
+      tasks.push({
+        index: index,
+        input: {
+          label: step.question,
+          sublabel: step.subtitle,
+          modType: stepToModType(step),
+          options: stepToOptions(step),
+          required: step.required !== false,
+          index: index++,
+        },
       });
-      moduleIds.push(moduleId);
     }
+  }
+
+  // Run sequentially — Healthie rate-limits parallel requests
+  const moduleIds: string[] = [];
+  for (const t of tasks) {
+    const id = await createCustomModule(client, formId, t.input);
+    moduleIds.push(id);
   }
 
   return { formId, moduleIds };
