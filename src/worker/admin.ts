@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import { Env, PartnerConfig, ServiceId } from "../lib/types";
 import { getPartner, savePartner, listPartners } from "../lib/kv";
+import { getServiceById } from "../lib/services";
+import { createHealthieClient, buildIntakeFormInHealthie } from "./healthie";
 
 const admin = new Hono<{ Bindings: Env }>();
 
@@ -142,6 +144,41 @@ admin.post("/partner/:slug/fees", async (c) => {
   partner.platformFees = body.fees || {};
   await savePartner(c.env.PARTNERS, partner);
   return c.json({ success: true });
+});
+
+// Repair missing Healthie forms for a partner
+// Use ?service=semaglutide to create one at a time (avoids worker timeout)
+// Without ?service, lists what's missing
+admin.post("/partner/:slug/repair-forms", async (c) => {
+  const partner = await getPartner(c.env.PARTNERS, c.req.param("slug"));
+  if (!partner) return c.json({ error: "Not found" }, 404);
+
+  const targetService = c.req.query("service");
+  const healthie = createHealthieClient(c.env.HEALTHIE_API_KEY);
+  const existing = partner.healthieFormIds || {};
+
+  // If no service specified, list what's missing
+  if (!targetService) {
+    const missing = partner.services
+      .filter(s => !existing[s.type])
+      .map(s => s.type);
+    return c.json({ missing, existing: Object.keys(existing) });
+  }
+
+  // Create form for one specific service
+  const serviceDef = getServiceById(targetService);
+  if (!serviceDef) return c.json({ error: `Unknown service: ${targetService}` }, 400);
+  if (existing[targetService]) return c.json({ error: `Form already exists for ${targetService}`, formId: existing[targetService] }, 400);
+
+  try {
+    const { formId } = await buildIntakeFormInHealthie(healthie, serviceDef, partner.businessName);
+    existing[targetService] = formId;
+    partner.healthieFormIds = existing;
+    await savePartner(c.env.PARTNERS, partner);
+    return c.json({ success: true, service: targetService, formId, allFormIds: existing });
+  } catch (err) {
+    return c.json({ error: String(err), service: targetService }, 500);
+  }
 });
 
 // ============================================================
@@ -446,6 +483,193 @@ function renderPartnerDetail(partner: PartnerConfig): string {
         getsEl.textContent = '$' + (initialPrice - fee);
       });
     });
+  </script>
+</body>
+</html>`;
+}
+
+// ============================================================
+// Task Board — Shubh's action items
+// ============================================================
+
+interface TaskItem {
+  id: string;
+  title: string;
+  description: string;
+  status: "pending" | "done";
+  completedAt?: string;
+  notes?: string;
+}
+
+const SHUBH_TASKS: Omit<TaskItem, "status" | "completedAt" | "notes">[] = [
+  {
+    id: "lab-vendor",
+    title: "Pick a lab vendor for at-home blood test kits",
+    description: "Contact these companies for B2B pricing quotes, then mark done and paste the best option:\n\n• imaware: sales@poweredbyimaware.com\n• Choose Health: assist@choosehealth.io / 202-505-6974\n• SiPhox Health: siphoxhealth.com/partner\n\nWe need an API to programmatically order at-home blood test kits when you approve a prescription. Tell them: ~18 services, hormone + metabolic panels, need API access and webhook for results.",
+  },
+  {
+    id: "stripe-account",
+    title: "Set up new Stripe account",
+    description: "Your previous Stripe account was closed. We need a new one so we can actually charge patients. Once you have it, paste the Secret Key, Publishable Key, and Webhook Secret here. We'll remove STRIPE_BYPASS and go live with real payments.",
+  },
+  {
+    id: "pharmacy-api",
+    title: "Get pharmacy API documentation",
+    description: "We need API docs from whichever pharmacy you're using for fulfillment so we can build the order lifecycle (prescribed → shipped → delivered). Paste a link to their docs or the contact info for their integration team.",
+  },
+  {
+    id: "test-soap-note",
+    title: "Test SOAP note on a real case",
+    description: "Go to /doctor, open a pending case, click 'Generate SOAP Note', review the note, edit if needed, then click 'Save to Healthie'. Verify the note appears on the patient's chart in Healthie. Report any issues here.",
+  },
+  {
+    id: "bloodwork-pricing",
+    title: "Decide on bloodwork pricing model",
+    description: "For services that require bloodwork (testosterone, estrogen systemic, etc.), should the blood test be:\n\n• Included in the service price (you absorb the cost)\n• A separate add-on charge to the patient\n• Required but patient arranges their own labs\n\nLet us know so we can build the checkout flow accordingly.",
+  },
+];
+
+admin.get("/tasks", async (c) => {
+  const stored = await c.env.PARTNERS.get("shubh-tasks", "json") as Record<string, { status: string; completedAt?: string; notes?: string }> | null;
+  const taskData = stored || {};
+
+  const tasks: TaskItem[] = SHUBH_TASKS.map(t => ({
+    ...t,
+    status: (taskData[t.id]?.status as "pending" | "done") || "pending",
+    completedAt: taskData[t.id]?.completedAt,
+    notes: taskData[t.id]?.notes,
+  }));
+
+  return c.html(renderTaskBoard(tasks));
+});
+
+admin.post("/tasks/:id", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json();
+  const stored = await c.env.PARTNERS.get("shubh-tasks", "json") as Record<string, { status: string; completedAt?: string; notes?: string }> | null || {};
+
+  stored[id] = {
+    status: body.status || "done",
+    completedAt: new Date().toISOString(),
+    notes: body.notes || "",
+  };
+
+  await c.env.PARTNERS.put("shubh-tasks", JSON.stringify(stored));
+  return c.json({ success: true });
+});
+
+// API endpoint so Bryan's Claude can check task status
+admin.get("/tasks/status", async (c) => {
+  const stored = await c.env.PARTNERS.get("shubh-tasks", "json") as Record<string, { status: string; completedAt?: string; notes?: string }> | null;
+  return c.json({ tasks: stored || {} });
+});
+
+function renderTaskBoard(tasks: TaskItem[]): string {
+  const pending = tasks.filter(t => t.status === "pending");
+  const done = tasks.filter(t => t.status === "done");
+
+  const taskCard = (t: TaskItem) => `
+    <div class="task-card ${t.status}" id="task-${t.id}">
+      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px">
+        <h3 style="font-size:16px;margin:0;flex:1">${t.title}</h3>
+        ${t.status === "done"
+          ? '<span style="background:#dcfce7;color:#166534;padding:2px 10px;border-radius:4px;font-size:12px;font-weight:600">DONE</span>'
+          : '<span style="background:#fef3c7;color:#92400e;padding:2px 10px;border-radius:4px;font-size:12px;font-weight:600">NEEDS YOU</span>'}
+      </div>
+      <p style="font-size:14px;color:#555;white-space:pre-line;margin:0 0 16px 0">${t.description}</p>
+      ${t.status === "pending" ? `
+        <div style="margin-top:12px">
+          <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:#333">Notes / API keys / links (optional)</label>
+          <textarea id="notes-${t.id}" rows="3" style="width:100%;padding:10px;border:1.5px solid #d9d9d9;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical" placeholder="Paste API keys, links, pricing info, or any notes here..."></textarea>
+          <button onclick="markDone('${t.id}')" style="margin-top:8px;padding:10px 24px;background:#22c55e;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Mark as Done</button>
+        </div>
+      ` : `
+        ${t.notes ? `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;margin-top:8px"><p style="font-size:12px;font-weight:600;color:#166534;margin:0 0 4px 0">Your notes:</p><p style="font-size:13px;color:#333;margin:0;white-space:pre-line">${t.notes}</p></div>` : ""}
+        ${t.completedAt ? `<p style="font-size:12px;color:#888;margin-top:8px">Completed ${new Date(t.completedAt).toLocaleDateString()}</p>` : ""}
+        <button onclick="markUndone('${t.id}')" style="margin-top:8px;padding:6px 16px;background:#f3f4f6;color:#666;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit">Undo</button>
+      `}
+    </div>`;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Action Items - My Orbit Health</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #f8f9fa; color: #1a1a2e; }
+    .header { background: #fff; border-bottom: 1px solid #e8e8e8; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; }
+    .header h1 { font-size: 20px; }
+    .container { max-width: 700px; margin: 0 auto; padding: 32px; }
+    .task-card { background: #fff; border: 1px solid #e8e8e8; border-radius: 10px; padding: 24px; margin-bottom: 16px; }
+    .task-card.pending { border-left: 4px solid #f59e0b; }
+    .task-card.done { border-left: 4px solid #22c55e; opacity: 0.8; }
+    .section-title { font-size: 14px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 1px; margin: 24px 0 12px 0; }
+    .progress { background: #e5e7eb; border-radius: 999px; height: 8px; margin-bottom: 24px; overflow: hidden; }
+    .progress-bar { background: #22c55e; height: 100%; border-radius: 999px; transition: width 0.3s; }
+    .toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; border-radius: 8px; font-size: 14px; display: none; z-index: 100; color: #fff; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Action Items <span style="font-size:12px;color:#888">My Orbit Health</span></h1>
+    <a href="/admin" style="color:#4F46E5;text-decoration:none;font-size:14px">&larr; Admin Panel</a>
+  </div>
+  <div class="container">
+    <p style="color:#555;font-size:15px;margin-bottom:8px">Hey Shubh — these are the items we need from you before we can keep building. Mark each one done when you have it and paste any relevant info in the notes.</p>
+    <div class="progress"><div class="progress-bar" style="width:${Math.round((done.length / tasks.length) * 100)}%"></div></div>
+    <p style="font-size:13px;color:#888;margin-bottom:24px">${done.length} of ${tasks.length} complete</p>
+
+    ${pending.length > 0 ? `<div class="section-title">Needs Your Attention</div>${pending.map(taskCard).join("")}` : ""}
+    ${done.length > 0 ? `<div class="section-title">Completed</div>${done.map(taskCard).join("")}` : ""}
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    function showToast(msg, color) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.style.background = color || '#1a1a2e';
+      t.style.display = 'block';
+      setTimeout(() => t.style.display = 'none', 3000);
+    }
+
+    async function markDone(id) {
+      const notes = document.getElementById('notes-' + id)?.value || '';
+      try {
+        const res = await fetch('/admin/tasks/' + id, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'done', notes }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Marked as done!', '#22c55e');
+          setTimeout(() => location.reload(), 800);
+        }
+      } catch (err) {
+        showToast('Failed to save', '#dc2626');
+      }
+    }
+
+    async function markUndone(id) {
+      try {
+        const res = await fetch('/admin/tasks/' + id, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'pending', notes: '' }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Reopened', '#f59e0b');
+          setTimeout(() => location.reload(), 800);
+        }
+      } catch (err) {
+        showToast('Failed to save', '#dc2626');
+      }
+    }
   </script>
 </body>
 </html>`;
