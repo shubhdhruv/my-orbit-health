@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Orbit Health — Partner Price List</title>
+
+<!-- OG / Link Preview -->
+<meta property="og:title" content="My Orbit Health — Partner Pricing">
+<meta property="og:description" content="Secure access to wholesale pricing for authorized partners.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="My Orbit Health — Partner Pricing">
+<meta name="twitter:description" content="Secure access to wholesale pricing for authorized partners.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    min-height: 100vh;
+    background: #fff;
+    color: #1a1a1a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+  }
+
+  .page {
+    width: 100%;
+    max-width: 520px;
+  }
+
+  /* ── Logo + Brand ── */
+  .brand {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+  .brand-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 28px;
+    text-decoration: none;
+  }
+  .brand-logo .orbit-icon {
+    width: 48px;
+    height: 48px;
+  }
+  .brand-logo .orbit-icon circle.outer {
+    fill: none;
+    stroke: #2563eb;
+    stroke-width: 2.5;
+  }
+  .brand-logo .orbit-icon circle.inner {
+    fill: #2563eb;
+  }
+  .brand-logo .brand-text {
+    font-size: 22px;
+    font-weight: 700;
+    color: #1a1a1a;
+    letter-spacing: -0.02em;
+  }
+  .brand-headline {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.03em;
+    color: #1a1a1a;
+    margin-bottom: 10px;
+  }
+  .brand-headline span { color: #2563eb; }
+  .brand-sub {
+    font-size: 15px;
+    font-weight: 400;
+    color: #777;
+    line-height: 1.6;
+    max-width: 420px;
+    margin: 0 auto;
+  }
+
+  /* ── Trust stats ── */
+  .trust-row {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    margin: 32px 0 40px;
+    padding: 20px 0;
+    border-top: 1px solid #eee;
+    border-bottom: 1px solid #eee;
+  }
+  .trust-stat { text-align: center; }
+  .trust-num {
+    font-size: 26px;
+    font-weight: 700;
+    color: #2563eb;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .trust-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 5px;
+  }
+
+  /* ── Login card ── */
+  .card {
+    background: #fafafa;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    padding: 36px;
+  }
+  .card h2 {
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: #1a1a1a;
+  }
+  .card .sub {
+    font-size: 14px;
+    color: #999;
+    margin-bottom: 28px;
+  }
+
+  label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #999;
+    margin-bottom: 7px;
+  }
+
+  input {
+    width: 100%;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    padding: 14px 16px;
+    color: #1a1a1a;
+    font-size: 15px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    margin-bottom: 18px;
+  }
+  input::placeholder { color: #bbb; }
+  input:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.10);
+  }
+
+  .btn {
+    width: 100%;
+    background: #2563eb;
+    border: none;
+    border-radius: 10px;
+    padding: 15px;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.25s;
+    letter-spacing: 0.02em;
+  }
+  .btn:hover {
+    background: #1d4ed8;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(37,99,235,0.22);
+  }
+  .btn:disabled { background: #ccc; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  .error {
+    background: #fff5f5;
+    border: 1px solid #ffcccc;
+    color: #cc3333;
+    padding: 12px 14px;
+    border-radius: 10px;
+    font-size: 14px;
+    margin-bottom: 18px;
+    display: none;
+  }
+
+  .divider {
+    height: 1px;
+    background: #e5e7eb;
+    margin: 24px 0;
+  }
+
+  .bottom-note {
+    text-align: center;
+    color: #aaa;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+
+  /* ── Mobile ── */
+  @media (max-width: 600px) {
+    body { padding: 32px 16px; }
+    .brand-logo .orbit-icon { width: 40px; height: 40px; }
+    .brand-logo .brand-text { font-size: 19px; }
+    .brand-headline { font-size: 24px; }
+    .brand-sub { font-size: 14px; }
+    .trust-row { gap: 20px; }
+    .trust-num { font-size: 22px; }
+    .card { padding: 28px 22px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <!-- Brand -->
+  <div class="brand">
+    <div class="brand-logo">
+      <svg class="orbit-icon" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+        <circle class="outer" cx="24" cy="24" r="20"/>
+        <circle class="inner" cx="24" cy="24" r="8"/>
+      </svg>
+      <span class="brand-text">My Orbit Health</span>
+    </div>
+    <h1 class="brand-headline">Partner Pricing Portal<br>with <span>Exclusive access</span></h1>
+    <p class="brand-sub">Secure access to wholesale pricing for authorized partners.</p>
+  </div>
+
+  <!-- Trust stats -->
+  <div class="trust-row">
+    <div class="trust-stat">
+      <div class="trust-num">200+</div>
+      <div class="trust-label">Products</div>
+    </div>
+    <div class="trust-stat">
+      <div class="trust-num">18</div>
+      <div class="trust-label">Protocols</div>
+    </div>
+    <div class="trust-stat">
+      <div class="trust-num">50</div>
+      <div class="trust-label">Nationwide</div>
+    </div>
+  </div>
+
+  <!-- Login -->
+  <div class="card">
+    <h2>Partner Sign In</h2>
+    <p class="sub">Access your exclusive pricing dashboard.</p>
+    <div class="error" id="error"></div>
+    <label>Username</label>
+    <input type="text" id="username" autocomplete="username" placeholder="Enter your username">
+    <label>Password</label>
+    <input type="password" id="password" autocomplete="current-password" placeholder="Enter your password">
+    <button class="btn" id="loginBtn" onclick="doLogin()">Sign In</button>
+    <div class="divider"></div>
+    <p class="bottom-note">Access requires authorization from My Orbit Health.</p>
+  </div>
+</div>
+
+<script>
+const API = '/price-list/api';
+
+// Check if already logged in
+(async () => {
+  const token = localStorage.getItem('moh_token');
+  if (!token) return;
+  try {
+    const r = await fetch(`${API}/verify`, { headers: { Authorization: `Bearer ${token}` } });
+    const d = await r.json();
+    if (d.valid) {
+      window.location.href = d.role === 'admin' ? 'admin/' : 'dashboard.html';
+    } else {
+      localStorage.removeItem('moh_token');
+    }
+  } catch(e) {}
+})();
+
+async function doLogin() {
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+  const btn = document.getElementById('loginBtn');
+  const err = document.getElementById('error');
+
+  if (!username || !password) {
+    err.textContent = 'Please enter your username and password.';
+    err.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Signing in...';
+  err.style.display = 'none';
+
+  try {
+    const r = await fetch(`${API}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const d = await r.json();
+
+    if (!r.ok) {
+      err.textContent = d.error || 'Login failed. Please try again.';
+      err.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Sign In';
+      return;
+    }
+
+    localStorage.setItem('moh_token', d.token);
+    localStorage.setItem('moh_name', d.name);
+    localStorage.setItem('moh_role', d.role);
+    if (d.tier) localStorage.setItem('moh_tier', d.tier);
+
+    window.location.href = d.role === 'admin' ? 'admin/' : 'dashboard.html';
+  } catch(e) {
+    err.textContent = 'Connection error. Please try again.';
+    err.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Sign In';
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+</script>
+</body>
+</html>

@@ -5,10 +5,14 @@ workers_dev = true
 
 [vars]
 ENVIRONMENT = "production"
+STRIPE_BYPASS = "true"
 
 [[kv_namespaces]]
 binding = "PARTNERS"
 id = "92bb2fea9284478ba3ce1438ca0898b3"
+
+[site]
+bucket = "./public"
 
 [[routes]]
 pattern = "onboard.myorbithealth.com/*"
