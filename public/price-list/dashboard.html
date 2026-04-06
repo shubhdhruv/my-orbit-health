@@ -289,13 +289,13 @@ let filtered = [];
 // Auth check
 (async () => {
   const token = localStorage.getItem('moh_token');
-  if (!token) { window.location.href = '/price-list/'; return; }
+  if (!token) { window.location.href = '/price-list'; return; }
   try {
     const r = await fetch(`${API}/verify`, { headers: { Authorization: `Bearer ${token}` } });
     const d = await r.json();
-    if (!d.valid) { window.location.href = '/price-list/'; return; }
+    if (!d.valid) { window.location.href = '/price-list'; return; }
     document.getElementById('userName').textContent = localStorage.getItem('moh_name') || d.name;
-  } catch(e) { window.location.href = '/price-list/'; }
+  } catch(e) { window.location.href = '/price-list'; }
 })();
 
 function switchTab(tab) {
@@ -448,7 +448,7 @@ async function logout() {
   localStorage.removeItem('moh_token');
   localStorage.removeItem('moh_name');
   localStorage.removeItem('moh_role');
-  window.location.href = '/price-list/';
+  window.location.href = '/price-list';
 }
 
 // Init

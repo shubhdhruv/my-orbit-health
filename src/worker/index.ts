@@ -64,11 +64,11 @@ app.get("/price-list/*", async (c, next) => {
   }
 });
 
-// Serve /price-list/ as index.html
-app.get("/price-list", async (c) => {
+// Clean URLs — serve .html files without extension
+async function serveStaticPage(c: any, htmlPath: string) {
   try {
     const url = new URL(c.req.url);
-    url.pathname = "/price-list/index.html";
+    url.pathname = htmlPath;
     const response = await getAssetFromKV(
       {
         request: new Request(url.toString(), c.req.raw),
@@ -83,7 +83,11 @@ app.get("/price-list", async (c) => {
   } catch {
     return c.text("Not found", 404);
   }
-});
+}
+
+app.get("/price-list", (c) => serveStaticPage(c, "/price-list/index.html"));
+app.get("/price-list/nda", (c) => serveStaticPage(c, "/price-list/nda.html"));
+app.get("/price-list/dashboard", (c) => serveStaticPage(c, "/price-list/dashboard.html"));
 
 // Health check
 app.get("/", (c) => {

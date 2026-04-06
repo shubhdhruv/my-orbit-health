@@ -225,7 +225,7 @@
     <span class="admin-badge">Admin Panel</span>
   </div>
   <div class="header-right">
-    <a href="/price-list/dashboard.html" class="btn-secondary">View Price List</a>
+    <a href="/price-list/dashboard" class="btn-secondary">View Price List</a>
     <button class="btn-secondary" onclick="logout()">Sign Out</button>
   </div>
 </div>
@@ -364,8 +364,8 @@ let allLogs = [];
   try {
     const r = await fetch(`${API}/verify`, { headers: { Authorization: `Bearer ${token}` } });
     const d = await r.json();
-    if (!d.valid || d.role !== 'admin') { window.location.href = '/price-list/'; return; }
-  } catch(e) { window.location.href = '/price-list/'; }
+    if (!d.valid || d.role !== 'admin') { window.location.href = '/price-list'; return; }
+  } catch(e) { window.location.href = '/price-list'; }
   loadUsers();
 })();
 
@@ -559,7 +559,7 @@ async function logout() {
   localStorage.removeItem('moh_token');
   localStorage.removeItem('moh_name');
   localStorage.removeItem('moh_role');
-  window.location.href = '/price-list/';
+  window.location.href = '/price-list';
 }
 
 document.getElementById('addUserModal').addEventListener('click', function(e) {
