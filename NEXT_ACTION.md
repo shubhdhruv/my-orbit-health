@@ -1,57 +1,43 @@
-# Next Action: Session 1 — Build medplum.ts + Smoke Test
+# Next Action: Session 2 — Dual-Write Integration
 
 ## Status
 - Phase 0 DONE: Medplum account created, credentials verified, secrets set
+- Phase 1 DONE: `medplum.ts` built (12 functions), healthcheck ALL PASS
 - BAA: In progress (Shubh emailing hello@medplum.com)
-- Plan tier: Developer (upgrade to Production before real patients)
 
-## This Session
-Build `src/worker/medplum.ts` and `/admin/medplum-healthcheck` smoke test endpoint.
+## What's Live
+- `/admin/medplum-healthcheck` — public endpoint, creates Org → Patient → Questionnaire → QR → Composition (SOAP), all pass
+- `src/worker/medplum.ts` — full FHIR client (token mgmt, all resource types)
+- Dual-write types on Env, PartnerConfig, PendingCase
 
-### medplum.ts Functions to Build
-Reference `src/worker/healthie.ts` for what each replaces.
+## This Session: Wire Medplum into the intake pipeline (dual-write)
 
-1. `getMedplumToken(env)` — OAuth2 client credentials + KV cache (50min TTL) + lock key to prevent parallel refresh
-2. `fhirCreate(env, resource)` — generic POST to `{MEDPLUM_BASE_URL}/fhir/R4/{resourceType}`
-3. `fhirRead(env, resourceType, id)` — generic GET
-4. `createOrganization(env, name, slug)` — replaces createUserGroup
-5. `createPatient(env, input)` — POST Patient with managingOrganization ref
-6. `buildIntakeQuestionnaire(env, service, influencerName)` — replaces buildIntakeFormInHealthie. **TEST THIS FIRST** — biggest risk.
-7. `createQuestionnaireResponse(env, patientId, questionnaireId, answers)` — replaces createFormCompletion
-8. `createComposition(env, params)` — SOAP note as Composition with 4 sections (S/O/A/P). LOINC 11488-4. NOT Encounter+QR.
-9. `createEncounterOrAppointment(env, params)` — replaces createAppointment
-10. `getPractitioners(env)` — replaces getProviders
-11. `uploadBinary(env, data, contentType)` — NEW: raw file upload
-12. `createDocumentReference(env, params)` — NEW: link Binary to Patient
+### Goal
+When a patient submits intake, write to **both** Healthie AND Medplum. This keeps Healthie as the source of truth while we validate Medplum data looks correct.
 
-### Smoke Test: `/admin/medplum-healthcheck`
-Add to `src/worker/admin.ts`. Runs 5 ops in sequence, returns JSON pass/fail:
-1. Create Organization
-2. Create Patient scoped to org
-3. Submit QuestionnaireResponse
-4. Save Composition (SOAP)
-5. Retrieve Patient by org
+### Steps
+1. **`src/worker/intake.ts`** — after Healthie patient + form creation succeeds, also call:
+   - `createPatient()` → save `medplumPatientId` on PendingCase
+   - `createQuestionnaireResponse()` with intake answers
+   - Wrap in try/catch — Medplum failure should NOT block the intake flow
 
-### Types to Add (DO NOT remove Healthie types yet)
-In `src/lib/types.ts` Env interface, ADD:
-- `MEDPLUM_CLIENT_ID: string`
-- `MEDPLUM_CLIENT_SECRET: string`
-- `MEDPLUM_BASE_URL: string`
-- `DOCTOR_PRACTITIONER_ID: string`
+2. **`src/worker/doctor.ts`** — after SOAP note saves to Healthie, also call:
+   - `createComposition()` with same S/O/A/P content
+   - Again, Medplum failure = log + continue
 
-On PartnerConfig, ADD alongside existing:
-- `medplumOrgId?: string`
-- `medplumQuestionnaireIds?: Record<string, string>`
+3. **Partner onboarding** — when creating a partner via `/admin`, also:
+   - `createOrganization()` → save `medplumOrgId` on PartnerConfig
+   - `buildIntakeQuestionnaire()` for each service → save `medplumQuestionnaireIds`
 
-On PendingCase, ADD alongside existing:
-- `medplumPatientId?: string`
+4. **Verify** — submit a test intake through BHD, check that data appears in both Healthie and Medplum
 
 ### Key Decisions (already made)
 - Plain fetch, no SDK
 - SOAP = Composition with 4 sections, not Encounter+QR
-- Token cache: stale-while-revalidate at 50min + KV lock `medplum_token_refreshing` (30s TTL)
+- Token cache: stale-while-revalidate at 50min + KV lock (60s TTL)
 - `MEDPLUM_BASE_URL` env var (not hardcoded)
 - Dual fields during dual-write phase — don't rename/remove Healthie fields yet
+- Medplum failure must not block patient flow
 
 ### Credentials (already set as Cloudflare secrets + in ~/.zshrc)
 - Client ID: fffb526e-400e-4b5b-b7e5-f2c270d526dc

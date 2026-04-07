@@ -180,7 +180,7 @@ export function buildAsyncReviewEmail(params: {
 
       <p style="font-size: 14px; color: #666; margin-bottom: 24px;">This patient's state (${escapeHtml(params.patientState)}) allows async review for this service. No video visit required.</p>
 
-      <a href="https://secureclient.gethealthie.com" style="display: inline-block; background: #4F46E5; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-size: 14px;">Open Healthie Dashboard</a>
+      <a href="https://onboard.myorbithealth.com/doctor" style="display: inline-block; background: #4F46E5; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-size: 14px;">Open Doctor Portal</a>
 
       <p style="font-size: 12px; color: #999; margin-top: 32px;">My Orbit Health — Automated Notification</p>
     </div>
@@ -264,7 +264,7 @@ export function buildSyncVisitEmail(params: {
 
       ${buildDosingSection(params.dosingResult)}
 
-      <a href="https://secureclient.gethealthie.com" style="display: inline-block; background: #4F46E5; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-size: 14px;">Open Healthie Dashboard</a>
+      <a href="https://onboard.myorbithealth.com/doctor" style="display: inline-block; background: #4F46E5; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-size: 14px;">Open Doctor Portal</a>
 
       <p style="font-size: 12px; color: #999; margin-top: 32px;">My Orbit Health — Automated Notification</p>
     </div>
@@ -378,6 +378,55 @@ export function buildPatientSyncEmail(params: {
       <p style="font-size: 15px; color: #333; margin-bottom: 16px;">Thank you for completing your ${escapeHtml(params.serviceName)} intake through ${escapeHtml(params.partnerName)}.</p>
       <p style="font-size: 15px; color: #333; margin-bottom: 16px;">Based on your state's requirements, a brief video consultation with your provider is needed before we can process your prescription. You'll receive a separate email from our scheduling system with a link to book your appointment.</p>
       <p style="font-size: 15px; color: #333; margin-bottom: 8px;">The visit is quick and straightforward — your provider will review your intake answers with you and confirm your treatment plan.</p>
+      <p style="font-size: 14px; color: #666; margin-top: 32px;">Questions? Reply to this email.</p>
+      <p style="font-size: 12px; color: #999; margin-top: 24px;">${escapeHtml(params.partnerName)} powered by My Orbit Health</p>
+    </div>
+  `;
+}
+
+// ============================================================
+// Patient Notification: Approved — Card Charged
+// ============================================================
+
+export function buildPatientApprovedEmail(params: {
+  patientName: string;
+  serviceName: string;
+  partnerName: string;
+}): string {
+  return `
+    <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+      <div style="background: #f0fdf4; border-left: 4px solid #22c55e; padding: 16px 20px; border-radius: 0 8px 8px 0; margin-bottom: 24px;">
+        <p style="font-size: 14px; font-weight: 600; color: #166534; margin: 0;">Prescription Approved</p>
+      </div>
+      <h1 style="font-size: 20px; margin-bottom: 16px;">Great News, ${escapeHtml(params.patientName)}!</h1>
+      <p style="font-size: 15px; color: #333; margin-bottom: 16px;">Your ${escapeHtml(params.serviceName)} prescription has been approved by your provider.</p>
+      <p style="font-size: 15px; color: #333; margin-bottom: 16px;">Your card has been charged and your prescription is now being processed. You will receive shipping and tracking information once your medication is on its way.</p>
+      <p style="font-size: 14px; color: #666; margin-top: 32px;">Questions? Reply to this email.</p>
+      <p style="font-size: 12px; color: #999; margin-top: 24px;">${escapeHtml(params.partnerName)} powered by My Orbit Health</p>
+    </div>
+  `;
+}
+
+// ============================================================
+// Patient Notification: Denied — Card NOT Charged
+// ============================================================
+
+export function buildPatientDeniedEmail(params: {
+  patientName: string;
+  serviceName: string;
+  partnerName: string;
+  reason: string;
+}): string {
+  return `
+    <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+      <h1 style="font-size: 20px; margin-bottom: 16px;">About Your ${escapeHtml(params.serviceName)} Request</h1>
+      <p style="font-size: 15px; color: #333; margin-bottom: 16px;">Hi ${escapeHtml(params.patientName)},</p>
+      <p style="font-size: 15px; color: #333; margin-bottom: 16px;">After reviewing your intake information, your provider has determined that ${escapeHtml(params.serviceName)} is not the right fit for you at this time.</p>
+      <div style="background: #f8f9fa; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+        <p style="font-size: 13px; font-weight: 600; color: #666; margin: 0 0 4px 0;">Provider's Note</p>
+        <p style="font-size: 14px; color: #333; margin: 0;">${escapeHtml(params.reason)}</p>
+      </div>
+      <p style="font-size: 15px; color: #333; margin-bottom: 16px;">Your card has <strong>not</strong> been charged.</p>
       <p style="font-size: 14px; color: #666; margin-top: 32px;">Questions? Reply to this email.</p>
       <p style="font-size: 12px; color: #999; margin-top: 24px;">${escapeHtml(params.partnerName)} powered by My Orbit Health</p>
     </div>

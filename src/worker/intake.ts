@@ -1,10 +1,12 @@
 import { Hono } from "hono";
 import { Env } from "../lib/types";
-import { getPartner } from "../lib/kv";
+import { getPartner, savePendingCase } from "../lib/kv";
+import { PendingCase } from "../lib/types";
 import { getServiceById } from "../lib/services";
 import { generateIntakeFormHTML } from "../templates/form-engine";
 import { generateRecommendationHTML } from "../templates/recommendation";
 import { generateCheckoutHTML } from "../templates/checkout";
+import { generateTermsOfService, generatePrivacyPolicy, generateTelehealthConsent } from "../templates/legal";
 import { createStripeClient, authorizePayment } from "./stripe";
 import { createHealthieClient, createPatient, createFormCompletion } from "./healthie";
 import { routePatient, RoutingResult } from "../lib/router";
@@ -66,8 +68,27 @@ intake.get("/:slug/:serviceType/checkout", async (c) => {
   if (!serviceConfig) return c.text("Service not available", 404);
 
   const baseUrl = new URL(c.req.url).origin;
-  const html = generateCheckoutHTML(service, partner, serviceConfig, c.env.STRIPE_PUBLISHABLE_KEY || "", baseUrl);
+  const html = generateCheckoutHTML(service, partner, serviceConfig, c.env.STRIPE_PUBLISHABLE_KEY || "", baseUrl, c.env.STRIPE_BYPASS === "true");
   return c.html(html);
+});
+
+// Legal pages (auto-branded per partner)
+intake.get("/:slug/terms", async (c) => {
+  const partner = await getPartner(c.env.PARTNERS, c.req.param("slug"));
+  if (!partner) return c.text("Partner not found", 404);
+  return c.html(generateTermsOfService(partner));
+});
+
+intake.get("/:slug/privacy", async (c) => {
+  const partner = await getPartner(c.env.PARTNERS, c.req.param("slug"));
+  if (!partner) return c.text("Partner not found", 404);
+  return c.html(generatePrivacyPolicy(partner));
+});
+
+intake.get("/:slug/telehealth-consent", async (c) => {
+  const partner = await getPartner(c.env.PARTNERS, c.req.param("slug"));
+  if (!partner) return c.text("Partner not found", 404);
+  return c.html(generateTelehealthConsent(partner));
 });
 
 // Process intake form submission (from checkout)
@@ -110,20 +131,24 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
   }
 
   // 1. Authorize payment (don't charge yet)
-  const stripe = createStripeClient(c.env.STRIPE_SECRET_KEY);
   let paymentIntentId: string;
-  try {
-    paymentIntentId = await authorizePayment(
-      stripe,
-      partner,
-      chargeAmount,
-      body.shipping?.email || "",
-      body.paymentMethodId,
-      serviceType
-    );
-  } catch (err) {
-    console.error("Payment authorization failed:", err);
-    return c.json({ error: "Payment authorization failed" }, 400);
+  if (c.env.STRIPE_BYPASS === "true") {
+    paymentIntentId = `bypass_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  } else {
+    const stripe = createStripeClient(c.env.STRIPE_SECRET_KEY);
+    try {
+      paymentIntentId = await authorizePayment(
+        stripe,
+        partner,
+        chargeAmount,
+        body.shipping?.email || "",
+        body.paymentMethodId,
+        serviceType
+      );
+    } catch (err) {
+      console.error("Payment authorization failed:", err);
+      return c.json({ error: "Payment authorization failed" }, 400);
+    }
   }
 
   // 2. Create patient in Healthie
@@ -178,6 +203,37 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
         console.error("Form completion failed:", err);
       }
     }
+  }
+
+  // 3.5. Save pending case to KV for doctor portal
+  try {
+    const service = getServiceById(serviceType);
+    const pendingCase: PendingCase = {
+      paymentIntentId,
+      status: "pending",
+      patientName: `${body.answers?.firstName || ""} ${body.answers?.lastName || ""}`.trim(),
+      patientEmail: body.answers?.email || body.shipping?.email || "",
+      patientPhone: body.answers?.phone || "",
+      patientState,
+      patientDob: body.answers?.dob || "",
+      healthiePatientId: patientId,
+      partnerSlug: slug,
+      partnerName: partner.businessName,
+      serviceType,
+      serviceName: service?.label || serviceType,
+      chargeAmount,
+      subscriptionPrice: serviceConfig.subscriptionPrice,
+      paymentMethodId: body.paymentMethodId || "",
+      visitType: routing?.visitType || "async",
+      dosingResult: dosingResult,
+      answers: body.answers || {},
+      routingConstraints: routing?.constraints || [],
+      createdAt: new Date().toISOString(),
+      authExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+    await savePendingCase(c.env.PARTNERS, pendingCase);
+  } catch (err) {
+    console.error("Failed to save pending case to KV:", err);
   }
 
   // 4. Notify doctor + patient based on routing result
