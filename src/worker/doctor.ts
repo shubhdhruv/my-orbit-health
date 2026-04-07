@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { Env } from "../lib/types";
 import { getPartner, getPendingCase, listPendingCases, listAllCases, savePendingCase } from "../lib/kv";
 import { createStripeClient, capturePayment, createSubscription } from "./stripe";
-import { sendEmail, buildPatientApprovedEmail, buildPatientDeniedEmail } from "./email";
+import { sendEmail, buildPatientApprovedEmail, buildPatientDeniedEmail, buildPatientShippedEmail, buildPatientDeliveredEmail } from "./email";
 import { createComposition, fhirRead, fhirSearch } from "./medplum";
 
 const doctor = new Hono<{ Bindings: Env }>();
@@ -184,10 +184,79 @@ doctor.post("/case/:id/approve", async (c) => {
 
   // 4. Update case
   pendingCase.status = "approved";
+  pendingCase.orderStatus = "prescribed";
   pendingCase.resolvedAt = new Date().toISOString();
   await savePendingCase(c.env.PARTNERS, pendingCase);
 
   return c.json({ success: true });
+});
+
+// ─── Update Order Status ────────────────────────────────────
+
+doctor.post("/case/:id/update-order", async (c) => {
+  const id = c.req.param("id");
+  const pendingCase = await getPendingCase(c.env.PARTNERS, id);
+  if (!pendingCase) return c.json({ error: "Case not found" }, 404);
+  if (pendingCase.status !== "approved") return c.json({ error: "Only approved cases can be updated" }, 400);
+
+  const body = await c.req.json();
+  const newStatus = body.orderStatus as string;
+
+  if (newStatus === "shipped") {
+    pendingCase.orderStatus = "shipped";
+    pendingCase.shippedAt = new Date().toISOString();
+    if (body.trackingNumber) pendingCase.trackingNumber = body.trackingNumber;
+    if (body.trackingUrl) pendingCase.trackingUrl = body.trackingUrl;
+    if (body.carrier) pendingCase.carrier = body.carrier;
+    if (body.pharmacyOrderId) pendingCase.pharmacyOrderId = body.pharmacyOrderId;
+    await savePendingCase(c.env.PARTNERS, pendingCase);
+
+    // Email patient
+    try {
+      await sendEmail(c.env.RESEND_API_KEY, {
+        to: pendingCase.patientEmail,
+        subject: `Your ${pendingCase.serviceName} has shipped!`,
+        html: buildPatientShippedEmail({
+          patientName: pendingCase.patientName,
+          serviceName: pendingCase.serviceName,
+          partnerName: pendingCase.partnerName,
+          carrier: pendingCase.carrier,
+          trackingNumber: pendingCase.trackingNumber,
+          trackingUrl: pendingCase.trackingUrl,
+        }),
+      });
+    } catch (err) {
+      console.error("Shipped email failed:", err);
+    }
+
+    return c.json({ success: true });
+  }
+
+  if (newStatus === "delivered") {
+    pendingCase.orderStatus = "delivered";
+    pendingCase.deliveredAt = new Date().toISOString();
+    await savePendingCase(c.env.PARTNERS, pendingCase);
+
+    // Email patient
+    try {
+      await sendEmail(c.env.RESEND_API_KEY, {
+        to: pendingCase.patientEmail,
+        subject: `Your ${pendingCase.serviceName} has been delivered`,
+        html: buildPatientDeliveredEmail({
+          patientName: pendingCase.patientName,
+          serviceName: pendingCase.serviceName,
+          partnerName: pendingCase.partnerName,
+          startingDose: pendingCase.dosingResult?.startingDose || undefined,
+        }),
+      });
+    } catch (err) {
+      console.error("Delivered email failed:", err);
+    }
+
+    return c.json({ success: true });
+  }
+
+  return c.json({ error: `Invalid order status: ${newStatus}. Must be "shipped" or "delivered".` }, 400);
 });
 
 // ─── Deny ────────────────────────────────────────────────────
@@ -435,6 +504,17 @@ function statusBadge(status: string): string {
   return `<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${c.bg};color:${c.text}">${status.toUpperCase()}</span>`;
 }
 
+function orderStatusBadge(orderStatus?: string): string {
+  if (!orderStatus) return "";
+  const colors: Record<string, { bg: string; text: string; label: string }> = {
+    prescribed: { bg: "#dbeafe", text: "#1e40af", label: "PRESCRIBED" },
+    shipped: { bg: "#e0e7ff", text: "#4338ca", label: "SHIPPED" },
+    delivered: { bg: "#dcfce7", text: "#166534", label: "DELIVERED" },
+  };
+  const c = colors[orderStatus] || { bg: "#f3f4f6", text: "#666", label: orderStatus.toUpperCase() };
+  return `<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${c.bg};color:${c.text}">${c.label}</span>`;
+}
+
 function renderCaseCard(c: import("../lib/types").PendingCase): string {
   const expired = c.status === "pending" && new Date(c.authExpiresAt).getTime() < Date.now();
   return `
@@ -448,6 +528,7 @@ function renderCaseCard(c: import("../lib/types").PendingCase): string {
           <div style="display:flex;gap:8px;align-items:center">
             ${statusBadge(c.status)}
             ${c.status === "pending" ? expiryBadge(c.authExpiresAt) : ""}
+            ${c.status === "approved" ? orderStatusBadge(c.orderStatus) : ""}
           </div>
         </div>
         <div style="display:flex;gap:16px;flex-wrap:wrap">
@@ -459,6 +540,7 @@ function renderCaseCard(c: import("../lib/types").PendingCase): string {
         ${c.status === "pending" && c.dosingResult?.softReviewRequired ? '<div style="margin-top:8px;font-size:11px;font-weight:600;color:#f59e0b">⚠ Requires Provider Review</div>' : ""}
         ${c.status === "pending" && c.dosingResult?.startingDose ? `<div style="margin-top:4px;font-size:12px;color:#666"><strong>Dose:</strong> ${escapeHtml(c.dosingResult.startingDose)}</div>` : ""}
         ${c.status === "denied" && c.denyReason ? `<div style="margin-top:8px;font-size:12px;color:#991b1b"><strong>Reason:</strong> ${escapeHtml(c.denyReason)}</div>` : ""}
+        ${c.orderStatus === "shipped" && c.trackingNumber ? `<div style="margin-top:4px;font-size:12px;color:#4338ca"><strong>Tracking:</strong> ${escapeHtml(c.carrier || "")} ${escapeHtml(c.trackingNumber)}</div>` : ""}
       </div>
     </a>`;
 }
@@ -467,6 +549,7 @@ function renderDashboard(cases: import("../lib/types").PendingCase[]): string {
   const pending = cases.filter(c => c.status === "pending");
   const approved = cases.filter(c => c.status === "approved");
   const denied = cases.filter(c => c.status === "denied");
+  const activeOrders = approved.filter(c => c.orderStatus === "prescribed" || c.orderStatus === "shipped");
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -502,13 +585,14 @@ function renderDashboard(cases: import("../lib/types").PendingCase[]): string {
   <div class="container">
     <div class="stats">
       <div class="stat"><div class="val" style="color:#f59e0b">${pending.length}</div><div class="lbl">Pending Review</div></div>
+      <div class="stat"><div class="val" style="color:#3b82f6">${activeOrders.length}</div><div class="lbl">Active Orders</div></div>
       <div class="stat"><div class="val" style="color:#22c55e">${approved.length}</div><div class="lbl">Approved</div></div>
       <div class="stat"><div class="val" style="color:#dc2626">${denied.length}</div><div class="lbl">Denied</div></div>
-      <div class="stat"><div class="val">${cases.length}</div><div class="lbl">Total</div></div>
     </div>
 
     <div class="tabs">
       <div class="tab active" onclick="switchTab('pending')">Pending (${pending.length})</div>
+      <div class="tab" onclick="switchTab('orders')">Active Orders (${activeOrders.length})</div>
       <div class="tab" onclick="switchTab('approved')">Approved (${approved.length})</div>
       <div class="tab" onclick="switchTab('denied')">Denied (${denied.length})</div>
       <div class="tab" onclick="switchTab('all')">All (${cases.length})</div>
@@ -518,6 +602,11 @@ function renderDashboard(cases: import("../lib/types").PendingCase[]): string {
       ${pending.length > 0
         ? `<div class="grid">${pending.map(renderCaseCard).join("")}</div>`
         : '<div class="empty">No cases pending review.</div>'}
+    </div>
+    <div id="tab-orders" class="tab-content">
+      ${activeOrders.length > 0
+        ? `<div class="grid">${activeOrders.map(renderCaseCard).join("")}</div>`
+        : '<div class="empty">No active orders. Approved prescriptions will appear here until delivered.</div>'}
     </div>
     <div id="tab-approved" class="tab-content">
       ${approved.length > 0
@@ -724,11 +813,58 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
           <button class="btn btn-deny" onclick="denyCase()" style="margin-top:8px">Deny — Cancel Authorization</button>
         </div>
       ` : c.status === "approved" ? `
-        <h3 style="font-size:16px;margin-bottom:16px;color:#22c55e">Approved</h3>
-        <p style="font-size:14px;color:#666">This prescription was approved on ${c.resolvedAt ? new Date(c.resolvedAt).toLocaleString() : "—"}.</p>
-        <p style="font-size:14px;color:#666;margin-top:8px">Payment of $${c.chargeAmount} was captured and the patient was notified.</p>
-        ${c.soapNoteId ? `<p style="font-size:12px;color:#888;margin-top:8px">SOAP Note ID: ${escapeHtml(c.soapNoteId)}</p>` : ""}
-        ${c.medplumPatientId ? `<p style="font-size:12px;color:#888;margin-top:4px">Medplum Patient: ${escapeHtml(c.medplumPatientId)}</p>` : ""}
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h3 style="font-size:16px;margin:0;color:#22c55e">Approved</h3>
+          ${orderStatusBadge(c.orderStatus)}
+        </div>
+        <p style="font-size:14px;color:#666">Approved on ${c.resolvedAt ? new Date(c.resolvedAt).toLocaleString() : "—"}. Payment of $${c.chargeAmount} captured.</p>
+        ${c.soapNoteId ? `<p style="font-size:12px;color:#888;margin-top:4px">SOAP Note: ${escapeHtml(c.soapNoteId)}</p>` : ""}
+
+        <!-- Order Tracking Timeline -->
+        <div style="margin-top:20px;border-top:1px solid #e8e8e8;padding-top:20px">
+          <h4 style="font-size:14px;margin:0 0 16px 0;color:#333">Order Tracking</h4>
+          <div style="display:flex;gap:0;margin-bottom:20px">
+            <div style="flex:1;text-align:center">
+              <div style="width:32px;height:32px;border-radius:50%;background:${c.orderStatus ? "#22c55e" : "#e5e7eb"};color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:700">1</div>
+              <p style="font-size:11px;color:${c.orderStatus ? "#22c55e" : "#999"};font-weight:600;margin:4px 0 0">Prescribed</p>
+            </div>
+            <div style="flex:1;text-align:center">
+              <div style="width:32px;height:32px;border-radius:50%;background:${c.orderStatus === "shipped" || c.orderStatus === "delivered" ? "#22c55e" : "#e5e7eb"};color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:700">2</div>
+              <p style="font-size:11px;color:${c.orderStatus === "shipped" || c.orderStatus === "delivered" ? "#22c55e" : "#999"};font-weight:600;margin:4px 0 0">Shipped</p>
+            </div>
+            <div style="flex:1;text-align:center">
+              <div style="width:32px;height:32px;border-radius:50%;background:${c.orderStatus === "delivered" ? "#22c55e" : "#e5e7eb"};color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:700">3</div>
+              <p style="font-size:11px;color:${c.orderStatus === "delivered" ? "#22c55e" : "#999"};font-weight:600;margin:4px 0 0">Delivered</p>
+            </div>
+          </div>
+
+          ${c.trackingNumber ? `
+            <div style="background:#f8f9fa;border-radius:8px;padding:12px 16px;margin-bottom:16px">
+              ${c.carrier ? `<p style="font-size:13px;color:#666;margin:0 0 4px"><strong>Carrier:</strong> ${escapeHtml(c.carrier)}</p>` : ""}
+              <p style="font-size:13px;color:#666;margin:0 0 4px"><strong>Tracking #:</strong> ${escapeHtml(c.trackingNumber)}</p>
+              ${c.trackingUrl ? `<a href="${c.trackingUrl}" target="_blank" style="font-size:13px;color:#4F46E5">Track Package</a>` : ""}
+              ${c.shippedAt ? `<p style="font-size:12px;color:#888;margin:8px 0 0">Shipped: ${new Date(c.shippedAt).toLocaleString()}</p>` : ""}
+              ${c.deliveredAt ? `<p style="font-size:12px;color:#888;margin:4px 0 0">Delivered: ${new Date(c.deliveredAt).toLocaleString()}</p>` : ""}
+            </div>` : ""}
+
+          ${c.orderStatus === "prescribed" ? `
+            <div id="shipForm">
+              <h4 style="font-size:13px;font-weight:600;color:#333;margin:0 0 12px">Mark as Shipped</h4>
+              <div style="display:grid;gap:8px;margin-bottom:12px">
+                <input type="text" id="orderCarrier" placeholder="Carrier (e.g. USPS, FedEx, UPS)" style="padding:10px 12px;border:1.5px solid #d9d9d9;border-radius:6px;font-size:13px;font-family:inherit">
+                <input type="text" id="orderTracking" placeholder="Tracking number" style="padding:10px 12px;border:1.5px solid #d9d9d9;border-radius:6px;font-size:13px;font-family:inherit">
+                <input type="url" id="orderTrackingUrl" placeholder="Tracking URL (optional)" style="padding:10px 12px;border:1.5px solid #d9d9d9;border-radius:6px;font-size:13px;font-family:inherit">
+                <input type="text" id="orderPharmacyId" placeholder="Pharmacy order ID (optional)" style="padding:10px 12px;border:1.5px solid #d9d9d9;border-radius:6px;font-size:13px;font-family:inherit">
+              </div>
+              <button class="btn" onclick="markShipped()" style="background:#3b82f6;color:#fff">Mark Shipped &amp; Notify Patient</button>
+            </div>` : ""}
+
+          ${c.orderStatus === "shipped" ? `
+            <button class="btn" onclick="markDelivered()" style="background:#22c55e;color:#fff">Mark Delivered &amp; Notify Patient</button>` : ""}
+
+          ${c.orderStatus === "delivered" ? `
+            <p style="font-size:14px;color:#22c55e;font-weight:600">Order complete. Patient notified of delivery.</p>` : ""}
+        </div>
       ` : `
         <h3 style="font-size:16px;margin-bottom:16px;color:#dc2626">Denied</h3>
         <p style="font-size:14px;color:#666">This prescription was denied on ${c.resolvedAt ? new Date(c.resolvedAt).toLocaleString() : "—"}.</p>
@@ -910,6 +1046,57 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
         if (data.success) {
           showToast('Denied. Patient notified.', '#dc2626');
           setTimeout(() => window.location.href = '/doctor', 1500);
+        } else {
+          showToast(data.error || 'Failed', '#dc2626');
+        }
+      } catch (err) {
+        showToast('Network error', '#dc2626');
+      }
+    }
+
+    // ─── Order Status Updates ─────────────────────────────
+    async function markShipped() {
+      const carrier = document.getElementById('orderCarrier')?.value?.trim() || '';
+      const trackingNumber = document.getElementById('orderTracking')?.value?.trim() || '';
+      if (!trackingNumber) { showToast('Enter a tracking number', '#f59e0b'); return; }
+      if (!confirm('Mark as shipped? The patient will be emailed with tracking info.')) return;
+
+      try {
+        const res = await fetch('/doctor/case/' + encodeURIComponent(CASE_ID) + '/update-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderStatus: 'shipped',
+            carrier: carrier,
+            trackingNumber: trackingNumber,
+            trackingUrl: document.getElementById('orderTrackingUrl')?.value?.trim() || '',
+            pharmacyOrderId: document.getElementById('orderPharmacyId')?.value?.trim() || '',
+          }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Marked as shipped. Patient notified.', '#3b82f6');
+          setTimeout(() => window.location.reload(), 1500);
+        } else {
+          showToast(data.error || 'Failed', '#dc2626');
+        }
+      } catch (err) {
+        showToast('Network error', '#dc2626');
+      }
+    }
+
+    async function markDelivered() {
+      if (!confirm('Mark as delivered? The patient will be emailed.')) return;
+      try {
+        const res = await fetch('/doctor/case/' + encodeURIComponent(CASE_ID) + '/update-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderStatus: 'delivered' }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Marked as delivered. Patient notified.', '#22c55e');
+          setTimeout(() => window.location.reload(), 1500);
         } else {
           showToast(data.error || 'Failed', '#dc2626');
         }

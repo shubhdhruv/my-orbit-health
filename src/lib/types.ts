@@ -83,6 +83,8 @@ export interface PartnerConfig {
   createdAt: string;
 }
 
+export type OrderStatus = "prescribed" | "shipped" | "delivered";
+
 export interface PendingCase {
   paymentIntentId: string;
   status: "pending" | "approved" | "denied";
@@ -120,6 +122,15 @@ export interface PendingCase {
 
   // SOAP Note
   soapNoteId?: string;
+
+  // Order Fulfillment (set after approval)
+  orderStatus?: OrderStatus;
+  pharmacyOrderId?: string;
+  trackingNumber?: string;
+  trackingUrl?: string;
+  carrier?: string;
+  shippedAt?: string;
+  deliveredAt?: string;
 
   // Timestamps
   createdAt: string;

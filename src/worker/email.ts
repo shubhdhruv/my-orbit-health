@@ -426,6 +426,70 @@ export function buildPatientDeniedEmail(params: {
   `;
 }
 
+// ============================================================
+// Patient Notification: Medication Shipped
+// ============================================================
+
+export function buildPatientShippedEmail(params: {
+  patientName: string;
+  serviceName: string;
+  partnerName: string;
+  carrier?: string;
+  trackingNumber?: string;
+  trackingUrl?: string;
+}): string {
+  const trackingHtml = params.trackingNumber
+    ? `<div style="background: #f8f9fa; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+        <p style="font-size: 13px; font-weight: 600; color: #666; margin: 0 0 8px 0;">Shipping Details</p>
+        ${params.carrier ? `<p style="font-size: 14px; color: #333; margin: 0 0 4px 0;"><strong>Carrier:</strong> ${escapeHtml(params.carrier)}</p>` : ""}
+        <p style="font-size: 14px; color: #333; margin: 0 0 4px 0;"><strong>Tracking #:</strong> ${escapeHtml(params.trackingNumber)}</p>
+        ${params.trackingUrl ? `<a href="${params.trackingUrl}" style="display: inline-block; background: #4F46E5; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-size: 14px; margin-top: 8px;">Track Your Package</a>` : ""}
+      </div>`
+    : "";
+
+  return `
+    <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+      <div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 16px 20px; border-radius: 0 8px 8px 0; margin-bottom: 24px;">
+        <p style="font-size: 14px; font-weight: 600; color: #1e40af; margin: 0;">Your Medication Has Shipped</p>
+      </div>
+      <h1 style="font-size: 20px; margin-bottom: 16px;">It's On the Way, ${escapeHtml(params.patientName)}!</h1>
+      <p style="font-size: 15px; color: #333; margin-bottom: 16px;">Your ${escapeHtml(params.serviceName)} prescription has been filled and shipped.</p>
+      ${trackingHtml}
+      <p style="font-size: 15px; color: #333; margin-bottom: 16px;">Most orders arrive within 3-5 business days. We'll send you another email when it's been delivered.</p>
+      <p style="font-size: 14px; color: #666; margin-top: 32px;">Questions? Reply to this email.</p>
+      <p style="font-size: 12px; color: #999; margin-top: 24px;">${escapeHtml(params.partnerName)} powered by My Orbit Health</p>
+    </div>
+  `;
+}
+
+// ============================================================
+// Patient Notification: Medication Delivered
+// ============================================================
+
+export function buildPatientDeliveredEmail(params: {
+  patientName: string;
+  serviceName: string;
+  partnerName: string;
+  startingDose?: string;
+}): string {
+  return `
+    <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+      <div style="background: #f0fdf4; border-left: 4px solid #22c55e; padding: 16px 20px; border-radius: 0 8px 8px 0; margin-bottom: 24px;">
+        <p style="font-size: 14px; font-weight: 600; color: #166534; margin: 0;">Medication Delivered</p>
+      </div>
+      <h1 style="font-size: 20px; margin-bottom: 16px;">Your Medication Has Arrived, ${escapeHtml(params.patientName)}!</h1>
+      <p style="font-size: 15px; color: #333; margin-bottom: 16px;">Your ${escapeHtml(params.serviceName)} has been delivered.</p>
+      ${params.startingDose ? `<div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+        <p style="font-size: 13px; font-weight: 600; color: #0369a1; margin: 0 0 4px 0;">Your Starting Dose</p>
+        <p style="font-size: 16px; font-weight: 700; color: #333; margin: 0;">${escapeHtml(params.startingDose)}</p>
+      </div>` : ""}
+      <p style="font-size: 15px; color: #333; margin-bottom: 8px;">Follow the dosing instructions included with your medication. If you have any questions or experience side effects, contact your provider.</p>
+      <p style="font-size: 14px; color: #666; margin-top: 32px;">Questions? Reply to this email.</p>
+      <p style="font-size: 12px; color: #999; margin-top: 24px;">${escapeHtml(params.partnerName)} powered by My Orbit Health</p>
+    </div>
+  `;
+}
+
 function escapeHtml(str: string): string {
   return str
     .replace(/&/g, "&amp;")
