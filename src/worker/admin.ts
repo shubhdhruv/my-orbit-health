@@ -3,7 +3,7 @@ import { Env, PartnerConfig, ServiceId } from "../lib/types";
 import { getPartner, savePartner, listPartners } from "../lib/kv";
 import { getServiceById } from "../lib/services";
 import { createHealthieClient, buildIntakeFormInHealthie } from "./healthie";
-import { createOrganization, buildIntakeQuestionnaire } from "./medplum";
+import { createOrganization, buildIntakeQuestionnaire, createPatient as createMedplumPatient, createQuestionnaireResponse, createComposition } from "./medplum";
 
 const admin = new Hono<{ Bindings: Env }>();
 
@@ -595,7 +595,7 @@ const SHUBH_TASKS: Omit<TaskItem, "status" | "completedAt" | "notes">[] = [
   {
     id: "test-soap-note",
     title: "Test SOAP note on a real case",
-    description: "Go to /doctor, open a pending case, click 'Generate SOAP Note', review the note, edit if needed, then click 'Save to Healthie'. Verify the note appears on the patient's chart in Healthie. Report any issues here.",
+    description: "Go to /doctor, open a pending case, click 'Generate SOAP Note', review the note, edit if needed, then click 'Save SOAP Note'. Verify the note appears on the patient's chart. Report any issues here.",
   },
   {
     id: "bloodwork-pricing",
@@ -852,14 +852,6 @@ admin.post("/medplum-setup", async (c) => {
 // ============================================================
 // Medplum Healthcheck — smoke test all FHIR ops
 // ============================================================
-
-import {
-  createOrganization,
-  createPatient as createMedplumPatient,
-  buildIntakeQuestionnaire,
-  createQuestionnaireResponse,
-  createComposition,
-} from "./medplum";
 
 admin.get("/medplum-healthcheck", async (c) => {
   const results: Array<{ step: string; status: "pass" | "fail"; id?: string; error?: string }> = [];

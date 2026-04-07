@@ -315,7 +315,7 @@ Return ONLY valid JSON in this exact format:
   }
 });
 
-// ─── Save SOAP Note to Healthie ─────────────────────────────
+// ─── Save SOAP Note ─────────────────────────────────────────
 
 async function getSoapTemplate(kv: KVNamespace, healthieClient: ReturnType<typeof createHealthieClient>): Promise<SoapTemplate> {
   const existing = await kv.get("soap-template", "json") as SoapTemplate | null;
@@ -331,7 +331,7 @@ doctor.post("/case/:id/save-soap", async (c) => {
   const id = c.req.param("id");
   const pendingCase = await getPendingCase(c.env.PARTNERS, id);
   if (!pendingCase) return c.json({ error: "Case not found" }, 404);
-  if (!pendingCase.healthiePatientId) return c.json({ error: "No Healthie patient ID on this case" }, 400);
+  if (!pendingCase.healthiePatientId) return c.json({ error: "No patient ID available for this case" }, 400);
 
   const body = await c.req.json();
   const { subjective, objective, assessment, plan } = body;
@@ -373,7 +373,7 @@ doctor.post("/case/:id/save-soap", async (c) => {
 
     return c.json({ success: true, noteId });
   } catch (err) {
-    return c.json({ error: `Failed to save to Healthie: ${String(err)}` }, 500);
+    return c.json({ error: `Failed to save SOAP note: ${String(err)}` }, 500);
   }
 });
 
@@ -639,7 +639,7 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
         <tr><td style="padding:6px 0;color:#666;font-size:13px">Phone</td><td style="padding:6px 0;font-size:14px">${escapeHtml(c.patientPhone)}</td></tr>
         <tr><td style="padding:6px 0;color:#666;font-size:13px">State</td><td style="padding:6px 0;font-size:14px;font-weight:600">${escapeHtml(c.patientState)}</td></tr>
         <tr><td style="padding:6px 0;color:#666;font-size:13px">DOB</td><td style="padding:6px 0;font-size:14px">${escapeHtml(c.patientDob)}</td></tr>
-        ${c.healthiePatientId ? `<tr><td style="padding:6px 0;color:#666;font-size:13px">Healthie ID</td><td style="padding:6px 0;font-size:14px">${escapeHtml(c.healthiePatientId)}</td></tr>` : ""}
+        ${c.healthiePatientId ? `<tr><td style="padding:6px 0;color:#666;font-size:13px">EHR ID</td><td style="padding:6px 0;font-size:14px">${escapeHtml(c.healthiePatientId)}</td></tr>` : ""}
         ${c.medplumPatientId
           ? `<tr><td style="padding:6px 0;color:#666;font-size:13px">Medplum Patient</td><td style="padding:6px 0;font-size:14px"><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534;margin-right:6px">SYNCED</span>${escapeHtml(c.medplumPatientId)}</td></tr>`
           : `<tr><td style="padding:6px 0;color:#666;font-size:13px">Medplum Patient</td><td style="padding:6px 0;font-size:14px"><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fecaca;color:#991b1b">NOT SYNCED</span></td></tr>`}
@@ -690,7 +690,7 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
           ${c.soapNoteId
             ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
                 <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534">SOAP NOTE SAVED</span>
-                <span style="font-size:12px;color:#888">Healthie Note ID: ${escapeHtml(c.soapNoteId)}</span>
+                <span style="font-size:12px;color:#888">Note ID: ${escapeHtml(c.soapNoteId)}</span>
               </div>`
             : ""}
           <button class="btn" id="btnGenerateSoap" onclick="generateSoap()" style="background:#4F46E5;color:#fff;width:100%" ${expired ? "disabled" : ""}>
@@ -749,7 +749,7 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
           <div style="display:flex;gap:12px;justify-content:flex-end">
             <button onclick="generateSoap()" class="btn" style="background:#f3f4f6;color:#333">Regenerate</button>
             <button onclick="closeSoapModal()" class="btn" style="background:#f3f4f6;color:#333">Cancel</button>
-            <button id="btnSaveSoap" onclick="saveSoapToHealthie()" class="btn" style="background:#4F46E5;color:#fff">Save to Healthie</button>
+            <button id="btnSaveSoap" onclick="saveSoapNote()" class="btn" style="background:#4F46E5;color:#fff">Save SOAP Note</button>
           </div>
         </div>
       </div>
@@ -813,7 +813,7 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
       document.getElementById('soapModal').style.display = 'none';
     }
 
-    async function saveSoapToHealthie() {
+    async function saveSoapNote() {
       const btn = document.getElementById('btnSaveSoap');
       const s = document.getElementById('soapS').value.trim();
       const o = document.getElementById('soapO').value.trim();
@@ -839,7 +839,7 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
 
         if (data.success) {
           soapNoteStatus = 'saved';
-          showToast('SOAP note saved to Healthie (ID: ' + data.noteId + ')', '#22c55e');
+          showToast('SOAP note saved (ID: ' + data.noteId + ')', '#22c55e');
           closeSoapModal();
 
           // Enable the approve button
@@ -851,13 +851,13 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
         } else {
           showToast(data.error || 'Save failed', '#dc2626');
           btn.disabled = false;
-          btn.textContent = 'Save to Healthie';
+          btn.textContent = 'Save SOAP Note';
           soapNoteStatus = 'ready';
         }
       } catch (err) {
         showToast('Network error saving SOAP note', '#dc2626');
         btn.disabled = false;
-        btn.textContent = 'Save to Healthie';
+        btn.textContent = 'Save SOAP Note';
         soapNoteStatus = 'ready';
       }
     }
