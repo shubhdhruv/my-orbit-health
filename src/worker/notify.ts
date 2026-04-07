@@ -47,6 +47,7 @@ export interface NotifyParams {
   patientEmail: string;
   patientState: string;
   patientId?: string;             // Healthie patient ID
+  medplumPatientId?: string;      // Medplum patient ID
   isFirstVisit: boolean;
   daysSinceLastVisit?: number;    // Used for TX 90-day lapse enforcement
   dosingResult?: DosingResult;    // From dosing engine
@@ -132,6 +133,7 @@ export async function notifyOnIntake(
             partnerName: partner.businessName,
             partnerSlug: params.partnerSlug,
             healthiePatientId: params.patientId,
+            medplumPatientId: params.medplumPatientId,
             dosingResult: params.dosingResult,
           }),
         });
@@ -196,6 +198,7 @@ export async function notifyOnIntake(
             partnerName: partner.businessName,
             constraints: routing.constraints,
             healthiePatientId: params.patientId,
+            medplumPatientId: params.medplumPatientId,
             appointmentCreated: result.appointmentCreated,
             appointmentError: healthieError,
             dosingResult: params.dosingResult,
@@ -235,6 +238,7 @@ export async function notifyOnIntake(
             partnerName: partner.businessName,
             visitType: routing.visitType,
             constraints: routing.constraints,
+            medplumPatientId: params.medplumPatientId,
             routingFailed,
           }),
         });
@@ -275,6 +279,7 @@ export async function notifyOnIntake(
             partnerName: partner.businessName,
             visitType: routing.visitType,
             constraints: routing.constraints,
+            medplumPatientId: params.medplumPatientId,
             routingFailed: true,
           }),
         });

@@ -158,6 +158,7 @@ export function buildAsyncReviewEmail(params: {
   partnerName: string;
   partnerSlug: string;
   healthiePatientId?: string;
+  medplumPatientId?: string;
   dosingResult?: DosingResult;
 }): string {
   return `
@@ -174,6 +175,7 @@ export function buildAsyncReviewEmail(params: {
         <tr><td style="padding: 8px 0; color: #666; font-size: 14px;">Service</td><td style="padding: 8px 0; font-size: 14px;">${escapeHtml(params.serviceName)}</td></tr>
         <tr><td style="padding: 8px 0; color: #666; font-size: 14px;">Influencer</td><td style="padding: 8px 0; font-size: 14px;">${escapeHtml(params.partnerName)}</td></tr>
         <tr><td style="padding: 8px 0; color: #666; font-size: 14px;">Visit Type</td><td style="padding: 8px 0; font-size: 14px; font-weight: 600; color: #22c55e;">Async Review</td></tr>
+        ${params.medplumPatientId ? `<tr><td style="padding: 8px 0; color: #666; font-size: 14px;">Medplum Patient</td><td style="padding: 8px 0; font-size: 14px;">${escapeHtml(params.medplumPatientId)}</td></tr>` : ''}
       </table>
 
       ${buildDosingSection(params.dosingResult)}
@@ -221,6 +223,7 @@ export function buildSyncVisitEmail(params: {
   partnerName: string;
   constraints: string[];
   healthiePatientId?: string;
+  medplumPatientId?: string;
   appointmentCreated?: boolean;
   appointmentError?: string;
   dosingResult?: DosingResult;
@@ -253,6 +256,7 @@ export function buildSyncVisitEmail(params: {
         <tr><td style="padding: 8px 0; color: #666; font-size: 14px;">Service</td><td style="padding: 8px 0; font-size: 14px;">${escapeHtml(params.serviceName)}</td></tr>
         <tr><td style="padding: 8px 0; color: #666; font-size: 14px;">Influencer</td><td style="padding: 8px 0; font-size: 14px;">${escapeHtml(params.partnerName)}</td></tr>
         <tr><td style="padding: 8px 0; color: #666; font-size: 14px;">Visit Type</td><td style="padding: 8px 0; font-size: 14px; font-weight: 600; color: #f59e0b;">Sync Video Visit</td></tr>
+        ${params.medplumPatientId ? `<tr><td style="padding: 8px 0; color: #666; font-size: 14px;">Medplum Patient</td><td style="padding: 8px 0; font-size: 14px;">${escapeHtml(params.medplumPatientId)}</td></tr>` : ''}
       </table>
 
       <div style="background: #fffbeb; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
@@ -283,6 +287,7 @@ export function buildBlockedVisitEmail(params: {
   partnerName: string;
   visitType: string;
   constraints: string[];
+  medplumPatientId?: string;
   routingFailed?: boolean;
 }): string {
   const isBlocked = params.visitType === "blocked";
@@ -309,6 +314,7 @@ export function buildBlockedVisitEmail(params: {
         <tr><td style="padding: 8px 0; color: #666; font-size: 14px;">State</td><td style="padding: 8px 0; font-size: 14px; font-weight: 600;">${escapeHtml(params.patientState)}</td></tr>
         <tr><td style="padding: 8px 0; color: #666; font-size: 14px;">Service</td><td style="padding: 8px 0; font-size: 14px;">${escapeHtml(params.serviceName)}</td></tr>
         <tr><td style="padding: 8px 0; color: #666; font-size: 14px;">Influencer</td><td style="padding: 8px 0; font-size: 14px;">${escapeHtml(params.partnerName)}</td></tr>
+        ${params.medplumPatientId ? `<tr><td style="padding: 8px 0; color: #666; font-size: 14px;">Medplum Patient</td><td style="padding: 8px 0; font-size: 14px;">${escapeHtml(params.medplumPatientId)}</td></tr>` : ''}
       </table>
 
       <div style="background: ${headerColor}; border-radius: 8px; padding: 16px; margin-bottom: 24px;">

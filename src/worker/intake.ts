@@ -276,6 +276,7 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
         patientEmail: body.answers?.email || body.shipping?.email || "",
         patientState,
         patientId,
+        medplumPatientId,
         isFirstVisit: true,
         daysSinceLastVisit: body.daysSinceLastVisit,
         dosingResult,

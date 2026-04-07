@@ -605,6 +605,9 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
         <tr><td style="padding:6px 0;color:#666;font-size:13px">State</td><td style="padding:6px 0;font-size:14px;font-weight:600">${escapeHtml(c.patientState)}</td></tr>
         <tr><td style="padding:6px 0;color:#666;font-size:13px">DOB</td><td style="padding:6px 0;font-size:14px">${escapeHtml(c.patientDob)}</td></tr>
         ${c.healthiePatientId ? `<tr><td style="padding:6px 0;color:#666;font-size:13px">Healthie ID</td><td style="padding:6px 0;font-size:14px">${escapeHtml(c.healthiePatientId)}</td></tr>` : ""}
+        ${c.medplumPatientId
+          ? `<tr><td style="padding:6px 0;color:#666;font-size:13px">Medplum Patient</td><td style="padding:6px 0;font-size:14px"><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534;margin-right:6px">SYNCED</span>${escapeHtml(c.medplumPatientId)}</td></tr>`
+          : `<tr><td style="padding:6px 0;color:#666;font-size:13px">Medplum Patient</td><td style="padding:6px 0;font-size:14px"><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fecaca;color:#991b1b">NOT SYNCED</span></td></tr>`}
       </table>
     </div>
 
@@ -664,11 +667,13 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
         <p style="font-size:14px;color:#666">This prescription was approved on ${c.resolvedAt ? new Date(c.resolvedAt).toLocaleString() : "—"}.</p>
         <p style="font-size:14px;color:#666;margin-top:8px">Payment of $${c.chargeAmount} was captured and the patient was notified.</p>
         ${c.soapNoteId ? `<p style="font-size:12px;color:#888;margin-top:8px">SOAP Note ID: ${escapeHtml(c.soapNoteId)}</p>` : ""}
+        ${c.medplumPatientId ? `<p style="font-size:12px;color:#888;margin-top:4px">Medplum Patient: ${escapeHtml(c.medplumPatientId)}</p>` : ""}
       ` : `
         <h3 style="font-size:16px;margin-bottom:16px;color:#dc2626">Denied</h3>
         <p style="font-size:14px;color:#666">This prescription was denied on ${c.resolvedAt ? new Date(c.resolvedAt).toLocaleString() : "—"}.</p>
         ${c.denyReason ? `<div style="background:#f8f9fa;border-radius:8px;padding:12px 16px;margin-top:12px"><p style="font-size:13px;font-weight:600;color:#666;margin:0 0 4px 0">Reason</p><p style="font-size:14px;color:#333;margin:0">${escapeHtml(c.denyReason)}</p></div>` : ""}
         <p style="font-size:14px;color:#666;margin-top:8px">Payment authorization was cancelled and the patient was notified.</p>
+        ${c.medplumPatientId ? `<p style="font-size:12px;color:#888;margin-top:4px">Medplum Patient: ${escapeHtml(c.medplumPatientId)}</p>` : ""}
       `}
     </div>
 

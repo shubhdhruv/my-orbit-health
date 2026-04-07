@@ -181,6 +181,67 @@ admin.post("/partner/:slug/repair-forms", async (c) => {
   }
 });
 
+// Repair missing Medplum org + questionnaires for a partner
+// Use ?service=org to create the Organization first
+// Use ?service=semaglutide to create one questionnaire at a time
+// Without ?service, lists what's missing
+admin.post("/partner/:slug/repair-medplum", async (c) => {
+  const partner = await getPartner(c.env.PARTNERS, c.req.param("slug"));
+  if (!partner) return c.json({ error: "Not found" }, 404);
+
+  const targetService = c.req.query("service");
+  const existingQIds = partner.medplumQuestionnaireIds || {};
+
+  // List what's missing
+  if (!targetService) {
+    const missing = partner.services
+      .filter(s => !existingQIds[s.type])
+      .map(s => s.type);
+    return c.json({
+      needsOrg: !partner.medplumOrgId,
+      medplumOrgId: partner.medplumOrgId || null,
+      missingQuestionnaires: missing,
+      existingQuestionnaires: Object.keys(existingQIds),
+    });
+  }
+
+  // Create Organization
+  if (targetService === "org") {
+    if (partner.medplumOrgId) {
+      return c.json({ error: "Organization already exists", medplumOrgId: partner.medplumOrgId }, 400);
+    }
+    try {
+      const org = await createOrganization(c.env, partner.businessName, partner.slug);
+      partner.medplumOrgId = org.id;
+      await savePartner(c.env.PARTNERS, partner);
+      return c.json({ success: true, medplumOrgId: org.id });
+    } catch (err) {
+      return c.json({ error: String(err) }, 500);
+    }
+  }
+
+  // Create Questionnaire for a specific service
+  if (!partner.medplumOrgId) {
+    return c.json({ error: "Create Organization first: POST ?service=org" }, 400);
+  }
+
+  const serviceDef = getServiceById(targetService);
+  if (!serviceDef) return c.json({ error: `Unknown service: ${targetService}` }, 400);
+  if (existingQIds[targetService]) {
+    return c.json({ error: `Questionnaire already exists for ${targetService}`, questionnaireId: existingQIds[targetService] }, 400);
+  }
+
+  try {
+    const q = await buildIntakeQuestionnaire(c.env, serviceDef, partner.businessName);
+    existingQIds[targetService] = q.id;
+    partner.medplumQuestionnaireIds = existingQIds;
+    await savePartner(c.env.PARTNERS, partner);
+    return c.json({ success: true, service: targetService, questionnaireId: q.id, allQuestionnaireIds: existingQIds });
+  } catch (err) {
+    return c.json({ error: String(err), service: targetService }, 500);
+  }
+});
+
 // ============================================================
 // HTML Templates
 // ============================================================
