@@ -1143,4 +1143,286 @@ admin.post("/doctor-setup", async (c) => {
   return c.json({ ok: true, setupUrl, note: "Email sent to shubh@myorbithealth.com. Link expires in 24 hours." });
 });
 
+// ─── Vendor Setup Page ──────────────────────────────────────
+
+admin.get("/vendor-setup", (c) => {
+  return c.html(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vendor Setup — My Orbit Health</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #f8f9fa; color: #1a1a2e; }
+    .header { background: #fff; border-bottom: 1px solid #e8e8e8; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; }
+    .back { color: #4F46E5; text-decoration: none; font-size: 14px; }
+    .container { max-width: 800px; margin: 0 auto; padding: 32px; }
+    .card { background: #fff; border-radius: 10px; border: 1px solid #e8e8e8; padding: 24px; margin-bottom: 20px; }
+    .card h3 { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+    .card h4 { font-size: 15px; font-weight: 600; margin: 20px 0 8px; color: #333; }
+    .card p, .card li { font-size: 14px; color: #555; line-height: 1.6; }
+    .card ul, .card ol { padding-left: 20px; margin-bottom: 12px; }
+    .card li { margin-bottom: 4px; }
+    .email-draft { background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 12px 0; font-size: 13px; line-height: 1.7; white-space: pre-wrap; font-family: inherit; }
+    .email-draft .to { color: #888; margin-bottom: 8px; }
+    .email-draft .subject { font-weight: 600; margin-bottom: 12px; }
+    .copy-btn { background: #4F46E5; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+    .copy-btn:hover { background: #4338CA; }
+    input, select { width: 100%; padding: 10px 12px; border: 1.5px solid #d9d9d9; border-radius: 6px; font-size: 14px; font-family: inherit; margin-bottom: 12px; }
+    input:focus { outline: none; border-color: #4F46E5; }
+    label { display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 4px; }
+    .save-btn { background: #22c55e; color: #fff; border: none; padding: 12px 24px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; width: 100%; margin-top: 8px; }
+    .save-btn:hover { background: #16a34a; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .badge-todo { background: #fef3c7; color: #92400e; }
+    .badge-done { background: #dcfce7; color: #166534; }
+    .divider { border-top: 1px solid #e8e8e8; margin: 24px 0; }
+    .toast { position: fixed; bottom: 24px; right: 24px; background: #1a1a2e; color: #fff; padding: 12px 20px; border-radius: 8px; font-size: 14px; display: none; z-index: 100; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1 style="font-size:20px">Vendor Setup <span style="font-size:12px;color:#888">My Orbit Health</span></h1>
+    <a class="back" href="/admin">&larr; Admin</a>
+  </div>
+  <div class="container">
+
+    <!-- IMAWARE (Labs) -->
+    <div class="card">
+      <h3>1. Lab Vendor — imaware <span class="badge badge-todo">ACTION NEEDED</span></h3>
+      <p>We need at-home blood test kits for patients who don't have recent labs. imaware is our top pick — dried blood spot (DBS) kits, API integration, $40-80/kit wholesale, no minimums.</p>
+
+      <h4>What to do</h4>
+      <ol>
+        <li><strong>Send the email below</strong> to <code>sales@poweredbyimaware.com</code></li>
+        <li>They'll reply with pricing + API docs</li>
+        <li>Come back here and paste the API credentials</li>
+      </ol>
+
+      <h4>Draft email (copy and send from shubh@myorbithealth.com)</h4>
+      <div class="email-draft" id="imawareEmail">
+<div class="to">To: sales@poweredbyimaware.com</div>
+<div class="subject">Subject: B2B API Partnership Inquiry — My Orbit Health (Telehealth Platform)</div>
+
+Hi imaware team,
+
+I'm Dr. Shubh, Medical Director at My Orbit Health. We're a white-label telehealth platform that provides hormone therapy, peptide therapy, and weight loss prescriptions through licensed providers.
+
+We're looking for an at-home lab testing partner to integrate into our patient intake flow. Specifically, we need:
+
+<strong>Panels needed:</strong>
+• Hormone panel (Total T, Free T, SHBG, LH, FSH, Estradiol, Prolactin) — for testosterone and enclomiphene patients
+• Metabolic panel (CBC, CMP, Lipid Panel, TSH, Fasting Glucose) — for estrogen therapy patients
+• PSA (for patients 40+)
+
+<strong>What we're looking for:</strong>
+• At-home DBS kits shipped directly to patients
+• B2B/wholesale pricing (we'll be ordering on behalf of patients)
+• REST API access for programmatic kit ordering + result retrieval
+• HIPAA-compliant data handling
+• No minimum order commitments (we're launching, volume will grow)
+
+<strong>Our integration plan:</strong>
+Patient completes telehealth intake → our system orders a kit via API → kit ships to patient → patient completes test → results return via API/webhook → our provider reviews and prescribes.
+
+Current volume: ~50-100 patients/month requiring labs, scaling to 500+.
+
+Could we schedule a call to discuss pricing and API access? Happy to sign an NDA if needed.
+
+Best,
+Dr. Shubh
+Medical Director, My Orbit Health
+shubh@myorbithealth.com</div>
+      <button class="copy-btn" onclick="copyEmail()">Copy Email Text</button>
+
+      <div class="divider"></div>
+
+      <h4>After you hear back — paste credentials here</h4>
+      <label>imaware API Key</label>
+      <input type="text" id="imawareApiKey" placeholder="Paste API key from imaware">
+      <label>imaware API Base URL</label>
+      <input type="text" id="imawareBaseUrl" placeholder="e.g. https://api.imaware.health/v1" value="https://api.imaware.health/v1">
+      <label>imaware Webhook Secret (if provided)</label>
+      <input type="text" id="imawareWebhookSecret" placeholder="For result delivery webhooks (optional)">
+      <button class="save-btn" onclick="saveImaware()">Save imaware Credentials</button>
+    </div>
+
+    <!-- PHARMACY -->
+    <div class="card">
+      <h3>2. Pharmacy API <span class="badge badge-todo">ACTION NEEDED</span></h3>
+      <p>We need a compounding pharmacy partner with an API so prescriptions auto-send and tracking auto-populates. The doctor portal already supports manual tracking entry — this will automate it.</p>
+
+      <h4>What to do</h4>
+      <ol>
+        <li>Decide which compounding pharmacy to use (must compound all 18 services)</li>
+        <li>Ask them if they have an API for order submission + tracking webhooks</li>
+        <li>If they provide API credentials, paste them below</li>
+      </ol>
+
+      <h4>Pharmacy credentials</h4>
+      <label>Pharmacy Name</label>
+      <input type="text" id="pharmacyName" placeholder="e.g. Empower Pharmacy, Olympia Pharmacy">
+      <label>Pharmacy API Key</label>
+      <input type="text" id="pharmacyApiKey" placeholder="Paste API key from pharmacy">
+      <label>Pharmacy API Base URL</label>
+      <input type="text" id="pharmacyBaseUrl" placeholder="e.g. https://api.pharmacy.com/v1">
+      <label>Pharmacy Account/Provider ID</label>
+      <input type="text" id="pharmacyProviderId" placeholder="Your prescriber ID in their system">
+      <button class="save-btn" onclick="savePharmacy()">Save Pharmacy Credentials</button>
+    </div>
+
+    <!-- STRIPE -->
+    <div class="card">
+      <h3>3. Stripe Account <span class="badge badge-todo">ACTION NEEDED</span></h3>
+      <p>The old Stripe account was closed. We're running with STRIPE_BYPASS=true (no real charges). Once you set up a new Stripe account:</p>
+      <ol>
+        <li>Create account at <a href="https://dashboard.stripe.com/register" target="_blank">stripe.com</a></li>
+        <li>Get your API keys from Settings → Developers → API Keys</li>
+        <li>Paste them below</li>
+      </ol>
+      <label>Stripe Secret Key</label>
+      <input type="password" id="stripeSecretKey" placeholder="sk_live_...">
+      <label>Stripe Publishable Key</label>
+      <input type="text" id="stripePublishableKey" placeholder="pk_live_...">
+      <label>Stripe Webhook Secret</label>
+      <input type="text" id="stripeWebhookSecret" placeholder="whsec_...">
+      <button class="save-btn" onclick="saveStripe()">Save Stripe Credentials</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    function showToast(msg, color) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.style.background = color || '#1a1a2e';
+      t.style.color = '#fff';
+      t.style.display = 'block';
+      setTimeout(() => t.style.display = 'none', 4000);
+    }
+
+    function copyEmail() {
+      const el = document.getElementById('imawareEmail');
+      // Get text content without HTML tags
+      const text = el.innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('Email copied to clipboard!', '#22c55e');
+      }).catch(() => {
+        // Fallback: select text
+        const range = document.createRange();
+        range.selectNode(el);
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+        showToast('Text selected — press Ctrl+C to copy', '#f59e0b');
+      });
+    }
+
+    async function saveImaware() {
+      const apiKey = document.getElementById('imawareApiKey').value.trim();
+      const baseUrl = document.getElementById('imawareBaseUrl').value.trim();
+      const webhookSecret = document.getElementById('imawareWebhookSecret').value.trim();
+      if (!apiKey) { showToast('Enter the API key', '#f59e0b'); return; }
+
+      try {
+        const res = await fetch('/admin/vendor-credentials', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ vendor: 'imaware', apiKey, baseUrl, webhookSecret }),
+        });
+        const data = await res.json();
+        if (data.success) showToast('imaware credentials saved!', '#22c55e');
+        else showToast(data.error || 'Failed', '#dc2626');
+      } catch (err) {
+        showToast('Network error', '#dc2626');
+      }
+    }
+
+    async function savePharmacy() {
+      const name = document.getElementById('pharmacyName').value.trim();
+      const apiKey = document.getElementById('pharmacyApiKey').value.trim();
+      const baseUrl = document.getElementById('pharmacyBaseUrl').value.trim();
+      const providerId = document.getElementById('pharmacyProviderId').value.trim();
+      if (!name) { showToast('Enter the pharmacy name', '#f59e0b'); return; }
+
+      try {
+        const res = await fetch('/admin/vendor-credentials', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ vendor: 'pharmacy', name, apiKey, baseUrl, providerId }),
+        });
+        const data = await res.json();
+        if (data.success) showToast('Pharmacy credentials saved!', '#22c55e');
+        else showToast(data.error || 'Failed', '#dc2626');
+      } catch (err) {
+        showToast('Network error', '#dc2626');
+      }
+    }
+
+    async function saveStripe() {
+      const secretKey = document.getElementById('stripeSecretKey').value.trim();
+      const publishableKey = document.getElementById('stripePublishableKey').value.trim();
+      const webhookSecret = document.getElementById('stripeWebhookSecret').value.trim();
+      if (!secretKey || !publishableKey) { showToast('Enter both Stripe keys', '#f59e0b'); return; }
+
+      try {
+        const res = await fetch('/admin/vendor-credentials', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ vendor: 'stripe', secretKey, publishableKey, webhookSecret }),
+        });
+        const data = await res.json();
+        if (data.success) showToast('Stripe credentials saved! Redeploy needed to activate.', '#22c55e');
+        else showToast(data.error || 'Failed', '#dc2626');
+      } catch (err) {
+        showToast('Network error', '#dc2626');
+      }
+    }
+  </script>
+</body>
+</html>`);
+});
+
+// Save vendor credentials to KV
+admin.post("/vendor-credentials", async (c) => {
+  const body = await c.req.json();
+  const vendor = body.vendor as string;
+
+  if (vendor === "imaware") {
+    await c.env.PARTNERS.put("vendor:imaware", JSON.stringify({
+      apiKey: body.apiKey,
+      baseUrl: body.baseUrl || "https://api.imaware.health/v1",
+      webhookSecret: body.webhookSecret || "",
+      savedAt: new Date().toISOString(),
+    }));
+    return c.json({ success: true });
+  }
+
+  if (vendor === "pharmacy") {
+    await c.env.PARTNERS.put("vendor:pharmacy", JSON.stringify({
+      name: body.name,
+      apiKey: body.apiKey || "",
+      baseUrl: body.baseUrl || "",
+      providerId: body.providerId || "",
+      savedAt: new Date().toISOString(),
+    }));
+    return c.json({ success: true });
+  }
+
+  if (vendor === "stripe") {
+    // Store in KV — will need to be set as Cloudflare secrets for prod use
+    await c.env.PARTNERS.put("vendor:stripe", JSON.stringify({
+      secretKey: body.secretKey,
+      publishableKey: body.publishableKey,
+      webhookSecret: body.webhookSecret || "",
+      savedAt: new Date().toISOString(),
+      note: "These are stored in KV for reference. Run 'wrangler secret put STRIPE_SECRET_KEY' etc. to activate in prod.",
+    }));
+    return c.json({ success: true });
+  }
+
+  return c.json({ error: "Unknown vendor" }, 400);
+});
+
 export default admin;
