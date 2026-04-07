@@ -6,6 +6,7 @@ workers_dev = true
 [vars]
 ENVIRONMENT = "production"
 STRIPE_BYPASS = "true"
+MEDPLUM_BASE_URL = "https://api.medplum.com"
 
 [[kv_namespaces]]
 binding = "PARTNERS"
@@ -24,3 +25,6 @@ zone_name = "myorbithealth.com"
 # STRIPE_PUBLISHABLE_KEY
 # STRIPE_WEBHOOK_SECRET
 # RESEND_API_KEY
+# MEDPLUM_CLIENT_ID
+# MEDPLUM_CLIENT_SECRET
+# DOCTOR_PRACTITIONER_ID

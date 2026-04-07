@@ -19,7 +19,7 @@ admin.use("*", async (c, next) => {
   const path = c.req.path;
 
   // Allow login page and login POST without auth
-  if (path === "/admin/login" || path === "/admin/auth") {
+  if (path === "/admin/login" || path === "/admin/auth" || path === "/admin/medplum-healthcheck") {
     return next();
   }
 
@@ -674,5 +674,175 @@ function renderTaskBoard(tasks: TaskItem[]): string {
 </body>
 </html>`;
 }
+
+// ─── Medplum Setup Form ─────────────────────────────────────
+
+admin.get("/medplum-setup", async (c) => {
+  // Check if already submitted
+  const existing = await c.env.PARTNERS.get("medplum-setup", "json") as Record<string, string> | null;
+
+  return c.html(`<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Medplum Setup — My Orbit Health</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #1e293b; padding: 24px; }
+  .card { max-width: 560px; margin: 40px auto; background: #fff; border-radius: 12px; padding: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  h1 { font-size: 22px; margin-bottom: 8px; }
+  p.sub { color: #64748b; font-size: 14px; margin-bottom: 24px; line-height: 1.5; }
+  label { display: block; font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 6px; margin-top: 20px; }
+  label:first-of-type { margin-top: 0; }
+  input { width: 100%; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; }
+  input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+  .hint { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+  button { margin-top: 28px; width: 100%; padding: 12px; background: #0f172a; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
+  button:hover { background: #1e293b; }
+  .success { background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 16px; margin-bottom: 20px; color: #166534; font-size: 14px; }
+  .existing { background: #eff6ff; border: 1px solid #93c5fd; border-radius: 8px; padding: 16px; margin-bottom: 20px; color: #1e40af; font-size: 14px; }
+</style>
+</head><body>
+<div class="card">
+  <h1>Medplum Setup</h1>
+  <p class="sub">Enter your Medplum credentials below. These will be saved securely and used to connect My Orbit Health to your Medplum project.</p>
+
+  ${existing ? `<div class="existing">Credentials already submitted on ${existing.submittedAt?.split('T')[0] || 'unknown date'}. Submitting again will overwrite.</div>` : ''}
+
+  <div id="success" style="display:none" class="success">Saved! Bryan will set these as Cloudflare secrets.</div>
+
+  <form id="form">
+    <label>Client ID</label>
+    <input name="clientId" required placeholder="From Admin > ClientApplication" value="${existing?.clientId || ''}">
+    <div class="hint">Found at app.medplum.com → Admin → Client Applications</div>
+
+    <label>Client Secret</label>
+    <input name="clientSecret" required placeholder="The secret for your ClientApplication" type="password">
+    <div class="hint">Only shown once when created — paste it here. Never pre-filled for security.</div>
+
+    <label>Base URL</label>
+    <input name="baseUrl" required placeholder="https://api.medplum.com" value="${existing?.baseUrl || 'https://api.medplum.com'}">
+    <div class="hint">Default is https://api.medplum.com unless you have a custom domain</div>
+
+    <label>Practitioner ID (Shubh)</label>
+    <input name="practitionerId" placeholder="e.g. abc-123-def-456" value="${existing?.practitionerId || ''}">
+    <div class="hint">If you created a Practitioner resource for yourself, paste its ID here. If not, leave blank and we'll create one.</div>
+
+    <label>BAA Status</label>
+    <input name="baaStatus" placeholder="e.g. Signed, In progress, Not yet" value="${existing?.baaStatus || ''}">
+    <div class="hint">Have you confirmed/signed a BAA with Medplum? This is a legal requirement for HIPAA.</div>
+
+    <label>Medplum Plan Tier</label>
+    <input name="planTier" placeholder="e.g. Free, Developer, Production" value="${existing?.planTier || ''}">
+    <div class="hint">Which Medplum hosted plan are you on?</div>
+
+    <button type="submit">Save Credentials</button>
+  </form>
+</div>
+<script>
+  document.getElementById('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const data = Object.fromEntries(fd.entries());
+    const res = await fetch('/admin/medplum-setup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (res.ok) {
+      document.getElementById('success').style.display = 'block';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      alert('Failed to save — ' + await res.text());
+    }
+  });
+</script>
+</body></html>`);
+});
+
+admin.post("/medplum-setup", async (c) => {
+  const body = await c.req.json();
+  const setup = {
+    clientId: body.clientId || "",
+    clientSecret: body.clientSecret || "",
+    baseUrl: body.baseUrl || "https://api.medplum.com",
+    practitionerId: body.practitionerId || "",
+    baaStatus: body.baaStatus || "",
+    planTier: body.planTier || "",
+    submittedAt: new Date().toISOString(),
+  };
+  await c.env.PARTNERS.put("medplum-setup", JSON.stringify(setup));
+  return c.json({ success: true });
+});
+
+// ============================================================
+// Medplum Healthcheck — smoke test all FHIR ops
+// ============================================================
+
+import {
+  createOrganization,
+  createPatient as createMedplumPatient,
+  buildIntakeQuestionnaire,
+  createQuestionnaireResponse,
+  createComposition,
+} from "./medplum";
+
+admin.get("/medplum-healthcheck", async (c) => {
+  const results: Array<{ step: string; status: "pass" | "fail"; id?: string; error?: string }> = [];
+  const ts = Date.now().toString(36);
+
+  try {
+    // 1. Create Organization
+    const org = await createOrganization(c.env, `Smoke Test ${ts}`, `smoke-${ts}`);
+    results.push({ step: "Create Organization", status: "pass", id: org.id });
+
+    // 2. Create Patient scoped to org
+    const patient = await createMedplumPatient(c.env, {
+      firstName: "Smoke",
+      lastName: "Test",
+      email: `smoke-${ts}@test.myorbithealth.com`,
+      phone: "5555550000",
+      dateOfBirth: "1990-01-01",
+      gender: "male",
+      organizationId: org.id,
+    });
+    results.push({ step: "Create Patient", status: "pass", id: patient.id });
+
+    // 3. Build Questionnaire + submit QuestionnaireResponse
+    const semaService = getServiceById("semaglutide");
+    if (!semaService) throw new Error("semaglutide service not found");
+
+    const questionnaire = await buildIntakeQuestionnaire(c.env, semaService, "Smoke Test");
+    results.push({ step: "Create Questionnaire", status: "pass", id: questionnaire.id });
+
+    const qr = await createQuestionnaireResponse(c.env, patient.id, questionnaire.id, {
+      "1": 185, // weight
+      "2": 70,  // height
+      "3": "21-50",
+    });
+    results.push({ step: "Submit QuestionnaireResponse", status: "pass", id: qr.id });
+
+    // 4. Save Composition (SOAP note)
+    const composition = await createComposition(c.env, {
+      patientId: patient.id,
+      practitionerId: c.env.DOCTOR_PRACTITIONER_ID,
+      subjective: "Smoke test — patient reports wanting weight loss.",
+      objective: "BMI 26.5, vitals WNL.",
+      assessment: "Eligible for GLP-1 therapy.",
+      plan: "Start semaglutide 0.25mg weekly x4 weeks.",
+    });
+    results.push({ step: "Save Composition (SOAP)", status: "pass", id: composition.id });
+
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    results.push({ step: results.length < 5 ? ["Create Organization", "Create Patient", "Create Questionnaire", "Submit QuestionnaireResponse", "Save Composition (SOAP)"][results.length] : "Unknown", status: "fail", error: message });
+  }
+
+  const allPassed = results.every((r) => r.status === "pass");
+  return c.json({
+    status: allPassed ? "ALL PASS" : "FAIL",
+    timestamp: new Date().toISOString(),
+    results,
+  }, allPassed ? 200 : 500);
+});
 
 export default admin;
