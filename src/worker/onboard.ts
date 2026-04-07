@@ -43,6 +43,10 @@ onboard.post("/", async (c) => {
     paymentMode: body.paymentMode,
     healthieFormIds: {},
     platformFees: {},
+    // Branded email sending (partner configures after onboarding)
+    senderEmail: body.senderEmail || undefined,
+    senderName: body.senderName || undefined,
+    resendApiKey: body.resendApiKey || undefined,
     enabled: true,
     createdAt: new Date().toISOString(),
   };

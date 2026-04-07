@@ -31,6 +31,7 @@ import { getPartner } from "../lib/kv";
 import { getServiceById } from "../lib/services";
 import {
   sendEmail,
+  getPartnerEmailConfig,
   buildAsyncReviewEmail,
   buildAsyncPatientAckEmail,
   buildSyncVisitEmail,
@@ -116,11 +117,12 @@ export async function notifyOnIntake(
   result.visitType = routing.visitType;
 
   const doctorEmail = env.ADMIN_EMAIL;
+  const patientEmailConfig = getPartnerEmailConfig(partner, env.RESEND_API_KEY);
 
   try {
     switch (routing.visitType) {
       case "async": {
-        // Doctor: review ready
+        // Doctor: review ready (always from MOH)
         await sendEmail(env.RESEND_API_KEY, {
           to: doctorEmail,
           subject: `New Async Review: ${params.patientName} — ${serviceName} (${params.patientState})`,
@@ -139,7 +141,7 @@ export async function notifyOnIntake(
         // ADDED: Patient acknowledgment — previously patients got nothing for async.
         // Reduces support inquiries and meets basic patient communication expectations.
         try {
-          await sendEmail(env.RESEND_API_KEY, {
+          await sendEmail(patientEmailConfig.apiKey, {
             to: params.patientEmail,
             subject: `We received your ${serviceName} intake — what happens next`,
             html: buildAsyncPatientAckEmail({
@@ -147,7 +149,7 @@ export async function notifyOnIntake(
               serviceName,
               partnerName: partner.businessName,
             }),
-          });
+          }, patientEmailConfig.from);
           result.patientNotified = true;
         } catch (err) {
           console.error("Async patient ack email failed:", err);
@@ -173,9 +175,9 @@ export async function notifyOnIntake(
         });
         result.doctorNotified = true;
 
-        // Patient scheduling email
+        // Patient scheduling email (branded)
         try {
-          await sendEmail(env.RESEND_API_KEY, {
+          await sendEmail(patientEmailConfig.apiKey, {
             to: params.patientEmail,
             subject: `Your ${serviceName} Video Visit — Next Steps`,
             html: buildPatientSyncEmail({
@@ -183,7 +185,7 @@ export async function notifyOnIntake(
               serviceName,
               partnerName: partner.businessName,
             }),
-          });
+          }, patientEmailConfig.from);
           result.patientNotified = true;
         } catch (err) {
           console.error("Patient sync email failed:", err);
@@ -213,7 +215,7 @@ export async function notifyOnIntake(
 
         // ADDED: Patient notification — previously patients got zero communication.
         try {
-          await sendEmail(env.RESEND_API_KEY, {
+          await sendEmail(patientEmailConfig.apiKey, {
             to: params.patientEmail,
             subject: `Important: Your ${serviceName} Request — Action Required`,
             html: buildPatientBlockedEmail({
@@ -224,7 +226,7 @@ export async function notifyOnIntake(
               partnerName: partner.businessName,
               routingFailed,
             }),
-          });
+          }, patientEmailConfig.from);
           result.patientNotified = true;
         } catch (err) {
           console.error("Patient blocked email failed:", err);

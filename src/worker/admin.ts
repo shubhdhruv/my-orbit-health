@@ -104,6 +104,10 @@ admin.post("/partner/:slug", async (c) => {
   if (body.primaryColor) partner.brandColors.primary = body.primaryColor;
   if (body.secondaryColor) partner.brandColors.secondary = body.secondaryColor;
   if (body.font) partner.font = body.font;
+  // Branded email sender config
+  if (body.senderEmail !== undefined) partner.senderEmail = body.senderEmail || undefined;
+  if (body.senderName !== undefined) partner.senderName = body.senderName || undefined;
+  if (body.resendApiKey !== undefined) partner.resendApiKey = body.resendApiKey || undefined;
 
   // Update platform fees
   if (body.platformFees) {

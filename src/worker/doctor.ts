@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { Env } from "../lib/types";
 import { getPartner, getPendingCase, listPendingCases, listAllCases, savePendingCase } from "../lib/kv";
 import { createStripeClient, capturePayment, createSubscription } from "./stripe";
-import { sendEmail, buildPatientApprovedEmail, buildPatientDeniedEmail, buildPatientShippedEmail, buildPatientDeliveredEmail } from "./email";
+import { sendEmail, getPartnerEmailConfig, buildPatientApprovedEmail, buildPatientDeniedEmail, buildPatientShippedEmail, buildPatientDeliveredEmail } from "./email";
 import { createComposition, fhirRead, fhirSearch } from "./medplum";
 
 const doctor = new Hono<{ Bindings: Env }>();
@@ -167,9 +167,10 @@ doctor.post("/case/:id/approve", async (c) => {
     }
   }
 
-  // 3. Email patient
+  // 3. Email patient (from partner's branded sender if configured)
+  const approveEmail = getPartnerEmailConfig(partner, c.env.RESEND_API_KEY);
   try {
-    await sendEmail(c.env.RESEND_API_KEY, {
+    await sendEmail(approveEmail.apiKey, {
       to: pendingCase.patientEmail,
       subject: `Your ${pendingCase.serviceName} prescription has been approved!`,
       html: buildPatientApprovedEmail({
@@ -177,7 +178,7 @@ doctor.post("/case/:id/approve", async (c) => {
         serviceName: pendingCase.serviceName,
         partnerName: pendingCase.partnerName,
       }),
-    });
+    }, approveEmail.from);
   } catch (err) {
     console.error("Approved email failed:", err);
   }
@@ -202,6 +203,12 @@ doctor.post("/case/:id/update-order", async (c) => {
   const body = await c.req.json();
   const newStatus = body.orderStatus as string;
 
+  // Get partner for branded email sending
+  const partner = await getPartner(c.env.PARTNERS, pendingCase.partnerSlug);
+  const emailConfig = partner
+    ? getPartnerEmailConfig(partner, c.env.RESEND_API_KEY)
+    : { apiKey: c.env.RESEND_API_KEY, from: undefined as string | undefined };
+
   if (newStatus === "shipped") {
     pendingCase.orderStatus = "shipped";
     pendingCase.shippedAt = new Date().toISOString();
@@ -211,9 +218,9 @@ doctor.post("/case/:id/update-order", async (c) => {
     if (body.pharmacyOrderId) pendingCase.pharmacyOrderId = body.pharmacyOrderId;
     await savePendingCase(c.env.PARTNERS, pendingCase);
 
-    // Email patient
+    // Email patient (branded)
     try {
-      await sendEmail(c.env.RESEND_API_KEY, {
+      await sendEmail(emailConfig.apiKey, {
         to: pendingCase.patientEmail,
         subject: `Your ${pendingCase.serviceName} has shipped!`,
         html: buildPatientShippedEmail({
@@ -224,7 +231,7 @@ doctor.post("/case/:id/update-order", async (c) => {
           trackingNumber: pendingCase.trackingNumber,
           trackingUrl: pendingCase.trackingUrl,
         }),
-      });
+      }, emailConfig.from);
     } catch (err) {
       console.error("Shipped email failed:", err);
     }
@@ -237,9 +244,9 @@ doctor.post("/case/:id/update-order", async (c) => {
     pendingCase.deliveredAt = new Date().toISOString();
     await savePendingCase(c.env.PARTNERS, pendingCase);
 
-    // Email patient
+    // Email patient (branded)
     try {
-      await sendEmail(c.env.RESEND_API_KEY, {
+      await sendEmail(emailConfig.apiKey, {
         to: pendingCase.patientEmail,
         subject: `Your ${pendingCase.serviceName} has been delivered`,
         html: buildPatientDeliveredEmail({
@@ -248,7 +255,7 @@ doctor.post("/case/:id/update-order", async (c) => {
           partnerName: pendingCase.partnerName,
           startingDose: pendingCase.dosingResult?.startingDose || undefined,
         }),
-      });
+      }, emailConfig.from);
     } catch (err) {
       console.error("Delivered email failed:", err);
     }
@@ -287,9 +294,10 @@ doctor.post("/case/:id/deny", async (c) => {
     }
   }
 
-  // 2. Email patient
+  // 2. Email patient (from partner's branded sender if configured)
+  const denyEmailConfig = partner ? getPartnerEmailConfig(partner, c.env.RESEND_API_KEY) : { apiKey: c.env.RESEND_API_KEY, from: undefined as string | undefined };
   try {
-    await sendEmail(c.env.RESEND_API_KEY, {
+    await sendEmail(denyEmailConfig.apiKey, {
       to: pendingCase.patientEmail,
       subject: `About your ${pendingCase.serviceName} request`,
       html: buildPatientDeniedEmail({
@@ -298,7 +306,7 @@ doctor.post("/case/:id/deny", async (c) => {
         partnerName: pendingCase.partnerName,
         reason,
       }),
-    });
+    }, denyEmailConfig.from);
   } catch (err) {
     console.error("Denied email failed:", err);
   }

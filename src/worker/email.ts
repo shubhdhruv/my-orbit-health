@@ -90,7 +90,11 @@ function buildDosingSection(dosing?: DosingResult): string {
   return html;
 }
 
-export async function sendEmail(apiKey: string, params: EmailParams): Promise<void> {
+export async function sendEmail(
+  apiKey: string,
+  params: EmailParams,
+  from?: string,
+): Promise<void> {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -98,7 +102,7 @@ export async function sendEmail(apiKey: string, params: EmailParams): Promise<vo
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      from: "My Orbit Health <noreply@myorbithealth.com>",
+      from: from || "My Orbit Health <noreply@myorbithealth.com>",
       to: params.to,
       subject: params.subject,
       html: params.html,
@@ -109,6 +113,37 @@ export async function sendEmail(apiKey: string, params: EmailParams): Promise<vo
     const error = await res.text();
     throw new Error(`Resend error: ${error}`);
   }
+}
+
+/**
+ * Returns the API key and "from" address for patient-facing emails.
+ * Uses partner's own Resend key + sender if configured, otherwise falls back to MOH defaults.
+ */
+export function getPartnerEmailConfig(partner: {
+  resendApiKey?: string;
+  senderEmail?: string;
+  senderName?: string;
+  businessName: string;
+}, fallbackApiKey: string): { apiKey: string; from: string } {
+  const name = partner.senderName || partner.businessName;
+  if (partner.resendApiKey && partner.senderEmail) {
+    return {
+      apiKey: partner.resendApiKey,
+      from: `${name} <${partner.senderEmail}>`,
+    };
+  }
+  // If they set a senderEmail but no key, use MOH key (domain must be verified on MOH's Resend account)
+  if (partner.senderEmail) {
+    return {
+      apiKey: fallbackApiKey,
+      from: `${name} <${partner.senderEmail}>`,
+    };
+  }
+  // Default: MOH sender
+  return {
+    apiKey: fallbackApiKey,
+    from: "My Orbit Health <noreply@myorbithealth.com>",
+  };
 }
 
 export function buildOnboardingCompleteEmail(
