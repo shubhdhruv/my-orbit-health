@@ -912,4 +912,44 @@ admin.get("/medplum-healthcheck", async (c) => {
   }, allPassed ? 200 : 500);
 });
 
+// ─── Doctor Setup Token ──────────────────────────────────────
+
+admin.post("/doctor-setup", async (c) => {
+  const token = crypto.randomUUID();
+  await c.env.PARTNERS.put("doctor_setup_token", token, { expirationTtl: 86400 }); // 24hr expiry
+
+  const setupUrl = `https://onboard.myorbithealth.com/doctor/setup/${token}`;
+
+  // Send email to Shubh
+  try {
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${c.env.RESEND_API_KEY}`,
+      },
+      body: JSON.stringify({
+        from: "My Orbit Health <noreply@myorbithealth.com>",
+        to: "shubh@myorbithealth.com",
+        subject: "Set Your Doctor Portal Password",
+        html: `
+          <div style="font-family:system-ui,sans-serif;max-width:500px;margin:0 auto;padding:40px 20px;">
+            <h1 style="font-size:22px;margin-bottom:12px;">Set Your Doctor Portal Password</h1>
+            <p style="color:#555;font-size:15px;line-height:1.6;margin-bottom:24px;">
+              Click the link below to create your own password for the prescription approval portal.
+              This password will be separate from the admin password — only you will know it.
+            </p>
+            <a href="${setupUrl}" style="display:inline-block;padding:14px 28px;background:#4F46E5;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Set My Password</a>
+            <p style="color:#999;font-size:13px;margin-top:24px;">This link expires in 24 hours and can only be used once.</p>
+          </div>
+        `,
+      }),
+    });
+  } catch (err) {
+    console.error("Failed to send doctor setup email:", err);
+  }
+
+  return c.json({ ok: true, setupUrl, note: "Email sent to shubh@myorbithealth.com. Link expires in 24 hours." });
+});
+
 export default admin;

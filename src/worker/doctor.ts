@@ -20,16 +20,25 @@ async function hashPassword(password: string): Promise<string> {
 
 doctor.use("*", async (c, next) => {
   const path = c.req.path;
-  if (path === "/doctor/login" || path === "/doctor/auth") return next();
+  if (path === "/doctor/login" || path === "/doctor/auth" || path.startsWith("/doctor/setup")) return next();
 
   const sessionCookie = c.req.header("Cookie")?.match(/doctor_session=([^;]+)/)?.[1];
   if (!sessionCookie) return c.redirect("/doctor/login");
 
   const today = new Date().toISOString().split("T")[0];
-  const expectedSession = await hashPassword(c.env.ADMIN_PASSWORD_HASH + "doctor" + today);
-  if (sessionCookie !== expectedSession) return c.redirect("/doctor/login");
 
-  return next();
+  // Check doctor's own password first (set via one-time setup)
+  const doctorHash = await c.env.PARTNERS.get("doctor_password_hash");
+  if (doctorHash) {
+    const doctorSession = await hashPassword(doctorHash + "doctor" + today);
+    if (sessionCookie === doctorSession) return next();
+  }
+
+  // Fall back to admin password (for dev access)
+  const adminSession = await hashPassword(c.env.ADMIN_PASSWORD_HASH + "doctor" + today);
+  if (sessionCookie === adminSession) return next();
+
+  return c.redirect("/doctor/login");
 });
 
 // ─── Login ───────────────────────────────────────────────────
@@ -41,9 +50,15 @@ doctor.post("/auth", async (c) => {
   const password = body.password as string || "";
   const passwordHash = await hashPassword(password);
 
-  if (passwordHash === c.env.ADMIN_PASSWORD_HASH.trim()) {
+  // Check doctor's own password first
+  const doctorHash = await c.env.PARTNERS.get("doctor_password_hash");
+  const isDoctor = doctorHash && passwordHash === doctorHash;
+  const isAdmin = passwordHash === c.env.ADMIN_PASSWORD_HASH.trim();
+
+  if (isDoctor || isAdmin) {
     const today = new Date().toISOString().split("T")[0];
-    const sessionToken = await hashPassword(c.env.ADMIN_PASSWORD_HASH + "doctor" + today);
+    const seedHash = isDoctor ? doctorHash : c.env.ADMIN_PASSWORD_HASH;
+    const sessionToken = await hashPassword(seedHash + "doctor" + today);
     return new Response(null, {
       status: 302,
       headers: {
@@ -976,5 +991,78 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
 </body>
 </html>`;
 }
+
+// ─── One-Time Doctor Password Setup ──────────────────────────
+
+doctor.get("/setup/:token", async (c) => {
+  const token = c.req.param("token");
+  const stored = await c.env.PARTNERS.get("doctor_setup_token");
+  if (!stored || stored !== token) {
+    return c.html(`<!DOCTYPE html><html><head><title>Invalid Link</title>
+      <style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f8f9fa;}
+      .card{background:#fff;border-radius:12px;padding:40px;max-width:400px;box-shadow:0 1px 3px rgba(0,0,0,0.1);text-align:center;}
+      h1{font-size:20px;margin-bottom:8px;color:#991b1b;}p{color:#666;font-size:14px;}</style></head>
+      <body><div class="card"><h1>Link Expired or Invalid</h1><p>This setup link has already been used or is no longer valid. Contact your administrator for a new link.</p></div></body></html>`);
+  }
+
+  return c.html(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Set Your Doctor Portal Password</title>
+    <style>
+      *{margin:0;padding:0;box-sizing:border-box;}
+      body{font-family:'Inter',system-ui,sans-serif;background:#f8f9fa;display:flex;align-items:center;justify-content:center;min-height:100vh;}
+      .card{background:#fff;border-radius:12px;padding:40px;width:100%;max-width:440px;box-shadow:0 1px 3px rgba(0,0,0,0.1);}
+      h1{font-size:22px;margin-bottom:8px;}
+      .subtitle{color:#666;font-size:14px;margin-bottom:28px;line-height:1.5;}
+      label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;margin-top:16px;color:#333;}
+      input{width:100%;padding:12px 14px;border:1.5px solid #d9d9d9;border-radius:8px;font-size:14px;font-family:inherit;}
+      input:focus{outline:none;border-color:#4F46E5;box-shadow:0 0 0 3px rgba(79,70,229,0.1);}
+      button{width:100%;padding:14px;background:#4F46E5;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;margin-top:24px;font-family:inherit;}
+      button:hover{background:#4338CA;}
+      .note{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 16px;font-size:13px;color:#166534;margin-top:20px;line-height:1.5;}
+    </style></head><body>
+    <div class="card">
+      <h1>Set Your Password</h1>
+      <p class="subtitle">Create a password for the Doctor Portal. This is separate from the admin password — only you will know it.</p>
+      <form method="POST" action="/doctor/setup/${token}/save">
+        <label for="password">New Password</label>
+        <input type="password" id="password" name="password" required placeholder="Choose a strong password" minlength="8">
+        <label for="confirm">Confirm Password</label>
+        <input type="password" id="confirm" name="confirm" required placeholder="Re-enter password" minlength="8">
+        <button type="submit">Set Password</button>
+      </form>
+      <div class="note">This link can only be used once. After you set your password, you'll use it to sign in at <strong>/doctor/login</strong>.</div>
+    </div></body></html>`);
+});
+
+doctor.post("/setup/:token/save", async (c) => {
+  const token = c.req.param("token");
+  const stored = await c.env.PARTNERS.get("doctor_setup_token");
+  if (!stored || stored !== token) {
+    return c.json({ error: "Invalid or expired setup link" }, 403);
+  }
+
+  const body = await c.req.parseBody();
+  const password = body.password as string || "";
+  const confirm = body.confirm as string || "";
+
+  if (password.length < 8) {
+    return c.html(`<!DOCTYPE html><html><body><script>alert('Password must be at least 8 characters.');history.back();</script></body></html>`);
+  }
+  if (password !== confirm) {
+    return c.html(`<!DOCTYPE html><html><body><script>alert('Passwords do not match.');history.back();</script></body></html>`);
+  }
+
+  const passwordHash = await hashPassword(password);
+  await c.env.PARTNERS.put("doctor_password_hash", passwordHash);
+  await c.env.PARTNERS.delete("doctor_setup_token");
+
+  return c.html(`<!DOCTYPE html><html><head><title>Password Set</title>
+    <style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f8f9fa;}
+    .card{background:#fff;border-radius:12px;padding:40px;max-width:400px;box-shadow:0 1px 3px rgba(0,0,0,0.1);text-align:center;}
+    h1{font-size:20px;margin-bottom:8px;color:#166534;}p{color:#666;font-size:14px;margin-bottom:20px;}
+    a{display:inline-block;padding:12px 24px;background:#4F46E5;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;}
+    a:hover{background:#4338CA;}</style></head>
+    <body><div class="card"><h1>Password Set Successfully</h1><p>Your doctor portal password is now active. Use it to sign in.</p><a href="/doctor/login">Sign In Now</a></div></body></html>`);
+});
 
 export default doctor;
