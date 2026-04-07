@@ -11,6 +11,8 @@ import { createStripeClient, authorizePayment } from "./stripe";
 import {
   createPatient as createMedplumPatient,
   createQuestionnaireResponse,
+  uploadBinary,
+  createDocumentReference,
 } from "./medplum";
 import { routePatient, RoutingResult } from "../lib/router";
 import { evaluateDosing, DosingResult } from "../lib/dosing";
@@ -94,6 +96,35 @@ intake.get("/:slug/telehealth-consent", async (c) => {
   return c.html(generateTelehealthConsent(partner));
 });
 
+// Upload lab results file → Medplum Binary
+intake.post("/:slug/:serviceType/upload-labs", async (c) => {
+  const { slug, serviceType } = c.req.param();
+  const partner = await getPartner(c.env.PARTNERS, slug);
+  if (!partner) return c.json({ error: "Partner not found" }, 404);
+
+  const service = getServiceById(serviceType);
+  if (!service) return c.json({ error: "Service not found" }, 404);
+
+  const formData = await c.req.formData();
+  const file = formData.get("file") as File | null;
+  if (!file) return c.json({ error: "No file provided" }, 400);
+
+  const maxSize = 10 * 1024 * 1024; // 10MB
+  if (file.size > maxSize) return c.json({ error: "File too large (max 10MB)" }, 400);
+
+  const allowed = ["application/pdf", "image/jpeg", "image/png", "image/heic"];
+  if (!allowed.includes(file.type)) return c.json({ error: "File type not supported" }, 400);
+
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const binary = await uploadBinary(c.env, arrayBuffer, file.type);
+    return c.json({ success: true, binaryId: binary.id, fileName: file.name });
+  } catch (err) {
+    console.error("Lab file upload failed:", err);
+    return c.json({ error: "Upload failed" }, 500);
+  }
+});
+
 // Process intake form submission (from checkout)
 intake.post("/:slug/:serviceType/submit", async (c) => {
   const { slug, serviceType } = c.req.param();
@@ -154,7 +185,17 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
     }
   }
 
-  // 2. Create patient + questionnaire response in Medplum
+  // 2. Determine bloodwork status
+  const service = getServiceById(serviceType);
+  const bloodworkAnswer = body.answers?.["bloodwork-status"] as string | undefined;
+  const bloodworkStatus: "have-labs" | "need-labs" | "not-required" =
+    !service?.requiresBloodwork ? "not-required"
+    : bloodworkAnswer === "have-labs" ? "have-labs"
+    : bloodworkAnswer === "need-labs" ? "need-labs"
+    : "not-required";
+  let bloodworkDocRefId: string | undefined;
+
+  // 3. Create patient + questionnaire response in Medplum
   let medplumPatientId: string | undefined;
   try {
     const medplumPatient = await createMedplumPatient(c.env, {
@@ -173,6 +214,21 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
     if (medplumQuestionnaireId) {
       await createQuestionnaireResponse(c.env, medplumPatientId, medplumQuestionnaireId, body.answers || {});
     }
+
+    // Link uploaded lab file to patient via DocumentReference
+    if (body.bloodworkBinaryId && medplumPatientId) {
+      try {
+        const docRef = await createDocumentReference(c.env, {
+          patientId: medplumPatientId,
+          binaryId: body.bloodworkBinaryId,
+          contentType: body.bloodworkContentType || "application/pdf",
+          description: `Lab results for ${serviceType} intake`,
+        });
+        bloodworkDocRefId = docRef.id;
+      } catch (err) {
+        console.error("DocumentReference creation failed:", err);
+      }
+    }
   } catch (err) {
     console.error("Medplum patient creation failed:", err);
     // Don't fail — payment is authorized, we can create the patient later
@@ -180,7 +236,6 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
 
   // 3.5. Save pending case to KV for doctor portal
   try {
-    const service = getServiceById(serviceType);
     const pendingCase: PendingCase = {
       paymentIntentId,
       status: "pending",
@@ -199,6 +254,9 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
       paymentMethodId: body.paymentMethodId || "",
       visitType: routing?.visitType || "async",
       dosingResult: dosingResult,
+      bloodworkStatus,
+      bloodworkBinaryId: body.bloodworkBinaryId,
+      bloodworkDocRefId,
       answers: body.answers || {},
       routingConstraints: routing?.constraints || [],
       createdAt: new Date().toISOString(),

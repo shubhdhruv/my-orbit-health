@@ -690,6 +690,7 @@ export function generateCheckoutHTML(
         const payload = {
           paymentMethodId: paymentMethodId,
           answers: intakeAnswers,
+          bloodworkBinaryId: intakeAnswers['_bloodworkBinaryId'] || undefined,
           disqualified,
           disqualifyReasons,
           selectedPlan,

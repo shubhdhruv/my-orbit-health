@@ -113,6 +113,11 @@ export interface PendingCase {
   answers: Record<string, string | string[] | boolean>;
   routingConstraints: string[];
 
+  // Bloodwork
+  bloodworkStatus?: "have-labs" | "need-labs" | "not-required";
+  bloodworkBinaryId?: string;   // Medplum Binary ID for uploaded lab file
+  bloodworkDocRefId?: string;   // Medplum DocumentReference linking file to patient
+
   // SOAP Note
   soapNoteId?: string;
 

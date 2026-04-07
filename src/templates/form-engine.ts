@@ -570,15 +570,53 @@ export function generateIntakeFormHTML(
       }
     }
 
-    // File upload
-    function handleFileSelect(input) {
+    // File upload — uploads to Medplum Binary
+    async function handleFileSelect(input) {
       const area = input.closest('.file-upload-area');
       const nameEl = area.querySelector('.file-upload-name');
-      if (input.files.length > 0) {
-        area.classList.add('has-file');
-        nameEl.textContent = input.files[0].name;
-        answers[STEPS[currentStepIndex].id] = input.files[0].name;
+      if (input.files.length === 0) return;
+
+      const file = input.files[0];
+      const maxSize = 10 * 1024 * 1024;
+      if (file.size > maxSize) {
+        nameEl.textContent = 'File too large (max 10MB)';
+        nameEl.style.color = '#dc2626';
+        return;
       }
+
+      area.classList.add('has-file');
+      nameEl.textContent = 'Uploading ' + file.name + '...';
+      nameEl.style.color = '';
+
+      // Disable Next while uploading
+      const nextBtn = document.querySelector('.btn-next');
+      if (nextBtn) nextBtn.disabled = true;
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch(CONFIG.baseUrl + '/form/' + CONFIG.partnerSlug + '/' + CONFIG.serviceType + '/upload-labs', {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await res.json();
+        if (data.success) {
+          nameEl.textContent = file.name;
+          answers[STEPS[currentStepIndex].id] = data.binaryId;
+          answers['_bloodworkBinaryId'] = data.binaryId;
+          answers['_bloodworkFileName'] = file.name;
+        } else {
+          nameEl.textContent = data.error || 'Upload failed';
+          nameEl.style.color = '#dc2626';
+          area.classList.remove('has-file');
+        }
+      } catch (err) {
+        nameEl.textContent = 'Upload failed — please try again';
+        nameEl.style.color = '#dc2626';
+        area.classList.remove('has-file');
+      }
+
+      if (nextBtn) nextBtn.disabled = false;
     }
 
     async function submitIntake() {

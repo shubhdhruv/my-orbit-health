@@ -551,6 +551,35 @@ function renderDashboard(cases: import("../lib/types").PendingCase[]): string {
 function renderCaseDetail(c: import("../lib/types").PendingCase): string {
   const expired = new Date(c.authExpiresAt).getTime() < Date.now();
 
+  // Build bloodwork section
+  let bloodworkHtml = "";
+  if (c.bloodworkStatus && c.bloodworkStatus !== "not-required") {
+    let statusContent = "";
+    if (c.bloodworkStatus === "have-labs" && c.bloodworkBinaryId) {
+      statusContent = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'
+        + '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534">LABS UPLOADED</span>'
+        + '<span style="font-size:12px;color:#888">File ID: ' + escapeHtml(c.bloodworkBinaryId) + '</span>'
+        + '</div>';
+    } else if (c.bloodworkStatus === "have-labs") {
+      statusContent = '<div style="display:flex;align-items:center;gap:8px">'
+        + '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fef3c7;color:#92400e">LABS PENDING</span>'
+        + '<span style="font-size:12px;color:#888">Patient indicated they have labs but file was not uploaded</span>'
+        + '</div>';
+    } else if (c.bloodworkStatus === "need-labs") {
+      statusContent = '<div style="display:flex;align-items:center;gap:8px">'
+        + '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fecaca;color:#991b1b">LABS NEEDED</span>'
+        + '<span style="font-size:12px;color:#888">Patient needs to get bloodwork done before treatment can begin</span>'
+        + '</div>';
+    }
+    bloodworkHtml = '<div class="card"><h3 style="font-size:16px;margin-bottom:16px">Bloodwork</h3>' + statusContent + '</div>';
+  }
+
+  // Compute approval gate
+  const labsRequired = c.bloodworkStatus === "have-labs" || c.bloodworkStatus === "need-labs";
+  const labsReady = c.bloodworkStatus === "have-labs" && !!c.bloodworkBinaryId;
+  const labsBlocking = labsRequired && !labsReady;
+  const canApprove = !expired && !!c.soapNoteId && !labsBlocking;
+
   // Build dosing section
   let dosingHtml = "";
   if (c.dosingResult) {
@@ -662,6 +691,9 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
       <table style="width:100%;border-collapse:collapse">${answerRows}</table>
     </div>
 
+    <!-- Bloodwork -->
+    ${bloodworkHtml}
+
     <!-- Actions -->
     <div class="card">
       ${c.status === "pending" ? `
@@ -682,8 +714,9 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
         </div>
 
         <div style="margin-bottom:16px">
-          <button class="btn btn-approve" id="btnApprove" onclick="approveCase()" ${expired || !c.soapNoteId ? "disabled" : ""}>Approve — Charge $${c.chargeAmount}</button>
+          <button class="btn btn-approve" id="btnApprove" onclick="approveCase()" ${canApprove ? "" : "disabled"}>Approve — Charge $${c.chargeAmount}</button>
           ${!c.soapNoteId ? '<p style="font-size:12px;color:#888;margin-top:6px">Generate and save a SOAP note before approving</p>' : ""}
+          ${labsBlocking ? '<p style="font-size:12px;color:#dc2626;margin-top:6px">Bloodwork must be uploaded before approving this service</p>' : ""}
         </div>
         <div>
           <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:#333">Deny Reason</label>
@@ -743,6 +776,7 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
 
   <script>
     const CASE_ID = "${c.paymentIntentId.replace(/"/g, '\\"')}";
+    const LABS_BLOCKING = ${labsBlocking};
     let soapNoteStatus = '${c.soapNoteId ? "saved" : "idle"}'; // idle | generating | ready | saving | saved
 
     function showToast(msg, color) {
@@ -825,9 +859,9 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
           showToast('SOAP note saved (ID: ' + data.noteId + ')', '#22c55e');
           closeSoapModal();
 
-          // Enable the approve button
+          // Enable the approve button (only if labs aren't blocking)
           const approveBtn = document.getElementById('btnApprove');
-          if (approveBtn) approveBtn.disabled = false;
+          if (approveBtn && !LABS_BLOCKING) approveBtn.disabled = false;
 
           // Update the generate button text
           document.getElementById('btnGenerateSoap').textContent = 'Regenerate SOAP Note';
