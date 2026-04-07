@@ -19,6 +19,9 @@ bucket = "./public"
 pattern = "onboard.myorbithealth.com/*"
 zone_name = "myorbithealth.com"
 
+[triggers]
+crons = ["0 14 * * *"]  # Run daily at 2pm UTC (7am PT / 10am ET)
+
 # Secrets (set via `wrangler secret put`):
 # HEALTHIE_API_KEY
 # STRIPE_SECRET_KEY

@@ -20,11 +20,10 @@
 8. **healthie.ts** — NOT deleted. Kept as reference/fallback module (no longer imported by any active code path).
 
 ## What's Next (Priority Order)
-1. **Deploy + test** — deploy to prod, run a test intake, verify patient + QuestionnaireResponse land in Medplum
-2. **Test SOAP note end-to-end** — verify generate + edit + save works (now saves as Medplum Composition)
-3. **Fix bloodwork pipeline** — file upload to R2, lab gate on doctor approval, dosing engine lab validation
-4. **Lab vendor integration** — wire up chosen vendor API (pending Shubh's vendor decision)
-5. **Prior medication history → dosing adjustment** — weight-loss-history answer should affect starting dose
-6. **Full order lifecycle** in doctor portal (prescribed, shipped, delivered — needs pharmacy API)
-7. **Remove STRIPE_BYPASS** when Shubh sets up new Stripe account
-8. **Shubh: finish DocuSign setup** — set secrets, verify Resend domain, test NDA flow
+1. **End-to-end testing** — run a test intake through prod, verify: Medplum Patient + QR, SOAP note generation/save, prior-use dose adjustment, order lifecycle flow (approve → mark shipped → mark delivered), patient status page
+2. **Lab vendor integration** — wire up imaware API for "need-labs" path (Shubh emailing sales@poweredbyimaware.com, credentials go to /admin/vendor-setup)
+3. **Pharmacy API integration** — connect pharmacy system to auto-populate tracking (credentials go to /admin/vendor-setup)
+4. **Follow-up check-in system** — automated emails at 2wk/4wk milestones post-delivery
+5. **Remove STRIPE_BYPASS** when Shubh pastes Stripe keys on /admin/vendor-setup
+6. **Delete healthie.ts** — dead code, no longer imported
+7. **Shubh: finish DocuSign setup** — set secrets, verify Resend domain, test NDA flow

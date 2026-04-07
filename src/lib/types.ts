@@ -139,6 +139,9 @@ export interface PendingCase {
   shippedAt?: string;
   deliveredAt?: string;
 
+  // Follow-up email tracking (ISO timestamps of when each was sent)
+  followUpsSent?: Record<string, string>;
+
   // Timestamps
   createdAt: string;
   authExpiresAt: string;

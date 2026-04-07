@@ -10,6 +10,7 @@ import doctor from "./doctor";
 import priceList from "./price-list";
 import { getPendingCase } from "../lib/kv";
 import { getPartner } from "../lib/kv";
+import { processFollowUps } from "./followup";
 import { getAssetFromKV } from "@cloudflare/kv-asset-handler";
 import manifestJSON from "__STATIC_CONTENT_MANIFEST";
 
@@ -285,4 +286,15 @@ app.get("/", (c) => {
   });
 });
 
-export default app;
+// ─── Scheduled handler (Cron Trigger) ────────────────────────
+
+export default {
+  fetch: app.fetch,
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(
+      processFollowUps(env).then(({ sent, errors }) => {
+        console.log(`Follow-up cron complete: ${sent} sent, ${errors} errors`);
+      })
+    );
+  },
+};
