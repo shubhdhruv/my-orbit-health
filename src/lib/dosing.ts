@@ -260,7 +260,7 @@ export function evaluateDosing(
       }
 
       // ── Prior-use GLP-1 dose adjustment ──
-      const glp1Prior = evaluateGlp1PriorUse(normalizedId, answers, d.titration);
+      const glp1Prior = evaluateGlp1PriorUse(normalizedId, answers);
       if (glp1Prior) {
         adjustedDose = glp1Prior.dose;
         doseAdjustments.push({
@@ -461,7 +461,6 @@ interface PriorUseResult {
 function evaluateGlp1PriorUse(
   currentServiceId: string,
   answers: Answers,
-  titration?: Array<{ dose_mg?: number; step?: number }>,
 ): PriorUseResult | null {
   if (answers["prior-glp1"] !== "yes") return null;
 
@@ -543,11 +542,12 @@ function evaluateGlp1PriorUse(
 /**
  * Evaluates ED medication prior-use answers and returns an adjusted starting dose.
  * Rules:
- *   - Same med + "worked great" → start at prior dose (up to max)
+ *   - Same med + "worked great" → start at prior dose (up to mode max)
  *   - Same med + "partial" → start at prior dose (doctor may escalate)
  *   - Same med + "didn't work" → no adjustment (doctor decides, may escalate)
  *   - Same med + "side effects" → no adjustment (doctor reviews)
  *   - Different ED med → no adjustment (different pharmacology)
+ *   - Tadalafil: prior dose capped at mode max (daily max 5mg, PRN max 20mg)
  */
 function evaluateEdPriorUse(
   currentServiceId: string,
@@ -566,13 +566,22 @@ function evaluateEdPriorUse(
   // Get the prior dose
   const priorDoseStr = answers[`ed-prior-dose-${priorMed}`] as string | undefined;
   if (!priorDoseStr) return null;
-  const priorDose = parseFloat(priorDoseStr);
-  if (isNaN(priorDose) || priorDose <= currentDefault) return null;
+  let priorDose = parseFloat(priorDoseStr);
+  if (isNaN(priorDose)) return null;
+
+  // Tadalafil safety: cap at mode-specific max (daily max 5mg, PRN max 20mg)
+  if (currentServiceId === "tadalafil") {
+    const mode = answers["dosing_preference"] === "daily" ? "daily" : "prn";
+    const modeMax = mode === "daily" ? 5 : 20;
+    priorDose = Math.min(priorDose, modeMax);
+  }
+
+  if (priorDose <= currentDefault) return null;
 
   return {
     dose: priorDose,
     reason: `Prior ED use: ${priorMed} ${priorDose}mg, response: ${response}`,
-    providerNote: `PRIOR USE: Patient reports ${priorMed} ${priorDose}mg (${response === "good" ? "worked well" : "partial response"}). ` +
+    providerNote: `PRIOR USE: Patient reports ${priorMed} ${priorDoseStr}mg (${response === "good" ? "worked well" : "partial response"}). ` +
       `Starting at ${priorDose}mg instead of ${currentDefault}mg.`,
   };
 }
