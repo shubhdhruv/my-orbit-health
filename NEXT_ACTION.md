@@ -21,10 +21,14 @@ All three files compile clean, wrangler dry-run passes.
 3. Add admin repair endpoint for Medplum questionnaires (parallel to Healthie repair-forms)
 4. Wire existing BHD partner with Medplum org + questionnaires (one-time backfill)
 
-### Steps
-1. **`src/worker/notify.ts`** — include `medplumPatientId` in doctor notification email body (informational)
-2. **`src/worker/doctor.ts`** — in `renderCaseDetail()`, show Medplum Patient ID and SOAP Composition status badges
-3. **`src/worker/admin.ts`** — add `POST /admin/partner/:slug/repair-medplum` to create missing Medplum org + questionnaires for existing partners
+### Steps (run 1-3 as parallel agents in worktrees, then 4-5 sequentially)
+
+**Parallel (each agent in its own worktree, each touches ONE file):**
+1. **Agent A → `src/worker/notify.ts`** — include `medplumPatientId` in doctor notification email body (informational)
+2. **Agent B → `src/worker/doctor.ts`** — in `renderCaseDetail()`, show Medplum Patient ID and SOAP Composition status badges
+3. **Agent C → `src/worker/admin.ts`** — add `POST /admin/partner/:slug/repair-medplum` to create missing Medplum org + questionnaires for existing partners
+
+**Sequential (after merging parallel branches):**
 4. **Backfill BHD** — call repair-medplum for `the-beverly-hills-drip` to populate `medplumOrgId` + `medplumQuestionnaireIds`
 5. **Test end-to-end** — submit a test intake through BHD, verify data appears in both Healthie and Medplum
 
