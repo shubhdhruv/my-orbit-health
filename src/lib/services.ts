@@ -32,6 +32,70 @@ export interface ServiceDefinition {
 }
 
 // ============================================================
+// SHARED STEP: State selection (used by all services for routing)
+// ============================================================
+
+const STATE_STEP: FormStep = {
+  id: "state",
+  question: "What state do you live in?",
+  subtitle: "We need this to match you with a licensed provider in your state.",
+  type: "select",
+  options: [
+    { label: "Alabama", value: "AL" },
+    { label: "Alaska", value: "AK" },
+    { label: "Arizona", value: "AZ" },
+    { label: "Arkansas", value: "AR" },
+    { label: "California", value: "CA" },
+    { label: "Colorado", value: "CO" },
+    { label: "Connecticut", value: "CT" },
+    { label: "Delaware", value: "DE" },
+    { label: "District of Columbia", value: "DC" },
+    { label: "Florida", value: "FL" },
+    { label: "Georgia", value: "GA" },
+    { label: "Hawaii", value: "HI" },
+    { label: "Idaho", value: "ID" },
+    { label: "Illinois", value: "IL" },
+    { label: "Indiana", value: "IN" },
+    { label: "Iowa", value: "IA" },
+    { label: "Kansas", value: "KS" },
+    { label: "Kentucky", value: "KY" },
+    { label: "Louisiana", value: "LA" },
+    { label: "Maine", value: "ME" },
+    { label: "Maryland", value: "MD" },
+    { label: "Massachusetts", value: "MA" },
+    { label: "Michigan", value: "MI" },
+    { label: "Minnesota", value: "MN" },
+    { label: "Mississippi", value: "MS" },
+    { label: "Missouri", value: "MO" },
+    { label: "Montana", value: "MT" },
+    { label: "Nebraska", value: "NE" },
+    { label: "Nevada", value: "NV" },
+    { label: "New Hampshire", value: "NH" },
+    { label: "New Jersey", value: "NJ" },
+    { label: "New Mexico", value: "NM" },
+    { label: "New York", value: "NY" },
+    { label: "North Carolina", value: "NC" },
+    { label: "North Dakota", value: "ND" },
+    { label: "Ohio", value: "OH" },
+    { label: "Oklahoma", value: "OK" },
+    { label: "Oregon", value: "OR" },
+    { label: "Pennsylvania", value: "PA" },
+    { label: "Rhode Island", value: "RI" },
+    { label: "South Carolina", value: "SC" },
+    { label: "South Dakota", value: "SD" },
+    { label: "Tennessee", value: "TN" },
+    { label: "Texas", value: "TX" },
+    { label: "Utah", value: "UT" },
+    { label: "Vermont", value: "VT" },
+    { label: "Virginia", value: "VA" },
+    { label: "Washington", value: "WA" },
+    { label: "West Virginia", value: "WV" },
+    { label: "Wisconsin", value: "WI" },
+    { label: "Wyoming", value: "WY" },
+  ],
+};
+
+// ============================================================
 // GLP-1 WEIGHT LOSS (shared steps for semaglutide, tirzepatide, retatrutide)
 // ============================================================
 
@@ -983,7 +1047,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "weight-loss",
     description: "FDA-approved GLP-1 weight management program",
     requiresBloodwork: false,
-    intakeSteps: GLP1_STEPS,
+    intakeSteps: [STATE_STEP, ...GLP1_STEPS],
   },
   {
     id: "tirzepatide",
@@ -991,7 +1055,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "weight-loss",
     description: "Dual GIP/GLP-1 weight management program",
     requiresBloodwork: false,
-    intakeSteps: GLP1_STEPS,
+    intakeSteps: [STATE_STEP, ...GLP1_STEPS],
   },
   {
     id: "retatrutide",
@@ -999,7 +1063,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "weight-loss",
     description: "Triple hormone receptor agonist for weight management",
     requiresBloodwork: false,
-    intakeSteps: [...GLP1_STEPS, OFF_LABEL_CONSENT_STEP],
+    intakeSteps: [STATE_STEP, ...GLP1_STEPS, OFF_LABEL_CONSENT_STEP],
   },
 
   // ED Medications
@@ -1009,7 +1073,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "ed",
     description: "On-demand erectile dysfunction treatment",
     requiresBloodwork: false,
-    intakeSteps: ED_STEPS,
+    intakeSteps: [STATE_STEP, ...ED_STEPS],
   },
   {
     id: "tadalafil",
@@ -1017,7 +1081,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "ed",
     description: "Daily or on-demand erectile dysfunction treatment",
     requiresBloodwork: false,
-    intakeSteps: [...ED_STEPS, TADALAFIL_DOSING_PREFERENCE],
+    intakeSteps: [STATE_STEP, ...ED_STEPS, TADALAFIL_DOSING_PREFERENCE],
   },
 
   // HRT Male
@@ -1028,7 +1092,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     description: "Testosterone cypionate/enanthate injection therapy",
     requiresBloodwork: true,
     bloodworkPanels: ["Total Testosterone", "Free Testosterone", "SHBG", "LH", "FSH", "Estradiol", "Prolactin", "CBC", "CMP", "Lipid Panel", "PSA (40+)", "TSH"],
-    intakeSteps: TESTOSTERONE_STEPS,
+    intakeSteps: [STATE_STEP, ...TESTOSTERONE_STEPS],
   },
   {
     id: "testosterone-oral",
@@ -1037,7 +1101,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     description: "Oral testosterone undecanoate therapy",
     requiresBloodwork: true,
     bloodworkPanels: ["Total Testosterone", "Free Testosterone", "SHBG", "LH", "FSH", "Estradiol", "Prolactin", "CBC", "CMP", "Lipid Panel", "PSA (40+)", "TSH"],
-    intakeSteps: TESTOSTERONE_STEPS,
+    intakeSteps: [STATE_STEP, ...TESTOSTERONE_STEPS],
   },
   {
     id: "enclomiphene",
@@ -1046,7 +1110,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     description: "Fertility-preserving male hormone optimization",
     requiresBloodwork: true,
     bloodworkPanels: ["Total Testosterone", "Free Testosterone", "LH", "FSH", "Estradiol", "SHBG", "CBC", "CMP", "Lipid Panel", "Prolactin"],
-    intakeSteps: ENCLOMIPHENE_STEPS,
+    intakeSteps: [STATE_STEP, ...ENCLOMIPHENE_STEPS],
   },
 
   // HRT Female
@@ -1056,7 +1120,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "hrt-female",
     description: "Vaginal estradiol cream for genitourinary syndrome of menopause",
     requiresBloodwork: false,
-    intakeSteps: ESTROGEN_STEPS,
+    intakeSteps: [STATE_STEP, ...ESTROGEN_STEPS],
   },
   {
     id: "estrogen-cream-systemic",
@@ -1065,7 +1129,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     description: "Topical estradiol cream for systemic menopause symptom relief",
     requiresBloodwork: true,
     bloodworkPanels: ["FSH", "Estradiol", "TSH", "Free T4", "CBC", "CMP", "Lipid Panel", "Fasting Glucose"],
-    intakeSteps: ESTROGEN_STEPS,
+    intakeSteps: [STATE_STEP, ...ESTROGEN_STEPS],
   },
   {
     id: "estrogen-patches",
@@ -1074,7 +1138,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     description: "Transdermal estradiol patches for menopause symptom relief",
     requiresBloodwork: true,
     bloodworkPanels: ["FSH", "Estradiol", "TSH", "Free T4", "CBC", "CMP", "Lipid Panel", "Fasting Glucose"],
-    intakeSteps: ESTROGEN_STEPS,
+    intakeSteps: [STATE_STEP, ...ESTROGEN_STEPS],
   },
 
   // Peptides
@@ -1084,7 +1148,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "peptide",
     description: "Mitochondrial peptide for metabolic optimization",
     requiresBloodwork: false,
-    intakeSteps: [...MOTSC_EXTRA_STEPS, ...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
+    intakeSteps: [STATE_STEP, ...MOTSC_EXTRA_STEPS, ...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
   },
   {
     id: "nad",
@@ -1092,7 +1156,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "peptide",
     description: "Cellular energy and DNA repair coenzyme therapy",
     requiresBloodwork: false,
-    intakeSteps: [...NAD_EXTRA_STEPS, ...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
+    intakeSteps: [STATE_STEP, ...NAD_EXTRA_STEPS, ...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
   },
   {
     id: "bpc-157",
@@ -1100,7 +1164,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "peptide",
     description: "Body protection compound for tissue repair",
     requiresBloodwork: false,
-    intakeSteps: [...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
+    intakeSteps: [STATE_STEP, ...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
   },
   {
     id: "tb-500",
@@ -1108,7 +1172,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "peptide",
     description: "Thymosin beta-4 for injury recovery and flexibility",
     requiresBloodwork: false,
-    intakeSteps: [...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
+    intakeSteps: [STATE_STEP, ...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
   },
 
   // Blends
@@ -1118,7 +1182,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "blend",
     description: "BPC-157 + TB-500 regenerative healing combination",
     requiresBloodwork: false,
-    intakeSteps: [...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
+    intakeSteps: [STATE_STEP, ...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
   },
   {
     id: "glo",
@@ -1126,7 +1190,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "blend",
     description: "GHK-Cu + BPC-157 + TB-500 for skin and tissue regeneration",
     requiresBloodwork: false,
-    intakeSteps: [...GLO_EXTRA_STEPS, ...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
+    intakeSteps: [STATE_STEP, ...GLO_EXTRA_STEPS, ...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
   },
   {
     id: "klow",
@@ -1134,7 +1198,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "blend",
     description: "GHK-Cu + BPC-157 + TB-500 + KPV for regeneration and inflammation",
     requiresBloodwork: false,
-    intakeSteps: [...KLOW_EXTRA_STEPS, ...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
+    intakeSteps: [STATE_STEP, ...KLOW_EXTRA_STEPS, ...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
   },
 ];
 

@@ -416,7 +416,10 @@ export function generateIntakeFormHTML(
     }
 
     function showStep(index) {
-      document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.step').forEach(el => {
+        el.classList.remove('active');
+        el.style.removeProperty('display');
+      });
       const stepEl = document.querySelector('.step[data-index="' + index + '"]');
       if (stepEl) {
         stepEl.classList.add('active');
@@ -486,6 +489,9 @@ export function generateIntakeFormHTML(
         const feet = stepEl.querySelector('#bmi-feet')?.value;
         const inches = stepEl.querySelector('#bmi-inches')?.value;
         answers[step.id] = { weight, feet, inches };
+      } else if (step.type === 'select') {
+        const sel = stepEl.querySelector('select');
+        if (sel) answers[step.id] = sel.value;
       } else if (step.type === 'textarea') {
         const ta = stepEl.querySelector('textarea');
         if (ta) answers[step.id] = ta.value;
@@ -612,6 +618,9 @@ function renderStep(step: FormStep, index: number): string {
     case "number":
       content = renderInputStep(step);
       break;
+    case "select":
+      content = renderSelectStep(step);
+      break;
     case "file-upload":
       content = renderFileUploadStep(step);
       break;
@@ -656,6 +665,16 @@ function renderCheckboxStep(step: FormStep): string {
         </div>`
     )
     .join("");
+}
+
+function renderSelectStep(step: FormStep): string {
+  const options = (step.options || [])
+    .map((opt) => `<option value="${opt.value}">${opt.label}</option>`)
+    .join("");
+  return `<select class="select-input" id="select-${step.id}">
+    <option value="">Select one...</option>
+    ${options}
+  </select>`;
 }
 
 function renderBMIStep(step: FormStep): string {
