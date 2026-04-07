@@ -10,6 +10,7 @@ import {
   addFormToOnboardingFlow,
 } from "./healthie";
 import { createStripeClient, createConnectAccount } from "./stripe";
+import { createOrganization, buildIntakeQuestionnaire } from "./medplum";
 import { sendEmail, buildOnboardingCompleteEmail } from "./email";
 
 const onboard = new Hono<{ Bindings: Env }>();
@@ -89,6 +90,28 @@ onboard.post("/", async (c) => {
     console.error("Healthie setup failed:", err);
   }
 
+  // 3b. Dual-write: Create Medplum Organization + Questionnaires
+  try {
+    const org = await createOrganization(c.env, partner.businessName, slug);
+    partner.medplumOrgId = org.id;
+
+    const medplumQIds: Record<string, string> = {};
+    for (const service of partner.services) {
+      const serviceDef = getServiceById(service.type);
+      if (serviceDef) {
+        try {
+          const q = await buildIntakeQuestionnaire(c.env, serviceDef, partner.businessName);
+          medplumQIds[service.type] = q.id;
+        } catch (err) {
+          console.error(`Medplum questionnaire for ${service.type} failed:`, err);
+        }
+      }
+    }
+    partner.medplumQuestionnaireIds = medplumQIds;
+  } catch (err) {
+    console.error("Medplum partner setup failed (non-blocking):", err);
+  }
+
   // 4. Set up Stripe
   let stripeOnboardingUrl: string | undefined;
   const stripe = createStripeClient(c.env.STRIPE_SECRET_KEY);
@@ -165,6 +188,8 @@ onboard.post("/", async (c) => {
     stripeOnboardingUrl,
     healthieGroupId: partner.healthieOrgId,
     healthieFormIds: partner.healthieFormIds,
+    medplumOrgId: partner.medplumOrgId,
+    medplumQuestionnaireIds: partner.medplumQuestionnaireIds,
   });
 });
 

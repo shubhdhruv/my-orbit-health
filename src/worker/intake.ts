@@ -9,6 +9,10 @@ import { generateCheckoutHTML } from "../templates/checkout";
 import { generateTermsOfService, generatePrivacyPolicy, generateTelehealthConsent } from "../templates/legal";
 import { createStripeClient, authorizePayment } from "./stripe";
 import { createHealthieClient, createPatient, createFormCompletion } from "./healthie";
+import {
+  createPatient as createMedplumPatient,
+  createQuestionnaireResponse,
+} from "./medplum";
 import { routePatient, RoutingResult } from "../lib/router";
 import { evaluateDosing, DosingResult } from "../lib/dosing";
 import { notifyOnIntake } from "./notify";
@@ -205,6 +209,30 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
     }
   }
 
+  // 3a. Dual-write: Create patient + questionnaire response in Medplum
+  let medplumPatientId: string | undefined;
+  try {
+    const medplumPatient = await createMedplumPatient(c.env, {
+      firstName: body.answers?.firstName || "",
+      lastName: body.answers?.lastName || "",
+      email: body.answers?.email || "",
+      phone: body.answers?.phone || "",
+      dateOfBirth: body.answers?.dob || "",
+      gender: body.answers?.gender || "",
+      organizationId: partner.medplumOrgId || "",
+    });
+    medplumPatientId = medplumPatient.id;
+
+    // Submit intake answers as QuestionnaireResponse
+    const medplumQuestionnaireId = partner.medplumQuestionnaireIds?.[serviceType];
+    if (medplumQuestionnaireId) {
+      await createQuestionnaireResponse(c.env, medplumPatientId, medplumQuestionnaireId, body.answers || {});
+    }
+  } catch (err) {
+    // Medplum failure must NOT block the intake flow
+    console.error("Medplum dual-write failed (non-blocking):", err);
+  }
+
   // 3.5. Save pending case to KV for doctor portal
   try {
     const service = getServiceById(serviceType);
@@ -217,6 +245,7 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
       patientState,
       patientDob: body.answers?.dob || "",
       healthiePatientId: patientId,
+      medplumPatientId,
       partnerSlug: slug,
       partnerName: partner.businessName,
       serviceType,

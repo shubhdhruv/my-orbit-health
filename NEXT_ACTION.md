@@ -1,43 +1,37 @@
-# Next Action: Session 2 — Dual-Write Integration
+# Next Action: Session 3 — Notify + Admin Medplum Visibility
 
 ## Status
 - Phase 0 DONE: Medplum account created, credentials verified, secrets set
 - Phase 1 DONE: `medplum.ts` built (12 functions), healthcheck ALL PASS
+- Phase 2 DONE: Dual-write wired into intake.ts, doctor.ts, onboard.ts
 - BAA: In progress (Shubh emailing hello@medplum.com)
 
-## What's Live
-- `/admin/medplum-healthcheck` — public endpoint, creates Org → Patient → Questionnaire → QR → Composition (SOAP), all pass
-- `src/worker/medplum.ts` — full FHIR client (token mgmt, all resource types)
-- Dual-write types on Env, PartnerConfig, PendingCase
+## What Session 2 Did
+1. **intake.ts** — after Healthie patient + form creation, also creates Medplum Patient + QuestionnaireResponse. Saves `medplumPatientId` on PendingCase. Medplum failure is non-blocking.
+2. **doctor.ts** — after SOAP note saves to Healthie, also creates Medplum Composition with same S/O/A/P. Medplum failure is non-blocking.
+3. **onboard.ts** — on partner creation, also creates Medplum Organization + Questionnaires per service. Saves `medplumOrgId` and `medplumQuestionnaireIds` on PartnerConfig. Medplum failure is non-blocking.
 
-## This Session: Wire Medplum into the intake pipeline (dual-write)
+All three files compile clean, wrangler dry-run passes.
+
+## This Session: Notify + Admin Medplum Visibility
 
 ### Goal
-When a patient submits intake, write to **both** Healthie AND Medplum. This keeps Healthie as the source of truth while we validate Medplum data looks correct.
+1. Add Medplum IDs to notification emails (so doctor can see data landed in both systems)
+2. Show Medplum status on doctor portal case detail (green/red badge per resource)
+3. Add admin repair endpoint for Medplum questionnaires (parallel to Healthie repair-forms)
+4. Wire existing BHD partner with Medplum org + questionnaires (one-time backfill)
 
 ### Steps
-1. **`src/worker/intake.ts`** — after Healthie patient + form creation succeeds, also call:
-   - `createPatient()` → save `medplumPatientId` on PendingCase
-   - `createQuestionnaireResponse()` with intake answers
-   - Wrap in try/catch — Medplum failure should NOT block the intake flow
+1. **`src/worker/notify.ts`** — include `medplumPatientId` in doctor notification email body (informational)
+2. **`src/worker/doctor.ts`** — in `renderCaseDetail()`, show Medplum Patient ID and SOAP Composition status badges
+3. **`src/worker/admin.ts`** — add `POST /admin/partner/:slug/repair-medplum` to create missing Medplum org + questionnaires for existing partners
+4. **Backfill BHD** — call repair-medplum for `the-beverly-hills-drip` to populate `medplumOrgId` + `medplumQuestionnaireIds`
+5. **Test end-to-end** — submit a test intake through BHD, verify data appears in both Healthie and Medplum
 
-2. **`src/worker/doctor.ts`** — after SOAP note saves to Healthie, also call:
-   - `createComposition()` with same S/O/A/P content
-   - Again, Medplum failure = log + continue
-
-3. **Partner onboarding** — when creating a partner via `/admin`, also:
-   - `createOrganization()` → save `medplumOrgId` on PartnerConfig
-   - `buildIntakeQuestionnaire()` for each service → save `medplumQuestionnaireIds`
-
-4. **Verify** — submit a test intake through BHD, check that data appears in both Healthie and Medplum
-
-### Key Decisions (already made)
-- Plain fetch, no SDK
-- SOAP = Composition with 4 sections, not Encounter+QR
-- Token cache: stale-while-revalidate at 50min + KV lock (60s TTL)
-- `MEDPLUM_BASE_URL` env var (not hardcoded)
-- Dual fields during dual-write phase — don't rename/remove Healthie fields yet
+### Key Rules (unchanged)
 - Medplum failure must not block patient flow
+- Don't remove Healthie fields — add medplum fields alongside
+- Run `/admin/medplum-healthcheck` before and after changes
 
 ### Credentials (already set as Cloudflare secrets + in ~/.zshrc)
 - Client ID: fffb526e-400e-4b5b-b7e5-f2c270d526dc

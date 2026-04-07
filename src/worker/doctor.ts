@@ -4,6 +4,7 @@ import { getPartner, getPendingCase, listPendingCases, listAllCases, savePending
 import { createStripeClient, capturePayment, createSubscription } from "./stripe";
 import { sendEmail, buildPatientApprovedEmail, buildPatientDeniedEmail } from "./email";
 import { createHealthieClient, saveSoapNote, createSoapTemplate, SoapTemplate } from "./healthie";
+import { createComposition } from "./medplum";
 
 const doctor = new Hono<{ Bindings: Env }>();
 
@@ -317,6 +318,23 @@ doctor.post("/case/:id/save-soap", async (c) => {
 
     pendingCase.soapNoteId = noteId;
     await savePendingCase(c.env.PARTNERS, pendingCase);
+
+    // Dual-write: also save SOAP to Medplum as Composition
+    if (pendingCase.medplumPatientId) {
+      try {
+        await createComposition(c.env, {
+          patientId: pendingCase.medplumPatientId,
+          practitionerId: c.env.DOCTOR_PRACTITIONER_ID,
+          subjective,
+          objective,
+          assessment,
+          plan,
+          title: `SOAP Note — ${pendingCase.serviceName}`,
+        });
+      } catch (medplumErr) {
+        console.error("Medplum SOAP dual-write failed (non-blocking):", medplumErr);
+      }
+    }
 
     return c.json({ success: true, noteId });
   } catch (err) {
