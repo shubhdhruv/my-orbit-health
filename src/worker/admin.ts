@@ -3,6 +3,7 @@ import { Env, PartnerConfig, ServiceId } from "../lib/types";
 import { getPartner, savePartner, listPartners } from "../lib/kv";
 import { getServiceById } from "../lib/services";
 import { createHealthieClient, buildIntakeFormInHealthie } from "./healthie";
+import { createOrganization, buildIntakeQuestionnaire } from "./medplum";
 
 const admin = new Hono<{ Bindings: Env }>();
 
@@ -468,6 +469,19 @@ function renderPartnerDetail(partner: PartnerConfig): string {
       <div class="btn-row">
         <button class="btn btn-primary" onclick="saveFees()">Save Fees</button>
       </div>
+    </div>
+
+    <!-- Medplum Integration -->
+    <div class="card">
+      <h3>Medplum Integration</h3>
+      <table>
+        <tr><td style="padding:6px 0;color:#666;font-size:13px;width:180px">Organization ID</td><td style="padding:6px 0;font-size:13px;font-family:monospace">${partner.medplumOrgId ? `<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534;margin-right:6px">LINKED</span>${partner.medplumOrgId}` : '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fecaca;color:#991b1b">NOT SET</span>'}</td></tr>
+        ${partner.services.map((s) => {
+          const label = serviceLabels[s.type] || s.type;
+          const qId = partner.medplumQuestionnaireIds?.[s.type];
+          return `<tr><td style="padding:6px 0;color:#666;font-size:13px">${label} Questionnaire</td><td style="padding:6px 0;font-size:11px;font-family:monospace">${qId ? `<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534;margin-right:6px">LINKED</span>${qId}` : '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fecaca;color:#991b1b">NOT SET</span>'}</td></tr>`;
+        }).join("")}
+      </table>
     </div>
 
     <!-- Embed Codes -->

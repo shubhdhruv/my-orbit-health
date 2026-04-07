@@ -108,7 +108,7 @@ export async function fhirRead<T = Record<string, unknown>>(env: Env, resourceTy
   return (await res.json()) as T;
 }
 
-async function fhirSearch<T = Record<string, unknown>>(env: Env, resourceType: string, params: Record<string, string>): Promise<{ entry?: Array<{ resource: T }> }> {
+export async function fhirSearch<T = Record<string, unknown>>(env: Env, resourceType: string, params: Record<string, string>): Promise<{ entry?: Array<{ resource: T }> }> {
   const qs = new URLSearchParams(params).toString();
   const res = await fhirFetch(env, `${resourceType}?${qs}`);
   if (!res.ok) {

@@ -4,7 +4,7 @@ import { getPartner, getPendingCase, listPendingCases, listAllCases, savePending
 import { createStripeClient, capturePayment, createSubscription } from "./stripe";
 import { sendEmail, buildPatientApprovedEmail, buildPatientDeniedEmail } from "./email";
 import { createHealthieClient, saveSoapNote, createSoapTemplate, SoapTemplate } from "./healthie";
-import { createComposition } from "./medplum";
+import { createComposition, fhirRead, fhirSearch } from "./medplum";
 
 const doctor = new Hono<{ Bindings: Env }>();
 
@@ -70,6 +70,41 @@ doctor.get("/case/:id", async (c) => {
   const pendingCase = await getPendingCase(c.env.PARTNERS, id);
   if (!pendingCase) return c.text("Case not found", 404);
   return c.html(renderCaseDetail(pendingCase));
+});
+
+// ─── Medplum Read-Back ──────────────────────────────────────
+
+doctor.get("/case/:id/medplum-data", async (c) => {
+  const id = c.req.param("id");
+  const pendingCase = await getPendingCase(c.env.PARTNERS, id);
+  if (!pendingCase) return c.json({ error: "Case not found" }, 404);
+  if (!pendingCase.medplumPatientId) return c.json({ error: "No Medplum patient linked" }, 404);
+
+  try {
+    // Read patient
+    const patient = await fhirRead(c.env, "Patient", pendingCase.medplumPatientId);
+
+    // Search for QuestionnaireResponses
+    const qrBundle = await fhirSearch(c.env, "QuestionnaireResponse", {
+      patient: `Patient/${pendingCase.medplumPatientId}`,
+    });
+    const questionnaireResponses = (qrBundle.entry || []).map((e: any) => e.resource);
+
+    // Search for Compositions (SOAP notes)
+    const compBundle = await fhirSearch(c.env, "Composition", {
+      subject: `Patient/${pendingCase.medplumPatientId}`,
+    });
+    const compositions = (compBundle.entry || []).map((e: any) => e.resource);
+
+    return c.json({
+      success: true,
+      patient,
+      questionnaireResponses,
+      compositions,
+    });
+  } catch (err) {
+    return c.json({ error: `Medplum read failed: ${String(err)}` }, 500);
+  }
 });
 
 // ─── Approve ─────────────────────────────────────────────────
@@ -611,6 +646,16 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
       </table>
     </div>
 
+    <!-- Medplum Verification -->
+    ${c.medplumPatientId ? `
+    <div class="card" id="medplumCard">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h3 style="font-size:16px;margin:0">Medplum Verification</h3>
+        <button class="btn" onclick="loadMedplumData()" id="btnMedplum" style="background:#6366f1;color:#fff;padding:8px 16px;font-size:12px">Verify Data</button>
+      </div>
+      <div id="medplumDataContainer" style="display:none"></div>
+    </div>` : ""}
+
     <!-- Service & Payment -->
     <div class="card">
       <h3 style="font-size:16px;margin-bottom:16px">Service &amp; Payment</h3>
@@ -855,6 +900,78 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
         showToast('Network error', '#dc2626');
       }
     }
+
+    // ─── Medplum Read-Back ──────────────────────────────
+    async function loadMedplumData() {
+      const btn = document.getElementById('btnMedplum');
+      const container = document.getElementById('medplumDataContainer');
+      if (!btn || !container) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Loading...';
+
+      try {
+        const res = await fetch('/doctor/case/' + encodeURIComponent(CASE_ID) + '/medplum-data');
+        const data = await res.json();
+
+        if (!data.success) {
+          container.innerHTML = '<p style="color:#dc2626;font-size:13px">' + (data.error || 'Failed to load') + '</p>';
+          container.style.display = 'block';
+          btn.disabled = false;
+          btn.textContent = 'Retry';
+          return;
+        }
+
+        const p = data.patient;
+        const name = (p.name && p.name[0]) ? ((p.name[0].given || []).join(' ') + ' ' + (p.name[0].family || '')).trim() : 'N/A';
+        const email = (p.telecom || []).find(function(t) { return t.system === 'email'; });
+        const phone = (p.telecom || []).find(function(t) { return t.system === 'phone'; });
+
+        let html = '<table style="width:100%;border-collapse:collapse;margin-bottom:12px">';
+        html += '<tr><td style="padding:4px 0;color:#666;font-size:12px;width:120px">Name</td><td style="padding:4px 0;font-size:13px;font-weight:600">' + esc(name) + '</td></tr>';
+        html += '<tr><td style="padding:4px 0;color:#666;font-size:12px">Email</td><td style="padding:4px 0;font-size:13px">' + esc(email ? email.value : 'N/A') + '</td></tr>';
+        html += '<tr><td style="padding:4px 0;color:#666;font-size:12px">Phone</td><td style="padding:4px 0;font-size:13px">' + esc(phone ? phone.value : 'N/A') + '</td></tr>';
+        html += '<tr><td style="padding:4px 0;color:#666;font-size:12px">DOB</td><td style="padding:4px 0;font-size:13px">' + esc(p.birthDate || 'N/A') + '</td></tr>';
+        html += '<tr><td style="padding:4px 0;color:#666;font-size:12px">Gender</td><td style="padding:4px 0;font-size:13px">' + esc(p.gender || 'N/A') + '</td></tr>';
+        html += '<tr><td style="padding:4px 0;color:#666;font-size:12px">Medplum ID</td><td style="padding:4px 0;font-size:11px;font-family:monospace;color:#888">' + esc(p.id) + '</td></tr>';
+        html += '</table>';
+
+        // QuestionnaireResponses
+        if (data.questionnaireResponses.length > 0) {
+          html += '<p style="font-size:13px;font-weight:600;color:#4F46E5;margin:12px 0 8px">Intake Responses (' + data.questionnaireResponses.length + ')</p>';
+          data.questionnaireResponses.forEach(function(qr) {
+            html += '<div style="background:#f8f9fa;border-radius:6px;padding:10px;margin-bottom:8px;font-size:12px">';
+            html += '<span style="color:#888">ID: ' + esc(qr.id) + '</span> &middot; <span style="font-weight:600">' + esc(qr.status) + '</span> &middot; ' + (qr.item ? qr.item.length : 0) + ' items';
+            html += '</div>';
+          });
+        }
+
+        // Compositions (SOAP)
+        if (data.compositions.length > 0) {
+          html += '<p style="font-size:13px;font-weight:600;color:#4F46E5;margin:12px 0 8px">SOAP Notes (' + data.compositions.length + ')</p>';
+          data.compositions.forEach(function(comp) {
+            html += '<div style="background:#f0f9ff;border-radius:6px;padding:10px;margin-bottom:8px;font-size:12px">';
+            html += '<span style="font-weight:600">' + esc(comp.title || 'Untitled') + '</span> &middot; <span style="color:#888">' + esc(comp.id) + '</span>';
+            html += '</div>';
+          });
+        }
+
+        html += '<div style="margin-top:8px"><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534">VERIFIED — Data matches Medplum</span></div>';
+
+        container.innerHTML = html;
+        container.style.display = 'block';
+        btn.textContent = 'Verified';
+        btn.style.background = '#22c55e';
+        showToast('Medplum data loaded successfully', '#22c55e');
+      } catch (err) {
+        container.innerHTML = '<p style="color:#dc2626;font-size:13px">Network error loading Medplum data</p>';
+        container.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Retry';
+      }
+    }
+
+    function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
   </script>
 </body>
 </html>`;

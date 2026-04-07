@@ -1,36 +1,29 @@
-# Next Action: Session 3 — Notify + Admin Medplum Visibility
+# Next Action: Session 4 — Dual-Write Validation + Read Path
 
 ## Status
 - Phase 0 DONE: Medplum account created, credentials verified, secrets set
 - Phase 1 DONE: `medplum.ts` built (12 functions), healthcheck ALL PASS
 - Phase 2 DONE: Dual-write wired into intake.ts, doctor.ts, onboard.ts
+- Phase 3 DONE: Notify + admin medplum visibility + BHD backfill (all 8 questionnaires created)
 - BAA: In progress (Shubh emailing hello@medplum.com)
 
-## What Session 2 Did
-1. **intake.ts** — after Healthie patient + form creation, also creates Medplum Patient + QuestionnaireResponse. Saves `medplumPatientId` on PendingCase. Medplum failure is non-blocking.
-2. **doctor.ts** — after SOAP note saves to Healthie, also creates Medplum Composition with same S/O/A/P. Medplum failure is non-blocking.
-3. **onboard.ts** — on partner creation, also creates Medplum Organization + Questionnaires per service. Saves `medplumOrgId` and `medplumQuestionnaireIds` on PartnerConfig. Medplum failure is non-blocking.
+## What Session 3 Did
+1. **notify.ts + email.ts** — `medplumPatientId` passed through to all doctor notification emails (async, sync, blocked). Shows as "Medplum Patient" row in email tables.
+2. **doctor.ts** — Case detail shows green SYNCED / red NOT SYNCED badge for Medplum Patient. Approved/denied views show Medplum Patient ID.
+3. **admin.ts** — `POST /admin/partner/:slug/repair-medplum` endpoint (org + questionnaires).
+4. **intake.ts** — `medplumPatientId` now passed to `notifyOnIntake()`.
+5. **BHD Backfill** — Organization `a2b7c2c8-0092-4452-a22d-130ab6de5c14` + 8 Questionnaires created and saved on partner config.
 
-All three files compile clean, wrangler dry-run passes.
-
-## This Session: Notify + Admin Medplum Visibility
+## This Session: Validation + Read Path
 
 ### Goal
-1. Add Medplum IDs to notification emails (so doctor can see data landed in both systems)
-2. Show Medplum status on doctor portal case detail (green/red badge per resource)
-3. Add admin repair endpoint for Medplum questionnaires (parallel to Healthie repair-forms)
-4. Wire existing BHD partner with Medplum org + questionnaires (one-time backfill)
+1. Submit a test intake through BHD and verify data appears in both Healthie and Medplum
+2. Add Medplum read-back to doctor portal (verify data consistency)
+3. Consider adding Medplum resource links to admin partner detail page
 
-### Steps (run 1-3 as parallel agents in worktrees, then 4-5 sequentially)
-
-**Parallel (each agent in its own worktree, each touches ONE file):**
-1. **Agent A → `src/worker/notify.ts`** — include `medplumPatientId` in doctor notification email body (informational)
-2. **Agent B → `src/worker/doctor.ts`** — in `renderCaseDetail()`, show Medplum Patient ID and SOAP Composition status badges
-3. **Agent C → `src/worker/admin.ts`** — add `POST /admin/partner/:slug/repair-medplum` to create missing Medplum org + questionnaires for existing partners
-
-**Sequential (after merging parallel branches):**
-4. **Backfill BHD** — call repair-medplum for `the-beverly-hills-drip` to populate `medplumOrgId` + `medplumQuestionnaireIds`
-5. **Test end-to-end** — submit a test intake through BHD, verify data appears in both Healthie and Medplum
+### Prerequisites
+- Healthcheck: ALL PASS (verified 2026-04-07)
+- BHD has medplumOrgId + 8 medplumQuestionnaireIds
 
 ### Key Rules (unchanged)
 - Medplum failure must not block patient flow
