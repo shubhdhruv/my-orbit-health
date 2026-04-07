@@ -13,7 +13,7 @@ export interface Env {
   ENVIRONMENT: string;
   STRIPE_BYPASS?: string;
   ANTHROPIC_API_KEY: string;
-  // Medplum (dual-write phase — coexists with Healthie)
+  // Medplum (primary EHR)
   MEDPLUM_CLIENT_ID: string;
   MEDPLUM_CLIENT_SECRET: string;
   MEDPLUM_BASE_URL: string;
@@ -75,7 +75,7 @@ export interface PartnerConfig {
   stripeDirectAccountId?: string;
   healthieOrgId?: string;
   healthieFormIds?: Record<string, string>; // serviceId → Healthie form ID
-  // Medplum (dual-write phase)
+  // Medplum (primary)
   medplumOrgId?: string;
   medplumQuestionnaireIds?: Record<string, string>; // serviceId → Questionnaire ID
   platformFees?: Record<string, number>; // serviceId → flat dollar amount MOH keeps

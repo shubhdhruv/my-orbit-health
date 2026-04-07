@@ -8,7 +8,6 @@ import { generateRecommendationHTML } from "../templates/recommendation";
 import { generateCheckoutHTML } from "../templates/checkout";
 import { generateTermsOfService, generatePrivacyPolicy, generateTelehealthConsent } from "../templates/legal";
 import { createStripeClient, authorizePayment } from "./stripe";
-import { createHealthieClient, createPatient, createFormCompletion } from "./healthie";
 import {
   createPatient as createMedplumPatient,
   createQuestionnaireResponse,
@@ -155,61 +154,7 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
     }
   }
 
-  // 2. Create patient in Healthie
-  const healthie = createHealthieClient(c.env.HEALTHIE_API_KEY);
-  let patientId: string | undefined;
-  try {
-    patientId = await createPatient(healthie, {
-      firstName: body.answers?.firstName || "",
-      lastName: body.answers?.lastName || "",
-      email: body.answers?.email || "",
-      phone: body.answers?.phone || "",
-      dateOfBirth: body.answers?.dob || "",
-      gender: body.answers?.gender || "",
-      userGroupId: partner.healthieOrgId,
-    });
-  } catch (err) {
-    console.error("Patient creation failed:", err);
-    // Don't fail — payment is authorized, we can create the patient later
-  }
-
-  // 3. Submit intake form answers to Healthie
-  if (patientId) {
-    const healthieFormId = partner.healthieFormIds?.[serviceType];
-    if (healthieFormId) {
-      try {
-        await createFormCompletion(healthie, patientId, healthieFormId, {
-          ...body.answers,
-          partner_slug: slug,
-          service_type: serviceType,
-          payment_intent_id: paymentIntentId,
-          selected_plan: JSON.stringify(body.selectedPlan),
-          subscription_price: serviceConfig.subscriptionPrice,
-          disqualified: body.disqualified,
-          disqualify_reasons: JSON.stringify(body.disqualifyReasons || []),
-          shipping_address: JSON.stringify(body.shipping),
-          patient_state: patientState,
-          visit_type: routing?.visitType || "async",
-          routing_constraints: JSON.stringify(routing?.constraints || []),
-          dosing_eligible: dosingResult.eligible,
-          dosing_starting_dose: dosingResult.startingDose || "",
-          dosing_max_dose: dosingResult.maxDose || "",
-          dosing_route: dosingResult.route,
-          dosing_frequency: dosingResult.frequency,
-          dosing_automation_level: dosingResult.automationLevel,
-          dosing_soft_review: dosingResult.softReviewRequired,
-          dosing_provider_notes: JSON.stringify(dosingResult.providerNotes),
-          dosing_titration: JSON.stringify(dosingResult.titrationSchedule),
-          dosing_adjustments: JSON.stringify(dosingResult.doseAdjustments.filter(a => a.applied)),
-          dosing_lab_requirements: JSON.stringify(dosingResult.labRequirements),
-        });
-      } catch (err) {
-        console.error("Form completion failed:", err);
-      }
-    }
-  }
-
-  // 3a. Dual-write: Create patient + questionnaire response in Medplum
+  // 2. Create patient + questionnaire response in Medplum
   let medplumPatientId: string | undefined;
   try {
     const medplumPatient = await createMedplumPatient(c.env, {
@@ -229,8 +174,8 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
       await createQuestionnaireResponse(c.env, medplumPatientId, medplumQuestionnaireId, body.answers || {});
     }
   } catch (err) {
-    // Medplum failure must NOT block the intake flow
-    console.error("Medplum dual-write failed (non-blocking):", err);
+    console.error("Medplum patient creation failed:", err);
+    // Don't fail — payment is authorized, we can create the patient later
   }
 
   // 3.5. Save pending case to KV for doctor portal
@@ -244,7 +189,6 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
       patientPhone: body.answers?.phone || "",
       patientState,
       patientDob: body.answers?.dob || "",
-      healthiePatientId: patientId,
       medplumPatientId,
       partnerSlug: slug,
       partnerName: partner.businessName,
@@ -275,7 +219,6 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
         patientName: `${body.answers?.firstName || ""} ${body.answers?.lastName || ""}`.trim(),
         patientEmail: body.answers?.email || body.shipping?.email || "",
         patientState,
-        patientId,
         medplumPatientId,
         isFirstVisit: true,
         daysSinceLastVisit: body.daysSinceLastVisit,
@@ -290,7 +233,7 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
 
   return c.json({
     success: true,
-    patientId,
+    medplumPatientId,
     paymentIntentId,
     visitType,
     message: visitType === "sync"

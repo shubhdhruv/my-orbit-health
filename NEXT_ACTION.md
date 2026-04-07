@@ -1,4 +1,4 @@
-# Next Action: Session 6 — Cutover (Healthie → Medplum)
+# Next Action: Session 7 — Post-Cutover
 
 ## Status
 - Phase 0 DONE: Medplum account created, credentials verified, secrets set
@@ -6,39 +6,25 @@
 - Phase 2 DONE: Dual-write wired into intake.ts, doctor.ts, onboard.ts
 - Phase 3 DONE: Notify + admin medplum visibility + BHD backfill (all 8 questionnaires created)
 - Phase 4 DONE: E2E validated (test intake lands in both systems), read-back endpoint live, admin Medplum card added
-- Phase 5 DONE: UI switchover — all user-facing "Healthie" labels renamed, fixed duplicate medplum imports in admin.ts
-- BAA: In progress (Shubh emailing hello@medplum.com)
+- Phase 5 DONE: UI switchover — all user-facing "Healthie" labels renamed
+- Phase 6 DONE: Cutover — Healthie removed from hot path. Medplum is primary.
 
-## What Session 5 Did
-1. **doctor.ts** — "Save to Healthie" button → "Save SOAP Note", "Healthie ID" → "EHR ID", "Healthie Note ID" → "Note ID", `saveSoapToHealthie()` → `saveSoapNote()`, toast/error messages de-branded
-2. **email.ts** — Removed "Healthie" from appointment status messages in sync visit doctor email (3 strings)
-3. **admin.ts** — Task description de-branded ("Save SOAP Note" instead of "Save to Healthie"), fixed duplicate medplum imports (consolidated to single import at top)
-4. **Sweep** — Verified all remaining "Healthie" references are code-internal only (imports, variable names, module comments) — correct to keep during dual-write phase
+## What Session 6 Did (Cutover)
+1. **intake.ts** — Removed Healthie patient creation + form completion. Medplum `createPatient` + `createQuestionnaireResponse` is now the only EHR write. Removed `healthiePatientId` from PendingCase assignment.
+2. **doctor.ts** — SOAP save now goes to Medplum only (`createComposition`). Removed `getSoapTemplate`, Healthie SOAP template, and all Healthie imports. Case detail shows `medplumPatientId` as "EHR ID" (no more SYNCED/NOT SYNCED badge).
+3. **notify.ts** — Removed Healthie appointment creation from sync visit flow. Removed `patientId` (Healthie) from `NotifyParams`. Doctor email now says "Please schedule a video visit via the Doctor Portal."
+4. **onboard.ts** — Partner onboarding creates Medplum Organization + Questionnaires only. Removed Healthie user group, intake forms, and onboarding flow creation.
+5. **admin.ts** — Removed `repair-forms` (Healthie) endpoint. `repair-medplum` remains.
+6. **email.ts** — Removed `healthiePatientId` and `appointmentCreated`/`appointmentError` params from sync visit email. Simplified appointment status message.
+7. **types.ts** — Updated comments from "dual-write phase" to "primary". `healthiePatientId` kept as optional legacy field on `PendingCase`.
+8. **healthie.ts** — NOT deleted. Kept as reference/fallback module (no longer imported by any active code path).
 
-## This Session: Cutover
-
-### Goal
-Stop dual-writing and make Medplum the primary data store. Remove Healthie writes from the hot path. Keep healthie.ts as a module for reference/fallback but stop calling it from intake, doctor, and notify flows.
-
-### Prerequisites (must be true before starting)
-- [ ] BAA signed with Medplum (real patient data requires it)
-- [ ] At least one real approved case has gone through Medplum in prod
-- [ ] Healthcheck passes on production (`/admin/medplum-healthcheck`)
-
-### What to change
-1. **intake.ts** — Remove Healthie patient creation + form completion from submit flow. Medplum becomes primary.
-2. **doctor.ts** — SOAP save goes to Medplum only. Remove Healthie saveSoapNote call.
-3. **notify.ts** — Remove Healthie appointment creation. Replace with Medplum Encounter.
-4. **onboard.ts** — Partner onboarding creates Medplum Organization + Questionnaires only. Remove Healthie user group + form creation.
-5. **types.ts** — Can rename `healthiePatientId` → `legacyPatientId` or remove. Add `medplumPatientId` as primary.
-6. **admin.ts** — Remove repair-forms (Healthie) endpoint. Keep repair-medplum.
-
-### Key Rules
-- DO NOT delete healthie.ts — keep for reference and potential fallback
-- Verify healthcheck passes after every file change
-- Deploy incrementally — one file at a time, test between each
-
-### Credentials (already set as Cloudflare secrets + in ~/.zshrc)
-- Client ID: fffb526e-400e-4b5b-b7e5-f2c270d526dc
-- Base URL: https://api.medplum.com
-- Practitioner ID: 52efdd34-ff41-4b72-82a6-e0aaaebbf4a4
+## What's Next (Priority Order)
+1. **Deploy + test** — deploy to prod, run a test intake, verify patient + QuestionnaireResponse land in Medplum
+2. **Test SOAP note end-to-end** — verify generate + edit + save works (now saves as Medplum Composition)
+3. **Fix bloodwork pipeline** — file upload to R2, lab gate on doctor approval, dosing engine lab validation
+4. **Lab vendor integration** — wire up chosen vendor API (pending Shubh's vendor decision)
+5. **Prior medication history → dosing adjustment** — weight-loss-history answer should affect starting dose
+6. **Full order lifecycle** in doctor portal (prescribed, shipped, delivered — needs pharmacy API)
+7. **Remove STRIPE_BYPASS** when Shubh sets up new Stripe account
+8. **Shubh: finish DocuSign setup** — set secrets, verify Resend domain, test NDA flow

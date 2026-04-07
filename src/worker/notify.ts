@@ -38,7 +38,6 @@ import {
   buildPatientBlockedEmail,
   buildPatientSyncEmail,
 } from "./email";
-import { createHealthieClient, createAppointment } from "./healthie";
 
 export interface NotifyParams {
   partnerSlug: string;
@@ -46,8 +45,7 @@ export interface NotifyParams {
   patientName: string;
   patientEmail: string;
   patientState: string;
-  patientId?: string;             // Healthie patient ID
-  medplumPatientId?: string;      // Medplum patient ID
+  medplumPatientId?: string;
   isFirstVisit: boolean;
   daysSinceLastVisit?: number;    // Used for TX 90-day lapse enforcement
   dosingResult?: DosingResult;    // From dosing engine
@@ -132,7 +130,6 @@ export async function notifyOnIntake(
             serviceName,
             partnerName: partner.businessName,
             partnerSlug: params.partnerSlug,
-            healthiePatientId: params.patientId,
             medplumPatientId: params.medplumPatientId,
             dosingResult: params.dosingResult,
           }),
@@ -159,34 +156,7 @@ export async function notifyOnIntake(
       }
 
       case "sync": {
-        // Track Healthie outcome before sending doctor email so we can include status.
-        let healthieError: string | undefined;
-
-        if (params.patientId) {
-          try {
-            const healthie = createHealthieClient(env.HEALTHIE_API_KEY);
-            await createAppointment(healthie, {
-              patientId: params.patientId,
-              providerId: env.DOCTOR_HEALTHIE_ID,
-              notes: [
-                `Sync video visit required — ${params.patientState} state compliance for ${serviceName}.`,
-                `Constraints: ${routing.constraints.join(", ")}`,
-                routing.lapseOverride
-                  ? `Note: Follow-up rerouted to sync — days since last visit (${params.daysSinceLastVisit}) exceeded threshold.`
-                  : "",
-              ]
-                .filter(Boolean)
-                .join(" "),
-            });
-            result.appointmentCreated = true;
-          } catch (err) {
-            healthieError = String(err);
-            result.appointmentError = healthieError;
-            console.error("Healthie appointment creation failed:", err);
-          }
-        }
-
-        // Doctor email — includes Healthie failure notice if applicable.
+        // Doctor email
         await sendEmail(env.RESEND_API_KEY, {
           to: doctorEmail,
           subject: `Video Visit Needed: ${params.patientName} — ${serviceName} (${params.patientState})`,
@@ -197,10 +167,7 @@ export async function notifyOnIntake(
             serviceName,
             partnerName: partner.businessName,
             constraints: routing.constraints,
-            healthiePatientId: params.patientId,
             medplumPatientId: params.medplumPatientId,
-            appointmentCreated: result.appointmentCreated,
-            appointmentError: healthieError,
             dosingResult: params.dosingResult,
           }),
         });

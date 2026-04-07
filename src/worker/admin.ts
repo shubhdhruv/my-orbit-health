@@ -2,7 +2,6 @@ import { Hono } from "hono";
 import { Env, PartnerConfig, ServiceId } from "../lib/types";
 import { getPartner, savePartner, listPartners } from "../lib/kv";
 import { getServiceById } from "../lib/services";
-import { createHealthieClient, buildIntakeFormInHealthie } from "./healthie";
 import { createOrganization, buildIntakeQuestionnaire, createPatient as createMedplumPatient, createQuestionnaireResponse, createComposition } from "./medplum";
 
 const admin = new Hono<{ Bindings: Env }>();
@@ -145,41 +144,6 @@ admin.post("/partner/:slug/fees", async (c) => {
   partner.platformFees = body.fees || {};
   await savePartner(c.env.PARTNERS, partner);
   return c.json({ success: true });
-});
-
-// Repair missing Healthie forms for a partner
-// Use ?service=semaglutide to create one at a time (avoids worker timeout)
-// Without ?service, lists what's missing
-admin.post("/partner/:slug/repair-forms", async (c) => {
-  const partner = await getPartner(c.env.PARTNERS, c.req.param("slug"));
-  if (!partner) return c.json({ error: "Not found" }, 404);
-
-  const targetService = c.req.query("service");
-  const healthie = createHealthieClient(c.env.HEALTHIE_API_KEY);
-  const existing = partner.healthieFormIds || {};
-
-  // If no service specified, list what's missing
-  if (!targetService) {
-    const missing = partner.services
-      .filter(s => !existing[s.type])
-      .map(s => s.type);
-    return c.json({ missing, existing: Object.keys(existing) });
-  }
-
-  // Create form for one specific service
-  const serviceDef = getServiceById(targetService);
-  if (!serviceDef) return c.json({ error: `Unknown service: ${targetService}` }, 400);
-  if (existing[targetService]) return c.json({ error: `Form already exists for ${targetService}`, formId: existing[targetService] }, 400);
-
-  try {
-    const { formId } = await buildIntakeFormInHealthie(healthie, serviceDef, partner.businessName);
-    existing[targetService] = formId;
-    partner.healthieFormIds = existing;
-    await savePartner(c.env.PARTNERS, partner);
-    return c.json({ success: true, service: targetService, formId, allFormIds: existing });
-  } catch (err) {
-    return c.json({ error: String(err), service: targetService }, 500);
-  }
 });
 
 // Repair missing Medplum org + questionnaires for a partner

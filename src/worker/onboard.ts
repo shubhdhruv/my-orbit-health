@@ -2,13 +2,6 @@ import { Hono } from "hono";
 import { Env, PartnerConfig, ServiceId } from "../lib/types";
 import { savePartner } from "../lib/kv";
 import { SERVICE_CATALOG, getServiceById } from "../lib/services";
-import {
-  createHealthieClient,
-  createUserGroup,
-  buildIntakeFormInHealthie,
-  createOnboardingFlow,
-  addFormToOnboardingFlow,
-} from "./healthie";
 import { createStripeClient, createConnectAccount } from "./stripe";
 import { createOrganization, buildIntakeQuestionnaire } from "./medplum";
 import { sendEmail, buildOnboardingCompleteEmail } from "./email";
@@ -54,62 +47,26 @@ onboard.post("/", async (c) => {
     createdAt: new Date().toISOString(),
   };
 
-  // 1. Create Healthie user group for this influencer
-  const healthie = createHealthieClient(c.env.HEALTHIE_API_KEY);
-  try {
-    const groupId = await createUserGroup(healthie, partner.businessName);
-    partner.healthieOrgId = groupId;
-
-    // 2. Create intake forms in Healthie for each selected service
-    const formIds: Record<string, string> = {};
-    for (const service of partner.services) {
-      const serviceDef = getServiceById(service.type);
-      if (serviceDef) {
-        try {
-          const { formId } = await buildIntakeFormInHealthie(healthie, serviceDef, partner.businessName);
-          formIds[service.type] = formId;
-        } catch (err) {
-          console.error(`Failed to create Healthie form for ${service.type}:`, err);
-        }
-      }
-    }
-    partner.healthieFormIds = formIds;
-
-    // 3. Create onboarding flow and attach forms
-    if (Object.keys(formIds).length > 0) {
-      try {
-        const flowId = await createOnboardingFlow(healthie, `${partner.businessName} Onboarding`, groupId);
-        for (const formId of Object.values(formIds)) {
-          await addFormToOnboardingFlow(healthie, flowId, formId);
-        }
-      } catch (err) {
-        console.error("Onboarding flow creation failed:", err);
-      }
-    }
-  } catch (err) {
-    console.error("Healthie setup failed:", err);
-  }
-
-  // 3b. Dual-write: Create Medplum Organization + Questionnaires
+  // 1. Create Medplum Organization + Questionnaires
   try {
     const org = await createOrganization(c.env, partner.businessName, slug);
     partner.medplumOrgId = org.id;
 
-    const medplumQIds: Record<string, string> = {};
+    const questionnaireIds: Record<string, string> = {};
     for (const service of partner.services) {
       const serviceDef = getServiceById(service.type);
       if (serviceDef) {
         try {
           const q = await buildIntakeQuestionnaire(c.env, serviceDef, partner.businessName);
-          medplumQIds[service.type] = q.id;
+          questionnaireIds[service.type] = q.id;
         } catch (err) {
           console.error(`Medplum questionnaire for ${service.type} failed:`, err);
         }
       }
     }
-    partner.medplumQuestionnaireIds = medplumQIds;
+    partner.medplumQuestionnaireIds = questionnaireIds;
   } catch (err) {
-    console.error("Medplum partner setup failed (non-blocking):", err);
+    console.error("Medplum setup failed:", err);
   }
 
   // 4. Set up Stripe
@@ -186,8 +143,6 @@ onboard.post("/", async (c) => {
     embedCode,
     previewUrl,
     stripeOnboardingUrl,
-    healthieGroupId: partner.healthieOrgId,
-    healthieFormIds: partner.healthieFormIds,
     medplumOrgId: partner.medplumOrgId,
     medplumQuestionnaireIds: partner.medplumQuestionnaireIds,
   });

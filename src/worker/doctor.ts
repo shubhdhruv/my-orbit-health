@@ -3,7 +3,6 @@ import { Env } from "../lib/types";
 import { getPartner, getPendingCase, listPendingCases, listAllCases, savePendingCase } from "../lib/kv";
 import { createStripeClient, capturePayment, createSubscription } from "./stripe";
 import { sendEmail, buildPatientApprovedEmail, buildPatientDeniedEmail } from "./email";
-import { createHealthieClient, saveSoapNote, createSoapTemplate, SoapTemplate } from "./healthie";
 import { createComposition, fhirRead, fhirSearch } from "./medplum";
 
 const doctor = new Hono<{ Bindings: Env }>();
@@ -332,21 +331,11 @@ Return ONLY valid JSON in this exact format:
 
 // ─── Save SOAP Note ─────────────────────────────────────────
 
-async function getSoapTemplate(kv: KVNamespace, healthieClient: ReturnType<typeof createHealthieClient>): Promise<SoapTemplate> {
-  const existing = await kv.get("soap-template", "json") as SoapTemplate | null;
-  if (existing) return existing;
-
-  // Auto-create template in Healthie on first use, cache in KV
-  const template = await createSoapTemplate(healthieClient);
-  await kv.put("soap-template", JSON.stringify(template));
-  return template;
-}
-
 doctor.post("/case/:id/save-soap", async (c) => {
   const id = c.req.param("id");
   const pendingCase = await getPendingCase(c.env.PARTNERS, id);
   if (!pendingCase) return c.json({ error: "Case not found" }, 404);
-  if (!pendingCase.healthiePatientId) return c.json({ error: "No patient ID available for this case" }, 400);
+  if (!pendingCase.medplumPatientId) return c.json({ error: "No patient ID available for this case" }, 400);
 
   const body = await c.req.json();
   const { subjective, objective, assessment, plan } = body;
@@ -355,38 +344,20 @@ doctor.post("/case/:id/save-soap", async (c) => {
   }
 
   try {
-    const healthie = createHealthieClient(c.env.HEALTHIE_API_KEY);
-    const template = await getSoapTemplate(c.env.PARTNERS, healthie);
-
-    const { noteId } = await saveSoapNote(healthie, template, {
-      patientId: pendingCase.healthiePatientId,
+    const composition = await createComposition(c.env, {
+      patientId: pendingCase.medplumPatientId,
+      practitionerId: c.env.DOCTOR_PRACTITIONER_ID,
       subjective,
       objective,
       assessment,
       plan,
+      title: `SOAP Note — ${pendingCase.serviceName}`,
     });
 
-    pendingCase.soapNoteId = noteId;
+    pendingCase.soapNoteId = composition.id;
     await savePendingCase(c.env.PARTNERS, pendingCase);
 
-    // Dual-write: also save SOAP to Medplum as Composition
-    if (pendingCase.medplumPatientId) {
-      try {
-        await createComposition(c.env, {
-          patientId: pendingCase.medplumPatientId,
-          practitionerId: c.env.DOCTOR_PRACTITIONER_ID,
-          subjective,
-          objective,
-          assessment,
-          plan,
-          title: `SOAP Note — ${pendingCase.serviceName}`,
-        });
-      } catch (medplumErr) {
-        console.error("Medplum SOAP dual-write failed (non-blocking):", medplumErr);
-      }
-    }
-
-    return c.json({ success: true, noteId });
+    return c.json({ success: true, noteId: composition.id });
   } catch (err) {
     return c.json({ error: `Failed to save SOAP note: ${String(err)}` }, 500);
   }
@@ -654,10 +625,7 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
         <tr><td style="padding:6px 0;color:#666;font-size:13px">Phone</td><td style="padding:6px 0;font-size:14px">${escapeHtml(c.patientPhone)}</td></tr>
         <tr><td style="padding:6px 0;color:#666;font-size:13px">State</td><td style="padding:6px 0;font-size:14px;font-weight:600">${escapeHtml(c.patientState)}</td></tr>
         <tr><td style="padding:6px 0;color:#666;font-size:13px">DOB</td><td style="padding:6px 0;font-size:14px">${escapeHtml(c.patientDob)}</td></tr>
-        ${c.healthiePatientId ? `<tr><td style="padding:6px 0;color:#666;font-size:13px">EHR ID</td><td style="padding:6px 0;font-size:14px">${escapeHtml(c.healthiePatientId)}</td></tr>` : ""}
-        ${c.medplumPatientId
-          ? `<tr><td style="padding:6px 0;color:#666;font-size:13px">Medplum Patient</td><td style="padding:6px 0;font-size:14px"><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534;margin-right:6px">SYNCED</span>${escapeHtml(c.medplumPatientId)}</td></tr>`
-          : `<tr><td style="padding:6px 0;color:#666;font-size:13px">Medplum Patient</td><td style="padding:6px 0;font-size:14px"><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fecaca;color:#991b1b">NOT SYNCED</span></td></tr>`}
+        ${c.medplumPatientId ? `<tr><td style="padding:6px 0;color:#666;font-size:13px">EHR ID</td><td style="padding:6px 0;font-size:14px">${escapeHtml(c.medplumPatientId)}</td></tr>` : ""}
       </table>
     </div>
 

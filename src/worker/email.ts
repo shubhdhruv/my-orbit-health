@@ -157,7 +157,6 @@ export function buildAsyncReviewEmail(params: {
   serviceName: string;
   partnerName: string;
   partnerSlug: string;
-  healthiePatientId?: string;
   medplumPatientId?: string;
   dosingResult?: DosingResult;
 }): string {
@@ -222,24 +221,12 @@ export function buildSyncVisitEmail(params: {
   serviceName: string;
   partnerName: string;
   constraints: string[];
-  healthiePatientId?: string;
   medplumPatientId?: string;
-  appointmentCreated?: boolean;
-  appointmentError?: string;
   dosingResult?: DosingResult;
 }): string {
   const constraintsList = params.constraints.length > 0
     ? params.constraints.map(c => `<li style="font-size: 13px; color: #92400e; margin-bottom: 4px;">${escapeHtml(c.replace(/_/g, " "))}</li>`).join("")
     : "<li style=\"font-size: 13px; color: #92400e;\">Standard sync visit required</li>";
-
-  const appointmentStatus = params.appointmentCreated
-    ? `<p style="font-size: 14px; color: #666; margin-bottom: 24px;">An appointment has been created. The patient will receive a scheduling link.</p>`
-    : params.appointmentError
-      ? `<div style="background: #fecaca; border-radius: 8px; padding: 12px 16px; margin-bottom: 24px;">
-          <p style="font-size: 13px; font-weight: 600; color: #991b1b; margin: 0 0 4px 0;">Appointment creation failed — please schedule manually.</p>
-          <p style="font-size: 12px; color: #991b1b; margin: 0;">${escapeHtml(params.appointmentError)}</p>
-        </div>`
-      : `<p style="font-size: 14px; color: #666; margin-bottom: 24px;">No patient ID available — please create the appointment manually.</p>`;
 
   return `
     <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
@@ -264,7 +251,7 @@ export function buildSyncVisitEmail(params: {
         <ul style="margin: 0; padding-left: 20px;">${constraintsList}</ul>
       </div>
 
-      ${appointmentStatus}
+      <p style="font-size: 14px; color: #666; margin-bottom: 24px;">Please schedule a video visit with this patient via the Doctor Portal.</p>
 
       ${buildDosingSection(params.dosingResult)}
 
