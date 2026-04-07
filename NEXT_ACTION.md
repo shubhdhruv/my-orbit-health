@@ -1,33 +1,36 @@
-# Next Action: Session 4 — Dual-Write Validation + Read Path
+# Next Action: Session 5 — UI Switchover (Healthie → Medplum)
 
 ## Status
 - Phase 0 DONE: Medplum account created, credentials verified, secrets set
 - Phase 1 DONE: `medplum.ts` built (12 functions), healthcheck ALL PASS
 - Phase 2 DONE: Dual-write wired into intake.ts, doctor.ts, onboard.ts
 - Phase 3 DONE: Notify + admin medplum visibility + BHD backfill (all 8 questionnaires created)
+- Phase 4 DONE: E2E validated (test intake lands in both systems), read-back endpoint live, admin Medplum card added
 - BAA: In progress (Shubh emailing hello@medplum.com)
 
-## What Session 3 Did
-1. **notify.ts + email.ts** — `medplumPatientId` passed through to all doctor notification emails (async, sync, blocked). Shows as "Medplum Patient" row in email tables.
-2. **doctor.ts** — Case detail shows green SYNCED / red NOT SYNCED badge for Medplum Patient. Approved/denied views show Medplum Patient ID.
-3. **admin.ts** — `POST /admin/partner/:slug/repair-medplum` endpoint (org + questionnaires).
-4. **intake.ts** — `medplumPatientId` now passed to `notifyOnIntake()`.
-5. **BHD Backfill** — Organization `a2b7c2c8-0092-4452-a22d-130ab6de5c14` + 8 Questionnaires created and saved on partner config.
+## What Session 4 Did
+1. **admin.ts** — Fixed missing medplum imports (repair-medplum endpoint was broken at runtime)
+2. **medplum.ts** — Exported `fhirSearch` for read-back queries
+3. **doctor.ts** — Added `GET /doctor/case/:id/medplum-data` endpoint that reads Patient, QuestionnaireResponses, and Compositions from Medplum. Added "Verify Data" button + Medplum Verification card to case detail UI.
+4. **admin.ts** — Added Medplum Integration card to partner detail showing org ID + all questionnaire IDs with LINKED/NOT SET badges
+5. **E2E Test** — Submitted test intake through BHD semaglutide. Verified: Patient in Healthie (5807348) + Medplum (e8d055d3-...), QuestionnaireResponse with 15 items, read-back returns correctly on both workers.dev and custom domain.
 
-## This Session: Validation + Read Path
+## This Session: UI Switchover
 
 ### Goal
-1. Submit a test intake through BHD and verify data appears in both Healthie and Medplum
-2. Add Medplum read-back to doctor portal (verify data consistency)
-3. Consider adding Medplum resource links to admin partner detail page
+Replace Healthie-specific UI labels and references with Medplum (or dual-display) across the doctor portal and admin pages. This is cosmetic + functional — the data flow stays dual-write but the UI should reflect the migration.
 
-### Prerequisites
-- Healthcheck: ALL PASS (verified 2026-04-07)
-- BHD has medplumOrgId + 8 medplumQuestionnaireIds
+### What to change
+1. **Doctor portal SOAP modal** — "Save to Healthie" button → "Save SOAP Note" (saves to both)
+2. **Doctor portal case detail** — Remove/rename Healthie-specific labels, keep both IDs visible
+3. **Email templates** — Update any "Healthie" references in doctor notification emails
+4. **Admin partner detail** — Healthie form IDs section should show alongside Medplum questionnaire IDs (both still needed during migration)
+5. **Sweep** — `grep -r "Healthie" src/` for any user-facing strings that should be renamed
 
 ### Key Rules (unchanged)
 - Medplum failure must not block patient flow
-- Don't remove Healthie fields — add medplum fields alongside
+- Don't remove Healthie functionality — only rename UI labels
+- Keep dual-write intact
 - Run `/admin/medplum-healthcheck` before and after changes
 
 ### Credentials (already set as Cloudflare secrets + in ~/.zshrc)
