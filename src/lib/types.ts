@@ -79,10 +79,13 @@ export interface PartnerConfig {
   medplumOrgId?: string;
   medplumQuestionnaireIds?: Record<string, string>; // serviceId → Questionnaire ID
   platformFees?: Record<string, number>; // serviceId → flat dollar amount MOH keeps
-  // Branded email sending (partner sets up their own Resend domain)
+  // Branded email sending — domain verified on MOH's Resend account
   senderEmail?: string;    // e.g. "noreply@beverlyhillsdrip.com"
   senderName?: string;     // e.g. "Beverly Hills Drip" — defaults to businessName
   resendApiKey?: string;   // Partner's own Resend API key — falls back to MOH key
+  resendDomainId?: string; // Resend domain ID for verification tracking
+  resendDomainStatus?: "not_started" | "pending" | "verified" | "failed";
+  resendDnsRecords?: Array<{ record: string; name: string; type: string; value: string; ttl: number; status: string; priority?: number | null }>;
   enabled: boolean;
   createdAt: string;
 }

@@ -211,6 +211,143 @@ admin.post("/partner/:slug/repair-medplum", async (c) => {
   }
 });
 
+// ─── Partner Email Domain Setup ─────────────────────────────
+
+// Step 1: Add domain to MOH's Resend account → returns DNS records
+admin.post("/partner/:slug/setup-email", async (c) => {
+  const partner = await getPartner(c.env.PARTNERS, c.req.param("slug"));
+  if (!partner) return c.json({ error: "Not found" }, 404);
+
+  const body = await c.req.json();
+  const domain = body.domain as string;
+  if (!domain || !domain.includes(".")) return c.json({ error: "Provide a valid domain (e.g. beverlyhillsdrip.com)" }, 400);
+
+  // Create domain in Resend
+  try {
+    const res = await fetch("https://api.resend.com/domains", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${c.env.RESEND_API_KEY}`,
+      },
+      body: JSON.stringify({ name: domain }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      return c.json({ error: `Resend API error: ${res.status} ${errText}` }, 500);
+    }
+
+    const data = await res.json() as {
+      id: string;
+      name: string;
+      status: string;
+      records: Array<{ record: string; name: string; type: string; value: string; ttl: number; status: string; priority?: number | null }>;
+    };
+
+    // Save domain info on partner
+    partner.resendDomainId = data.id;
+    partner.resendDomainStatus = "not_started";
+    partner.resendDnsRecords = data.records;
+    partner.senderEmail = `noreply@${domain}`;
+    partner.senderName = partner.senderName || partner.businessName;
+    await savePartner(c.env.PARTNERS, partner);
+
+    return c.json({
+      success: true,
+      domainId: data.id,
+      domain: data.name,
+      senderEmail: partner.senderEmail,
+      dnsRecords: data.records,
+      message: "Domain created. Add these DNS records to your registrar, then call /verify-email.",
+    });
+  } catch (err) {
+    return c.json({ error: `Failed to create domain: ${String(err)}` }, 500);
+  }
+});
+
+// Step 2: Trigger verification + check status
+admin.post("/partner/:slug/verify-email", async (c) => {
+  const partner = await getPartner(c.env.PARTNERS, c.req.param("slug"));
+  if (!partner) return c.json({ error: "Not found" }, 404);
+  if (!partner.resendDomainId) return c.json({ error: "No domain configured. Call /setup-email first." }, 400);
+
+  try {
+    // Trigger verification
+    await fetch(`https://api.resend.com/domains/${partner.resendDomainId}/verify`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${c.env.RESEND_API_KEY}` },
+    });
+
+    // Check current status
+    const res = await fetch(`https://api.resend.com/domains/${partner.resendDomainId}`, {
+      headers: { Authorization: `Bearer ${c.env.RESEND_API_KEY}` },
+    });
+
+    if (!res.ok) {
+      return c.json({ error: `Resend API error: ${res.status}` }, 500);
+    }
+
+    const data = await res.json() as {
+      id: string;
+      name: string;
+      status: string;
+      records: Array<{ record: string; name: string; type: string; value: string; ttl: number; status: string; priority?: number | null }>;
+    };
+
+    // Update partner with latest status
+    const status = data.status === "verified" ? "verified"
+      : data.status === "pending" ? "pending"
+      : data.status === "failure" || data.status === "temporary_failure" ? "failed"
+      : "not_started";
+    partner.resendDomainStatus = status as any;
+    partner.resendDnsRecords = data.records;
+    await savePartner(c.env.PARTNERS, partner);
+
+    return c.json({
+      success: true,
+      domainId: data.id,
+      domain: data.name,
+      status: data.status,
+      verified: data.status === "verified",
+      records: data.records.map(r => ({
+        record: r.record,
+        name: r.name,
+        type: r.type,
+        status: r.status,
+      })),
+      message: data.status === "verified"
+        ? "Domain verified! Emails will now send from " + partner.senderEmail
+        : "Verification in progress. Check that all DNS records are added correctly.",
+    });
+  } catch (err) {
+    return c.json({ error: `Verification failed: ${String(err)}` }, 500);
+  }
+});
+
+// Step 3: Get current email setup status + DNS records
+admin.get("/partner/:slug/email-status", async (c) => {
+  const partner = await getPartner(c.env.PARTNERS, c.req.param("slug"));
+  if (!partner) return c.json({ error: "Not found" }, 404);
+
+  if (!partner.resendDomainId) {
+    return c.json({
+      configured: false,
+      message: "No email domain set up. POST /admin/partner/" + partner.slug + "/setup-email with { domain: 'yourdomain.com' }",
+    });
+  }
+
+  return c.json({
+    configured: true,
+    senderEmail: partner.senderEmail,
+    senderName: partner.senderName,
+    domainId: partner.resendDomainId,
+    status: partner.resendDomainStatus,
+    verified: partner.resendDomainStatus === "verified",
+    dnsRecords: partner.resendDnsRecords,
+  });
+});
+
 // ============================================================
 // HTML Templates
 // ============================================================
@@ -452,6 +589,55 @@ function renderPartnerDetail(partner: PartnerConfig): string {
       </table>
     </div>
 
+    <!-- Email Domain -->
+    <div class="card">
+      <h3>Email Sending Domain</h3>
+      ${partner.resendDomainId ? `
+        <table style="margin-bottom:16px">
+          <tr><td style="padding:6px 0;color:#666;font-size:13px;width:180px">Sender</td><td style="padding:6px 0;font-size:14px;font-weight:600">${partner.senderName || partner.businessName} &lt;${partner.senderEmail || "not set"}&gt;</td></tr>
+          <tr><td style="padding:6px 0;color:#666;font-size:13px">Status</td><td style="padding:6px 0;font-size:13px">${
+            partner.resendDomainStatus === "verified"
+              ? '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534">VERIFIED</span>'
+              : partner.resendDomainStatus === "pending"
+              ? '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fef3c7;color:#92400e">PENDING</span>'
+              : '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fecaca;color:#991b1b">NOT VERIFIED</span>'
+          }</td></tr>
+          <tr><td style="padding:6px 0;color:#666;font-size:13px">Domain ID</td><td style="padding:6px 0;font-size:11px;font-family:monospace;color:#888">${partner.resendDomainId}</td></tr>
+        </table>
+        ${partner.resendDnsRecords && partner.resendDnsRecords.length > 0 ? `
+          <div style="margin-bottom:16px">
+            <p style="font-size:13px;font-weight:600;color:#333;margin-bottom:8px">DNS Records (add these to your registrar)</p>
+            <table style="font-size:12px">
+              <thead><tr><th style="text-align:left;padding:6px 8px;font-size:11px;color:#888">Type</th><th style="text-align:left;padding:6px 8px;font-size:11px;color:#888">Name</th><th style="text-align:left;padding:6px 8px;font-size:11px;color:#888">Value</th><th style="text-align:left;padding:6px 8px;font-size:11px;color:#888">Status</th></tr></thead>
+              <tbody>${partner.resendDnsRecords.map(r => `
+                <tr>
+                  <td style="padding:6px 8px;font-weight:600">${r.record} (${r.type})</td>
+                  <td style="padding:6px 8px;font-family:monospace;font-size:11px;word-break:break-all;max-width:200px">${r.name}</td>
+                  <td style="padding:6px 8px;font-family:monospace;font-size:10px;word-break:break-all;max-width:300px">${r.value.length > 60 ? r.value.substring(0, 60) + "..." : r.value}</td>
+                  <td style="padding:6px 8px">${
+                    r.status === "verified"
+                      ? '<span style="color:#22c55e;font-weight:600">Verified</span>'
+                      : r.status === "pending"
+                      ? '<span style="color:#f59e0b;font-weight:600">Pending</span>'
+                      : '<span style="color:#dc2626;font-weight:600">Not Set</span>'
+                  }</td>
+                </tr>`).join("")}
+              </tbody>
+            </table>
+          </div>` : ""}
+        <button class="btn btn-primary" onclick="verifyEmail()">Check Verification</button>
+      ` : `
+        <p style="font-size:14px;color:#666;margin-bottom:16px">No email domain configured. Patient emails are sent from <code>noreply@myorbithealth.com</code>.</p>
+        <div style="display:flex;gap:8px;align-items:end">
+          <div style="flex:1">
+            <div class="field-label">Domain</div>
+            <input class="edit-input" id="emailDomain" placeholder="e.g. beverlyhillsdrip.com">
+          </div>
+          <button class="btn btn-primary" onclick="setupEmail()">Set Up Domain</button>
+        </div>
+      `}
+    </div>
+
     <!-- Embed Codes -->
     <div class="card">
       <h3>Embed Codes</h3>
@@ -513,6 +699,43 @@ function renderPartnerDetail(partner: PartnerConfig): string {
       });
       const data = await res.json();
       if (data.success) showToast('Fees updated!');
+    }
+
+    async function setupEmail() {
+      const domain = document.getElementById('emailDomain')?.value?.trim();
+      if (!domain || !domain.includes('.')) { showToast('Enter a valid domain'); return; }
+      if (!confirm('Set up email sending from ' + domain + '? This will add the domain to our Resend account.')) return;
+      try {
+        const res = await fetch('/admin/partner/' + SLUG + '/setup-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ domain }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Domain created! DNS records shown below.');
+          setTimeout(() => location.reload(), 1000);
+        } else {
+          showToast(data.error || 'Failed');
+        }
+      } catch (err) {
+        showToast('Network error');
+      }
+    }
+
+    async function verifyEmail() {
+      try {
+        const res = await fetch('/admin/partner/' + SLUG + '/verify-email', { method: 'POST' });
+        const data = await res.json();
+        if (data.verified) {
+          showToast('Domain verified! Emails will now send from partner domain.');
+        } else {
+          showToast('Status: ' + (data.status || 'not verified') + '. Check DNS records.');
+        }
+        setTimeout(() => location.reload(), 1500);
+      } catch (err) {
+        showToast('Network error');
+      }
     }
 
     // Live update "Influencer Gets" column when fee changes
