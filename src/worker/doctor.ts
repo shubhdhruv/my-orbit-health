@@ -177,6 +177,7 @@ doctor.post("/case/:id/approve", async (c) => {
         patientName: pendingCase.patientName,
         serviceName: pendingCase.serviceName,
         partnerName: pendingCase.partnerName,
+        paymentIntentId: pendingCase.paymentIntentId,
       }),
     }, approveEmail.from);
   } catch (err) {
@@ -230,6 +231,7 @@ doctor.post("/case/:id/update-order", async (c) => {
           carrier: pendingCase.carrier,
           trackingNumber: pendingCase.trackingNumber,
           trackingUrl: pendingCase.trackingUrl,
+          paymentIntentId: pendingCase.paymentIntentId,
         }),
       }, emailConfig.from);
     } catch (err) {
@@ -254,6 +256,7 @@ doctor.post("/case/:id/update-order", async (c) => {
           serviceName: pendingCase.serviceName,
           partnerName: pendingCase.partnerName,
           startingDose: pendingCase.dosingResult?.startingDose || undefined,
+          paymentIntentId: pendingCase.paymentIntentId,
         }),
       }, emailConfig.from);
     } catch (err) {
@@ -305,6 +308,7 @@ doctor.post("/case/:id/deny", async (c) => {
         serviceName: pendingCase.serviceName,
         partnerName: pendingCase.partnerName,
         reason,
+        paymentIntentId: pendingCase.paymentIntentId,
       }),
     }, denyEmailConfig.from);
   } catch (err) {

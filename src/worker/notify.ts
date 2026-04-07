@@ -46,6 +46,7 @@ export interface NotifyParams {
   patientName: string;
   patientEmail: string;
   patientState: string;
+  paymentIntentId?: string;
   medplumPatientId?: string;
   isFirstVisit: boolean;
   daysSinceLastVisit?: number;    // Used for TX 90-day lapse enforcement
@@ -148,6 +149,7 @@ export async function notifyOnIntake(
               patientName: params.patientName,
               serviceName,
               partnerName: partner.businessName,
+              paymentIntentId: params.paymentIntentId,
             }),
           }, patientEmailConfig.from);
           result.patientNotified = true;
@@ -184,6 +186,7 @@ export async function notifyOnIntake(
               patientName: params.patientName,
               serviceName,
               partnerName: partner.businessName,
+              paymentIntentId: params.paymentIntentId,
             }),
           }, patientEmailConfig.from);
           result.patientNotified = true;

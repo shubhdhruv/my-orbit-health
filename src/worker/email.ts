@@ -1,5 +1,12 @@
 import { DosingResult } from "../lib/dosing";
 
+const STATUS_BASE_URL = "https://onboard.myorbithealth.com/status";
+
+function statusButton(paymentIntentId?: string): string {
+  if (!paymentIntentId) return "";
+  return `<a href="${STATUS_BASE_URL}/${paymentIntentId}" style="display:inline-block;background:#f3f4f6;color:#333;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;margin-top:16px">Check Order Status</a>`;
+}
+
 interface EmailParams {
   to: string;
   subject: string;
@@ -235,6 +242,7 @@ export function buildAsyncPatientAckEmail(params: {
   patientName: string;
   serviceName: string;
   partnerName: string;
+  paymentIntentId?: string;
 }): string {
   return `
     <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
@@ -243,6 +251,7 @@ export function buildAsyncPatientAckEmail(params: {
       <p style="font-size: 15px; color: #333; margin-bottom: 16px;">Thank you for completing your ${escapeHtml(params.serviceName)} intake through ${escapeHtml(params.partnerName)}.</p>
       <p style="font-size: 15px; color: #333; margin-bottom: 16px;">Your provider is now reviewing your information. This typically takes 1-2 business days. You will only be charged if your prescription is approved.</p>
       <p style="font-size: 15px; color: #333; margin-bottom: 8px;">We will email you as soon as there is an update.</p>
+      ${statusButton(params.paymentIntentId)}
       <p style="font-size: 14px; color: #666; margin-top: 32px;">Questions? Reply to this email.</p>
       <p style="font-size: 12px; color: #999; margin-top: 24px;">${escapeHtml(params.partnerName)} powered by My Orbit Health</p>
     </div>
@@ -398,6 +407,7 @@ export function buildPatientSyncEmail(params: {
   patientName: string;
   serviceName: string;
   partnerName: string;
+  paymentIntentId?: string;
 }): string {
   return `
     <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
@@ -406,6 +416,7 @@ export function buildPatientSyncEmail(params: {
       <p style="font-size: 15px; color: #333; margin-bottom: 16px;">Thank you for completing your ${escapeHtml(params.serviceName)} intake through ${escapeHtml(params.partnerName)}.</p>
       <p style="font-size: 15px; color: #333; margin-bottom: 16px;">Based on your state's requirements, a brief video consultation with your provider is needed before we can process your prescription. You'll receive a separate email from our scheduling system with a link to book your appointment.</p>
       <p style="font-size: 15px; color: #333; margin-bottom: 8px;">The visit is quick and straightforward — your provider will review your intake answers with you and confirm your treatment plan.</p>
+      ${statusButton(params.paymentIntentId)}
       <p style="font-size: 14px; color: #666; margin-top: 32px;">Questions? Reply to this email.</p>
       <p style="font-size: 12px; color: #999; margin-top: 24px;">${escapeHtml(params.partnerName)} powered by My Orbit Health</p>
     </div>
@@ -420,6 +431,7 @@ export function buildPatientApprovedEmail(params: {
   patientName: string;
   serviceName: string;
   partnerName: string;
+  paymentIntentId?: string;
 }): string {
   return `
     <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
@@ -429,6 +441,7 @@ export function buildPatientApprovedEmail(params: {
       <h1 style="font-size: 20px; margin-bottom: 16px;">Great News, ${escapeHtml(params.patientName)}!</h1>
       <p style="font-size: 15px; color: #333; margin-bottom: 16px;">Your ${escapeHtml(params.serviceName)} prescription has been approved by your provider.</p>
       <p style="font-size: 15px; color: #333; margin-bottom: 16px;">Your card has been charged and your prescription is now being processed. You will receive shipping and tracking information once your medication is on its way.</p>
+      ${statusButton(params.paymentIntentId)}
       <p style="font-size: 14px; color: #666; margin-top: 32px;">Questions? Reply to this email.</p>
       <p style="font-size: 12px; color: #999; margin-top: 24px;">${escapeHtml(params.partnerName)} powered by My Orbit Health</p>
     </div>
@@ -444,6 +457,7 @@ export function buildPatientDeniedEmail(params: {
   serviceName: string;
   partnerName: string;
   reason: string;
+  paymentIntentId?: string;
 }): string {
   return `
     <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
@@ -472,6 +486,7 @@ export function buildPatientShippedEmail(params: {
   carrier?: string;
   trackingNumber?: string;
   trackingUrl?: string;
+  paymentIntentId?: string;
 }): string {
   const trackingHtml = params.trackingNumber
     ? `<div style="background: #f8f9fa; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
@@ -491,6 +506,7 @@ export function buildPatientShippedEmail(params: {
       <p style="font-size: 15px; color: #333; margin-bottom: 16px;">Your ${escapeHtml(params.serviceName)} prescription has been filled and shipped.</p>
       ${trackingHtml}
       <p style="font-size: 15px; color: #333; margin-bottom: 16px;">Most orders arrive within 3-5 business days. We'll send you another email when it's been delivered.</p>
+      ${statusButton(params.paymentIntentId)}
       <p style="font-size: 14px; color: #666; margin-top: 32px;">Questions? Reply to this email.</p>
       <p style="font-size: 12px; color: #999; margin-top: 24px;">${escapeHtml(params.partnerName)} powered by My Orbit Health</p>
     </div>
@@ -506,6 +522,7 @@ export function buildPatientDeliveredEmail(params: {
   serviceName: string;
   partnerName: string;
   startingDose?: string;
+  paymentIntentId?: string;
 }): string {
   return `
     <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
@@ -519,6 +536,7 @@ export function buildPatientDeliveredEmail(params: {
         <p style="font-size: 16px; font-weight: 700; color: #333; margin: 0;">${escapeHtml(params.startingDose)}</p>
       </div>` : ""}
       <p style="font-size: 15px; color: #333; margin-bottom: 8px;">Follow the dosing instructions included with your medication. If you have any questions or experience side effects, contact your provider.</p>
+      ${statusButton(params.paymentIntentId)}
       <p style="font-size: 14px; color: #666; margin-top: 32px;">Questions? Reply to this email.</p>
       <p style="font-size: 12px; color: #999; margin-top: 24px;">${escapeHtml(params.partnerName)} powered by My Orbit Health</p>
     </div>
