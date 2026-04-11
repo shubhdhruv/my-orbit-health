@@ -9,13 +9,12 @@
     "types": "wrangler types"
   },
   "dependencies": {
-    "@cloudflare/kv-asset-handler": "^0.4.2",
     "hono": "^4.4.0",
     "stripe": "^17.0.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240909.0",
-    "typescript": "^5.5.0",
-    "wrangler": "^3.72.0"
+    "typescript": "^6.0.2",
+    "wrangler": "^4.81.1"
   }
 }

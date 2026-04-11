@@ -2,6 +2,7 @@ import type { DosingResult } from "./dosing";
 
 export interface Env {
   PARTNERS: KVNamespace;
+  ASSETS: Fetcher;
   HEALTHIE_API_KEY: string;
   STRIPE_SECRET_KEY: string;
   STRIPE_WEBHOOK_SECRET: string;
