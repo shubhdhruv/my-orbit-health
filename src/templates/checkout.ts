@@ -529,12 +529,17 @@ export function generateCheckoutHTML(
           <span class="value" id="planPrice">$${monthlyPrice}/mo <span style="font-weight:400;font-size:12px;color:#888">billed on approval</span></span>
         </div>
 
+        <div id="kitLine" class="order-line" style="display:none">
+          <span class="label">HRT Clearance Kit</span>
+          <span class="value">$124.99 <span style="font-weight:400;font-size:12px;color:#888">charged today</span></span>
+        </div>
+
         <div class="due-today-note">
           <div class="due-today-amount">
             <span>Due Today</span>
-            <span class="amount">$0</span>
+            <span class="amount" id="dueTodayAmount">$0</span>
           </div>
-          <p class="due-today-explain">
+          <p class="due-today-explain" id="dueTodayExplain">
             <strong>Only charged if prescribed by a licensed physician</strong><br>
             We'll securely hold your payment method. You'll only be charged after a doctor reviews your information and prescribes your medication.
           </p>
@@ -611,6 +616,20 @@ export function generateCheckoutHTML(
       const card = e.target.closest('.plan-card');
       if (card) selectPlan(card);
     });
+
+    // Reflect HRT Clearance Kit purchase (chosen during intake) in order summary
+    (function applyKitPurchase() {
+      try {
+        const intakeAnswers = JSON.parse(sessionStorage.getItem('intakeAnswers') || '{}');
+        if (intakeAnswers['bloodwork-status'] === 'buy-kit') {
+          document.getElementById('kitLine').style.display = 'flex';
+          document.getElementById('dueTodayAmount').textContent = '$124.99';
+          document.getElementById('dueTodayExplain').innerHTML =
+            '<strong>$124.99 charged today for your HRT Clearance Kit.</strong><br>' +
+            'Your treatment cost is still only billed if a licensed physician prescribes your medication.';
+        }
+      } catch (e) {}
+    })();
 
     // Enable submit when all required fields filled
     function checkForm() {

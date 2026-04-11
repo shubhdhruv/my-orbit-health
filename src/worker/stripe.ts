@@ -162,6 +162,44 @@ export async function createSubscription(
   return subscription.id;
 }
 
+// Immediately charge the HRT Clearance Kit fee ($124.99) — captured at intake
+// time so we can ship the kit before the doctor reviews the case.
+export async function chargeKitFee(
+  stripe: Stripe,
+  partner: PartnerConfig,
+  amountDollars: number,
+  customerEmail: string,
+  paymentMethodId: string,
+): Promise<string> {
+  const params: Stripe.PaymentIntentCreateParams = {
+    amount: Math.round(amountDollars * 100),
+    currency: "usd",
+    payment_method: paymentMethodId,
+    capture_method: "automatic",
+    confirm: true,
+    receipt_email: customerEmail,
+    description: "HRT Clearance Kit",
+    metadata: {
+      partner_slug: partner.slug,
+      partner_name: partner.businessName,
+      kind: "hrt_clearance_kit",
+    },
+    automatic_payment_methods: {
+      enabled: true,
+      allow_redirects: "never",
+    },
+  };
+
+  const intent = await stripe.paymentIntents.create(
+    params,
+    partner.paymentMode === "direct" && partner.stripeDirectAccountId
+      ? { stripeAccount: partner.stripeDirectAccountId }
+      : undefined,
+  );
+
+  return intent.id;
+}
+
 // Create a Stripe Checkout session to collect payment method (no charge)
 export async function createSetupIntent(
   stripe: Stripe,

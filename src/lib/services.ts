@@ -585,8 +585,8 @@ const TESTOSTERONE_STEPS: FormStep[] = [
     subtitle: "Testosterone therapy requires blood work within the last 6 months",
     type: "radio",
     options: [
-      { label: "Yes, I have labs within the last 6 months", value: "have-labs" },
-      { label: "No, I need to get labs done", value: "need-labs" },
+      { label: "Yes, I'll upload my labs (within last 6 months)", value: "have-labs" },
+      { label: "No — purchase the HRT Clearance Kit ($124.99, charged today and shipped to you)", value: "buy-kit" },
     ],
   },
   {
@@ -595,17 +595,6 @@ const TESTOSTERONE_STEPS: FormStep[] = [
     subtitle: "We need: total testosterone, free testosterone, CBC, CMP, lipid panel, and PSA (if 40+)",
     type: "file-upload",
     conditionalOn: { stepId: "bloodwork-status", value: "have-labs" },
-  },
-  {
-    id: "lab-order-preference",
-    question: "How would you like to get your blood work done?",
-    subtitle: "We'll send you a lab order after your consultation",
-    type: "radio",
-    options: [
-      { label: "Quest Diagnostics or Labcorp (walk-in)", value: "walk-in" },
-      { label: "At-home phlebotomy (we send someone to you)", value: "at-home" },
-    ],
-    conditionalOn: { stepId: "bloodwork-status", value: "need-labs" },
   },
   {
     id: "testosterone-contraindications",
@@ -707,12 +696,11 @@ const ENCLOMIPHENE_STEPS: FormStep[] = [
     subtitle: "Enclomiphene therapy requires labs within the last 3 months including: total testosterone, free testosterone, LH, FSH, estradiol",
     type: "radio",
     options: [
-      { label: "Yes, I have labs within the last 3 months", value: "have-labs" },
-      { label: "No, I need to get labs done", value: "need-labs" },
+      { label: "Yes, I'll upload my labs (within last 3 months)", value: "have-labs" },
+      { label: "No — purchase the HRT Clearance Kit ($124.99, charged today and shipped to you)", value: "buy-kit" },
     ],
   },
   TESTOSTERONE_STEPS.find(s => s.id === "bloodwork-upload")!,
-  TESTOSTERONE_STEPS.find(s => s.id === "lab-order-preference")!,
   {
     id: "enclomiphene-contraindications",
     question: "Do any of these apply to you?",
@@ -774,8 +762,8 @@ const ESTROGEN_STEPS: FormStep[] = [
     subtitle: "We need: FSH, estradiol, CBC, CMP, lipid panel, and thyroid panel",
     type: "radio",
     options: [
-      { label: "Yes, I have labs within the last 6 months", value: "have-labs" },
-      { label: "No, I need to get labs done", value: "need-labs" },
+      { label: "Yes, I'll upload my labs (within last 6 months)", value: "have-labs" },
+      { label: "No — purchase the HRT Clearance Kit ($124.99, charged today and shipped to you)", value: "buy-kit" },
     ],
   },
   {
@@ -783,17 +771,6 @@ const ESTROGEN_STEPS: FormStep[] = [
     question: "Upload your recent lab results",
     type: "file-upload",
     conditionalOn: { stepId: "bloodwork-status", value: "have-labs" },
-  },
-  {
-    id: "lab-order-preference",
-    question: "How would you like to get your blood work done?",
-    subtitle: "We'll send you a lab order after your consultation",
-    type: "radio",
-    options: [
-      { label: "Quest Diagnostics or Labcorp (walk-in)", value: "walk-in" },
-      { label: "At-home phlebotomy (we send someone to you)", value: "at-home" },
-    ],
-    conditionalOn: { stepId: "bloodwork-status", value: "need-labs" },
   },
   {
     id: "estrogen-contraindications",

@@ -101,6 +101,8 @@ doctor.get("/export.csv", async (c) => {
     "Starting Dose",
     "Charge Amount",
     "Bloodwork Status",
+    "Kit Paid",
+    "Kit Shipped",
     "Tracking #",
     "Carrier",
   ];
@@ -128,6 +130,8 @@ doctor.get("/export.csv", async (c) => {
     x.dosingResult?.startingDose || "",
     x.chargeAmount,
     x.bloodworkStatus || "",
+    x.bloodworkKitPurchased ? "yes" : "",
+    x.bloodworkKitShipped ? "yes" : "",
     x.trackingNumber || "",
     x.carrier || "",
   ].map(esc).join(","));
@@ -735,18 +739,23 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
         + '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fef3c7;color:#92400e">LABS PENDING</span>'
         + '<span style="font-size:12px;color:#888">Patient indicated they have labs but file was not uploaded</span>'
         + '</div>';
-    } else if (c.bloodworkStatus === "need-labs") {
+    } else if (c.bloodworkStatus === "buy-kit") {
+      const kitBadge = c.bloodworkKitShipped
+        ? '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dbeafe;color:#1e40af">KIT SHIPPED</span>'
+        : '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fef3c7;color:#92400e">KIT TO SHIP</span>';
       statusContent = '<div style="display:flex;align-items:center;gap:8px">'
-        + '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fecaca;color:#991b1b">LABS NEEDED</span>'
-        + '<span style="font-size:12px;color:#888">Patient needs to get bloodwork done before treatment can begin</span>'
+        + kitBadge
+        + '<span style="font-size:12px;color:#888">Patient paid $124.99 for the HRT Clearance Kit. '
+        + (c.bloodworkKitShipped ? 'Waiting on results.' : 'Order kit from Solutions For Your Wellness and ship to patient.')
+        + '</span>'
         + '</div>';
     }
     bloodworkHtml = '<div class="card"><h3 style="font-size:16px;margin-bottom:16px">Bloodwork</h3>' + statusContent + '</div>';
   }
 
   // Compute approval gate
-  const labsRequired = c.bloodworkStatus === "have-labs" || c.bloodworkStatus === "need-labs";
-  const labsReady = c.bloodworkStatus === "have-labs" && !!c.bloodworkBinaryId;
+  const labsRequired = c.bloodworkStatus === "have-labs" || c.bloodworkStatus === "buy-kit";
+  const labsReady = !!c.bloodworkBinaryId; // Admin uploads kit results under the same field
   const labsBlocking = labsRequired && !labsReady;
   const canApprove = !expired && !!c.soapNoteId && !labsBlocking;
 

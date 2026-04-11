@@ -131,9 +131,12 @@ export interface PendingCase {
   routingConstraints: string[];
 
   // Bloodwork
-  bloodworkStatus?: "have-labs" | "need-labs" | "not-required";
+  bloodworkStatus?: "have-labs" | "buy-kit" | "not-required";
   bloodworkBinaryId?: string;   // Medplum Binary ID for uploaded lab file
   bloodworkDocRefId?: string;   // Medplum DocumentReference linking file to patient
+  bloodworkKitPurchased?: boolean;   // Patient paid $124.99 for HRT clearance kit
+  bloodworkKitPaymentId?: string;    // Stripe PaymentIntent ID for the kit charge
+  bloodworkKitShipped?: boolean;     // Admin marks when the kit is physically shipped
 
   // SOAP Note
   soapNoteId?: string;
@@ -175,9 +178,8 @@ export interface IntakeSubmission {
     };
   };
   answers: Record<string, string | string[] | boolean>;
-  bloodworkStatus?: "have-labs" | "need-labs";
+  bloodworkStatus?: "have-labs" | "buy-kit";
   bloodworkFileUrl?: string;
-  labOrderPreference?: "walk-in" | "at-home";
   selectedPlan?: {
     id: string;
     months: number;

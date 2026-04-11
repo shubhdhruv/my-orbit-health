@@ -7,7 +7,9 @@ import { generateIntakeFormHTML } from "../templates/form-engine";
 import { generateRecommendationHTML } from "../templates/recommendation";
 import { generateCheckoutHTML } from "../templates/checkout";
 import { generateTermsOfService, generatePrivacyPolicy, generateTelehealthConsent } from "../templates/legal";
-import { createStripeClient, authorizePayment } from "./stripe";
+import { createStripeClient, authorizePayment, chargeKitFee } from "./stripe";
+
+const BLOODWORK_KIT_PRICE = 124.99;
 import {
   createPatient as createMedplumPatient,
   createQuestionnaireResponse,
@@ -188,12 +190,33 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
   // 2. Determine bloodwork status
   const service = getServiceById(serviceType);
   const bloodworkAnswer = body.answers?.["bloodwork-status"] as string | undefined;
-  const bloodworkStatus: "have-labs" | "need-labs" | "not-required" =
+  const bloodworkStatus: "have-labs" | "buy-kit" | "not-required" =
     !service?.requiresBloodwork ? "not-required"
     : bloodworkAnswer === "have-labs" ? "have-labs"
-    : bloodworkAnswer === "need-labs" ? "need-labs"
+    : bloodworkAnswer === "buy-kit" ? "buy-kit"
     : "not-required";
   let bloodworkDocRefId: string | undefined;
+
+  // 2.5. If patient chose to buy the HRT Clearance Kit, charge $124.99 now
+  let bloodworkKitPaymentId: string | undefined;
+  if (bloodworkStatus === "buy-kit" && c.env.STRIPE_BYPASS !== "true") {
+    try {
+      const stripe = createStripeClient(c.env.STRIPE_SECRET_KEY);
+      bloodworkKitPaymentId = await chargeKitFee(
+        stripe,
+        partner,
+        BLOODWORK_KIT_PRICE,
+        body.shipping?.email || "",
+        body.paymentMethodId,
+      );
+    } catch (err) {
+      console.error("HRT Clearance Kit charge failed:", err);
+      return c.json({ error: "Unable to charge the HRT Clearance Kit fee. Please check your card and try again." }, 400);
+    }
+  } else if (bloodworkStatus === "buy-kit") {
+    // Bypass mode — simulate kit charge
+    bloodworkKitPaymentId = `bypass_kit_${Date.now()}`;
+  }
 
   // 3. Create patient + questionnaire response in Medplum
   let medplumPatientId: string | undefined;
@@ -264,6 +287,8 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
       bloodworkStatus,
       bloodworkBinaryId: body.bloodworkBinaryId,
       bloodworkDocRefId,
+      bloodworkKitPurchased: bloodworkStatus === "buy-kit",
+      bloodworkKitPaymentId,
       answers: body.answers || {},
       routingConstraints: routing?.constraints || [],
       createdAt: new Date().toISOString(),
