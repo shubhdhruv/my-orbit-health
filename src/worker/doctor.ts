@@ -77,6 +77,72 @@ doctor.get("/", async (c) => {
   return c.html(renderDashboard(cases));
 });
 
+// ─── CSV Export of Approved Cases (manual-entry fallback) ─────
+
+doctor.get("/export.csv", async (c) => {
+  const cases = await listAllCases(c.env.PARTNERS);
+  const approved = cases.filter((x) => x.status === "approved");
+
+  const headers = [
+    "Case ID",
+    "Approved At",
+    "Order Status",
+    "Partner",
+    "Patient Name",
+    "DOB",
+    "Email",
+    "Phone",
+    "Street",
+    "Apt",
+    "City",
+    "State",
+    "Zip",
+    "Service",
+    "Starting Dose",
+    "Charge Amount",
+    "Bloodwork Status",
+    "Tracking #",
+    "Carrier",
+  ];
+
+  const esc = (v: unknown) => {
+    const s = v == null ? "" : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+
+  const rows = approved.map((x) => [
+    x.paymentIntentId,
+    x.resolvedAt || "",
+    x.orderStatus || "not_submitted",
+    x.partnerName,
+    x.patientName,
+    x.patientDob,
+    x.patientEmail,
+    x.patientPhone,
+    x.shippingAddress?.street || "",
+    x.shippingAddress?.apt || "",
+    x.shippingAddress?.city || "",
+    x.shippingAddress?.state || x.patientState || "",
+    x.shippingAddress?.zip || "",
+    x.serviceName,
+    x.dosingResult?.startingDose || "",
+    x.chargeAmount,
+    x.bloodworkStatus || "",
+    x.trackingNumber || "",
+    x.carrier || "",
+  ].map(esc).join(","));
+
+  const csv = [headers.join(","), ...rows].join("\n");
+  const filename = `approved-orders-${new Date().toISOString().split("T")[0]}.csv`;
+
+  return new Response(csv, {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+    },
+  });
+});
+
 // ─── Case Detail ─────────────────────────────────────────────
 
 doctor.get("/case/:id", async (c) => {
@@ -621,6 +687,9 @@ function renderDashboard(cases: import("../lib/types").PendingCase[]): string {
         : '<div class="empty">No active orders. Approved prescriptions will appear here until delivered.</div>'}
     </div>
     <div id="tab-approved" class="tab-content">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+        <a href="/doctor/export.csv" style="display:inline-block;background:#22c55e;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">⬇ Export Approved (CSV)</a>
+      </div>
       ${approved.length > 0
         ? `<div class="grid">${approved.map(renderCaseCard).join("")}</div>`
         : '<div class="empty">No approved cases yet.</div>'}

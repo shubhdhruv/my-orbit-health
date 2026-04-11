@@ -103,6 +103,13 @@ export interface PendingCase {
   patientPhone: string;
   patientState: string;
   patientDob: string;
+  shippingAddress?: {
+    street: string;
+    apt?: string;
+    city: string;
+    state: string;
+    zip: string;
+  };
   healthiePatientId?: string;
   medplumPatientId?: string;
 

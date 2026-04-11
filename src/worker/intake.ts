@@ -244,6 +244,13 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
       patientPhone: body.answers?.phone || "",
       patientState,
       patientDob: body.answers?.dob || "",
+      shippingAddress: body.shipping ? {
+        street: body.shipping.street || "",
+        apt: body.shipping.apt || "",
+        city: body.shipping.city || "",
+        state: body.shipping.state || "",
+        zip: body.shipping.zip || "",
+      } : undefined,
       medplumPatientId,
       partnerSlug: slug,
       partnerName: partner.businessName,
