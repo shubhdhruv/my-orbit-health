@@ -1248,28 +1248,45 @@ shubh@myorbithealth.com</div>
       <button class="save-btn" onclick="saveImaware()">Save imaware Credentials</button>
     </div>
 
-    <!-- PHARMACY -->
+    <!-- PHARMACY — RxHQ / Olympia -->
     <div class="card">
-      <h3>2. Pharmacy API <span class="badge badge-todo">ACTION NEEDED</span></h3>
-      <p>We need a compounding pharmacy partner with an API so prescriptions auto-send and tracking auto-populates. The doctor portal already supports manual tracking entry — this will automate it.</p>
+      <h3>2. Pharmacy API — RxHQ (Olympia) <span class="badge badge-todo">ACTION NEEDED</span></h3>
+      <p>We're integrating the RxHQ / Olympia Pharmacy API so prescriptions auto-submit when you approve a case, and tracking/shipped/delivered updates flow back automatically to the patient. You'll no longer need to manually enter tracking numbers.</p>
 
-      <h4>What to do</h4>
+      <h4>What we need from you</h4>
+      <p>Log in to your RxHQ portal at <a href="http://rxhqportal.com" target="_blank">rxhqportal.com</a> and grab the following. If you don't see an API section in your account, email RxHQ support and ask them to <strong>"enable API access and issue API credentials (username, password, and 32-character secret) for my account."</strong></p>
+
       <ol>
-        <li>Decide which compounding pharmacy to use (must compound all 18 services)</li>
-        <li>Ask them if they have an API for order submission + tracking webhooks</li>
-        <li>If they provide API credentials, paste them below</li>
+        <li><strong>API Username</strong> — usually your portal login username</li>
+        <li><strong>API Password</strong> — your portal password (or a separate API password if they issue one)</li>
+        <li><strong>API Secret</strong> — a 32-character string RxHQ generates for your account</li>
+        <li><strong>Your Physician ID</strong> — the numeric ID RxHQ assigned to you as a prescriber (shown in your profile or on any prescription you've submitted through their portal)</li>
       </ol>
 
-      <h4>Pharmacy credentials</h4>
-      <label>Pharmacy Name</label>
-      <input type="text" id="pharmacyName" placeholder="e.g. Empower Pharmacy, Olympia Pharmacy">
-      <label>Pharmacy API Key</label>
-      <input type="text" id="pharmacyApiKey" placeholder="Paste API key from pharmacy">
-      <label>Pharmacy API Base URL</label>
-      <input type="text" id="pharmacyBaseUrl" placeholder="e.g. https://api.pharmacy.com/v1">
-      <label>Pharmacy Account/Provider ID</label>
-      <input type="text" id="pharmacyProviderId" placeholder="Your prescriber ID in their system">
-      <button class="save-btn" onclick="savePharmacy()">Save Pharmacy Credentials</button>
+      <h4>Also confirm (so we can finish the integration)</h4>
+      <ul>
+        <li>✅ All 18 services we offer are stocked by RxHQ (GLP-1s, ED, HRT male/female, peptides, blends)? If some aren't, list which ones so we route them elsewhere.</li>
+        <li>✅ Testosterone Injectable (Schedule III controlled) — confirmed RxHQ can ship it, and which states they're licensed in.</li>
+        <li>✅ Does RxHQ charge shipping separately, or is it included in product price?</li>
+        <li>✅ Default number of refills you want on a standard prescription (0, 2, 11)?</li>
+      </ul>
+
+      <h4>Enter your RxHQ credentials</h4>
+      <label>RxHQ API Username</label>
+      <input type="text" id="rxhqUsername" placeholder="Your RxHQ portal username">
+      <label>RxHQ API Password</label>
+      <input type="password" id="rxhqPassword" placeholder="Your RxHQ API password">
+      <label>RxHQ API Secret (32 characters)</label>
+      <input type="text" id="rxhqSecret" placeholder="Xh7pM2Z5Tq9Vw3Lb8jN0Yk4Rf6G1QdCs">
+      <label>Your RxHQ Physician ID</label>
+      <input type="text" id="rxhqPhysicianId" placeholder="e.g. 12345">
+      <label>API Base URL</label>
+      <input type="text" id="rxhqBaseUrl" value="https://rxhqportal.com" placeholder="https://rxhqportal.com">
+
+      <h4 style="margin-top:20px">Notes (optional — answer the confirm questions above)</h4>
+      <textarea id="rxhqNotes" rows="5" style="width:100%;padding:10px 12px;border:1.5px solid #d9d9d9;border-radius:6px;font-size:14px;font-family:inherit;margin-bottom:12px" placeholder="e.g. All 18 stocked. Test inj shippable in CA/FL/TX/NY. Shipping $15 flat. Default 2 refills."></textarea>
+
+      <button class="save-btn" onclick="savePharmacy()">Save RxHQ Credentials</button>
     </div>
 
     <!-- STRIPE -->
@@ -1340,17 +1357,21 @@ shubh@myorbithealth.com</div>
     }
 
     async function savePharmacy() {
-      const name = document.getElementById('pharmacyName').value.trim();
-      const apiKey = document.getElementById('pharmacyApiKey').value.trim();
-      const baseUrl = document.getElementById('pharmacyBaseUrl').value.trim();
-      const providerId = document.getElementById('pharmacyProviderId').value.trim();
-      if (!name) { showToast('Enter the pharmacy name', '#f59e0b'); return; }
+      const username = document.getElementById('rxhqUsername').value.trim();
+      const password = document.getElementById('rxhqPassword').value.trim();
+      const secret = document.getElementById('rxhqSecret').value.trim();
+      const physicianId = document.getElementById('rxhqPhysicianId').value.trim();
+      const baseUrl = document.getElementById('rxhqBaseUrl').value.trim();
+      const notes = document.getElementById('rxhqNotes').value.trim();
+      if (!username || !password || !secret) { showToast('Enter username, password, and secret', '#f59e0b'); return; }
+      if (secret.length !== 32) { showToast('Secret must be 32 characters', '#f59e0b'); return; }
+      if (!physicianId) { showToast('Enter your RxHQ physician ID', '#f59e0b'); return; }
 
       try {
         const res = await fetch('/admin/vendor-credentials', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ vendor: 'pharmacy', name, apiKey, baseUrl, providerId }),
+          body: JSON.stringify({ vendor: 'pharmacy', username, password, secret, physicianId, baseUrl, notes }),
         });
         const data = await res.json();
         if (data.success) showToast('Pharmacy credentials saved!', '#22c55e');
@@ -1401,10 +1422,13 @@ admin.post("/vendor-credentials", async (c) => {
 
   if (vendor === "pharmacy") {
     await c.env.PARTNERS.put("vendor:pharmacy", JSON.stringify({
-      name: body.name,
-      apiKey: body.apiKey || "",
-      baseUrl: body.baseUrl || "",
-      providerId: body.providerId || "",
+      name: "RxHQ (Olympia)",
+      username: body.username || "",
+      password: body.password || "",
+      secret: body.secret || "",
+      physicianId: body.physicianId || "",
+      baseUrl: body.baseUrl || "https://rxhqportal.com",
+      notes: body.notes || "",
       savedAt: new Date().toISOString(),
     }));
     return c.json({ success: true });
