@@ -395,22 +395,30 @@ function checkCondition(
   answers: Answers,
   labResults?: Record<string, number | string | boolean>,
 ): boolean {
+  // Lab-dependent conditions: if labs are absent at this stage (typically
+  // intake submission, before the doctor has uploaded results), do NOT hard
+  // block. The doctor's approval gate re-evaluates labs at review time.
+  const isLabCondition =
+    condition === "NOT_both_below_300" ||
+    condition === "above_54" ||
+    condition === "gte_4_or_rapid_rise" ||
+    condition === "not_obtained";
+  if (isLabCondition && !labResults) return false;
+
   switch (condition) {
     case "NOT_both_below_300": {
-      if (!labResults) return true; // No labs = block
-      const t1 = labResults["total_testosterone_1"];
-      const t2 = labResults["total_testosterone_2"];
-      if (t1 === undefined || t2 === undefined) return true; // Missing labs = block
+      const t1 = labResults!["total_testosterone_1"];
+      const t2 = labResults!["total_testosterone_2"];
+      // Labs present but incomplete — defer, don't block
+      if (t1 === undefined || t2 === undefined) return false;
       return !(Number(t1) < 300 && Number(t2) < 300);
     }
     case "above_54": {
-      if (!labResults) return false;
-      const hct = Number(labResults[field] || labResults["hematocrit"]);
+      const hct = Number(labResults![field] ?? labResults!["hematocrit"]);
       return !isNaN(hct) && hct > 54;
     }
     case "gte_4_or_rapid_rise": {
-      if (!labResults) return false;
-      const psa = Number(labResults["psa"]);
+      const psa = Number(labResults!["psa"]);
       return !isNaN(psa) && psa >= 4;
     }
     case "within_6_months":
@@ -423,7 +431,7 @@ function checkCondition(
       return (!isNaN(sbp) && sbp > 160) || (!isNaN(dbp) && dbp > 100);
     }
     case "not_obtained": {
-      return !labResults || labResults[field] === undefined;
+      return labResults![field] === undefined;
     }
     default:
       return false;

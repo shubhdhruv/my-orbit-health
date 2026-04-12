@@ -531,7 +531,7 @@ export function generateCheckoutHTML(
 
         <div id="kitLine" class="order-line" style="display:none">
           <span class="label">HRT Clearance Kit</span>
-          <span class="value">$124.99 <span style="font-weight:400;font-size:12px;color:#888">charged today</span></span>
+          <span class="value">$5 <span style="font-weight:400;font-size:12px;color:#888">charged today</span></span>
         </div>
 
         <div class="due-today-note">
@@ -623,9 +623,9 @@ export function generateCheckoutHTML(
         const intakeAnswers = JSON.parse(sessionStorage.getItem('intakeAnswers') || '{}');
         if (intakeAnswers['bloodwork-status'] === 'buy-kit') {
           document.getElementById('kitLine').style.display = 'flex';
-          document.getElementById('dueTodayAmount').textContent = '$124.99';
+          document.getElementById('dueTodayAmount').textContent = '$5';
           document.getElementById('dueTodayExplain').innerHTML =
-            '<strong>$124.99 charged today for your HRT Clearance Kit.</strong><br>' +
+            '<strong>$5 charged today for your HRT Clearance Kit.</strong><br>' +
             'Your treatment cost is still only billed if a licensed physician prescribes your medication.';
         }
       } catch (e) {}
@@ -758,13 +758,14 @@ export function generateCheckoutHTML(
             '<p style="font-size:13px;color:#999;margin:0">Check your email for updates. Questions? Reply to any email from us.</p>' +
             '</div>';
         } else {
-          document.getElementById('card-errors').textContent = data.error || 'Something went wrong. Please try again.';
+          console.error('Submit response:', data);
+          document.getElementById('card-errors').textContent = data.error || data.message || ('Error: ' + JSON.stringify(data));
           btn.disabled = false;
           btnText.textContent = 'Complete Order';
         }
       } catch (err) {
-        console.error(err);
-        document.getElementById('card-errors').textContent = 'Something went wrong. Please try again.';
+        console.error('Submit fetch failed:', err);
+        document.getElementById('card-errors').textContent = 'Network error: ' + (err && err.message ? err.message : String(err));
         btn.disabled = false;
         btnText.textContent = 'Complete Order';
       }

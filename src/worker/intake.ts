@@ -9,7 +9,7 @@ import { generateCheckoutHTML } from "../templates/checkout";
 import { generateTermsOfService, generatePrivacyPolicy, generateTelehealthConsent } from "../templates/legal";
 import { createStripeClient, authorizePayment, chargeKitFee } from "./stripe";
 
-const BLOODWORK_KIT_PRICE = 124.99;
+const BLOODWORK_KIT_PRICE = 5;
 import {
   createPatient as createMedplumPatient,
   createQuestionnaireResponse,
@@ -183,7 +183,8 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
       );
     } catch (err) {
       console.error("Payment authorization failed:", err);
-      return c.json({ error: "Payment authorization failed" }, 400);
+      const msg = err instanceof Error ? err.message : String(err);
+      return c.json({ error: `Payment authorization failed: ${msg}` }, 400);
     }
   }
 
@@ -211,7 +212,8 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
       );
     } catch (err) {
       console.error("HRT Clearance Kit charge failed:", err);
-      return c.json({ error: "Unable to charge the HRT Clearance Kit fee. Please check your card and try again." }, 400);
+      const msg = err instanceof Error ? err.message : String(err);
+      return c.json({ error: `Kit charge failed: ${msg}` }, 400);
     }
   } else if (bloodworkStatus === "buy-kit") {
     // Bypass mode — simulate kit charge

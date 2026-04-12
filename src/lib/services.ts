@@ -586,7 +586,7 @@ const TESTOSTERONE_STEPS: FormStep[] = [
     type: "radio",
     options: [
       { label: "Yes, I'll upload my labs (within last 6 months)", value: "have-labs" },
-      { label: "No — purchase the HRT Clearance Kit ($124.99, charged today and shipped to you)", value: "buy-kit" },
+      { label: "No — purchase the HRT Clearance Kit ($5, charged today and shipped to you)", value: "buy-kit" },
     ],
   },
   {
@@ -697,7 +697,7 @@ const ENCLOMIPHENE_STEPS: FormStep[] = [
     type: "radio",
     options: [
       { label: "Yes, I'll upload my labs (within last 3 months)", value: "have-labs" },
-      { label: "No — purchase the HRT Clearance Kit ($124.99, charged today and shipped to you)", value: "buy-kit" },
+      { label: "No — purchase the HRT Clearance Kit ($5, charged today and shipped to you)", value: "buy-kit" },
     ],
   },
   TESTOSTERONE_STEPS.find(s => s.id === "bloodwork-upload")!,
@@ -763,7 +763,7 @@ const ESTROGEN_STEPS: FormStep[] = [
     type: "radio",
     options: [
       { label: "Yes, I'll upload my labs (within last 6 months)", value: "have-labs" },
-      { label: "No — purchase the HRT Clearance Kit ($124.99, charged today and shipped to you)", value: "buy-kit" },
+      { label: "No — purchase the HRT Clearance Kit ($5, charged today and shipped to you)", value: "buy-kit" },
     ],
   },
   {
