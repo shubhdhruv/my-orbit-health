@@ -14,7 +14,15 @@ import { getServiceById } from "../lib/services";
 import { generateIntakeFormHTML } from "../templates/form-engine";
 import { generateRecommendationHTML } from "../templates/recommendation";
 import { generateCheckoutHTML } from "../templates/checkout";
-import { generateTermsOfService, generatePrivacyPolicy, generateTelehealthConsent, generatePatientEnrollmentDisclosure, DISCLOSURE_VERSION } from "../templates/legal";
+import {
+  generateTermsOfService,
+  generatePrivacyPolicy,
+  generateTelehealthConsent,
+  generateElectronicCommunicationsConsent,
+  generateCompoundedMedicationConsent,
+  generateProgramEnrollmentTerms,
+  DISCLOSURE_VERSION,
+} from "../templates/legal";
 import { createStripeClient, authorizePayment, chargeKitFee, ensureCustomerWithPaymentMethod } from "./stripe";
 
 const BLOODWORK_KIT_PRICE = 5;
@@ -113,10 +121,22 @@ intake.get("/:slug/telehealth-consent", async (c) => {
   return c.html(generateTelehealthConsent(partner));
 });
 
-intake.get("/:slug/enrollment-disclosure", async (c) => {
+intake.get("/:slug/electronic-communications-consent", async (c) => {
   const partner = await getPartner(c.env.PARTNERS, c.req.param("slug"));
   if (!partner) return c.text("Partner not found", 404);
-  return c.html(generatePatientEnrollmentDisclosure(partner));
+  return c.html(generateElectronicCommunicationsConsent(partner));
+});
+
+intake.get("/:slug/compounded-medication-consent", async (c) => {
+  const partner = await getPartner(c.env.PARTNERS, c.req.param("slug"));
+  if (!partner) return c.text("Partner not found", 404);
+  return c.html(generateCompoundedMedicationConsent(partner));
+});
+
+intake.get("/:slug/enrollment-terms", async (c) => {
+  const partner = await getPartner(c.env.PARTNERS, c.req.param("slug"));
+  if (!partner) return c.text("Partner not found", 404);
+  return c.html(generateProgramEnrollmentTerms(partner));
 });
 
 // Upload lab results file → Medplum Binary

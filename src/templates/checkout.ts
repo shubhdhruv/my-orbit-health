@@ -485,8 +485,13 @@ export function generateCheckoutHTML(
         <div style="margin:16px 0 8px 0;padding:14px 16px;background:#f8f9fa;border:1px solid #e5e7eb;border-radius:10px">
           <label for="disclosureAck" style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
             <input type="checkbox" id="disclosureAck" style="margin-top:3px;width:16px;height:16px;flex-shrink:0;cursor:pointer">
-            <span style="font-size:13px;color:#333;line-height:1.5">
-              I have read and understand the <a href="${baseUrl}/form/${partner.slug}/enrollment-disclosure" target="_blank" style="color:var(--primary);font-weight:600">Patient Enrollment Disclosure</a>, including that clinical services are provided by licensed My Orbit Health physicians (not ${partner.businessName}), that my medications are compounded by a licensed 503A pharmacy and are not FDA-approved, and that enrollment does not guarantee a prescription.
+            <span style="font-size:13px;color:#333;line-height:1.55">
+              I have read and agree to the
+              <a href="${baseUrl}/form/${partner.slug}/telehealth-consent" target="_blank" style="color:var(--primary);font-weight:600">Telehealth Informed Consent</a>,
+              <a href="${baseUrl}/form/${partner.slug}/electronic-communications-consent" target="_blank" style="color:var(--primary);font-weight:600">Electronic Communications Consent</a>,
+              <a href="${baseUrl}/form/${partner.slug}/compounded-medication-consent" target="_blank" style="color:var(--primary);font-weight:600">Compounded Medication Consent</a>, and
+              <a href="${baseUrl}/form/${partner.slug}/enrollment-terms" target="_blank" style="color:var(--primary);font-weight:600">Program Enrollment Terms</a>.
+              I understand that clinical services are provided by My Orbit Health's licensed physicians in partnership with ${partner.businessName}, that my medications may be compounded by a licensed 503A pharmacy and are not FDA-approved, and that enrollment does not guarantee a prescription.
             </span>
           </label>
         </div>

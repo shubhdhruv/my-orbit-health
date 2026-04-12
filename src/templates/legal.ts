@@ -122,120 +122,152 @@ export function generatePrivacyPolicy(partner: PartnerConfig): string {
   `);
 }
 
+// ─── Legal consent pages (four-part) ──────────────────────────
+//
+// Hims/Hers-style clickwrap: the checkout checkbox links out to four
+// separate branded legal pages, and `DISCLOSURE_VERSION` is stamped onto
+// every PendingCase so we can prove which revision of the consents the
+// patient agreed to. Bump the version whenever any of the four pages
+// below is materially revised.
+export const DISCLOSURE_VERSION = "2026-04-11-v2";
+
+// 1 of 4 — Telehealth Informed Consent
 export function generateTelehealthConsent(partner: PartnerConfig): string {
   const name = escapeHtml(partner.businessName);
-  return legalShell(partner, "Telehealth Consent", `
-    <h2>1. What is Telehealth?</h2>
-    <p>Telehealth involves the delivery of healthcare services using electronic communications. This may include asynchronous review of your medical information by a licensed provider (without a live video visit) or synchronous video consultations, depending on your state's requirements.</p>
+  return legalShell(partner, "Telehealth Informed Consent", `
+    <p style="font-size:14px;color:#666;margin-bottom:24px"><em>Required by law before any telehealth service. Clinical services are provided by My Orbit Health, a licensed telehealth medical practice, in partnership with ${name}.</em></p>
 
-    <h2>2. Third-Party Provider Relationship</h2>
-    <p><strong>${name} is not your healthcare provider.</strong> By completing this intake, you are engaging with an independent, licensed physician through My Orbit Health's telehealth platform. ${name} facilitates access but does not make medical decisions, supervise your provider, or have access to your medical consultations.</p>
-
-    <h2>3. Informed Consent</h2>
-    <p>By submitting your intake form, you consent to the following:</p>
+    <h2>1. What Telehealth Is</h2>
+    <p>Telehealth is the delivery of healthcare services using electronic communications between a provider and a patient not in the same physical location. Your program uses one of two visit types:</p>
     <ul>
-      <li>A licensed healthcare provider will review your medical information and make an independent clinical decision about your treatment</li>
-      <li>You may be required to complete a video visit based on your state's telehealth regulations</li>
-      <li>Telehealth has limitations — it may not be appropriate for all conditions, and your provider may refer you for in-person care</li>
-      <li>Your information will be transmitted electronically and stored securely</li>
-      <li>You have the right to withdraw consent at any time</li>
+      <li><strong>Synchronous (Live Video):</strong> A real-time interactive visit with your physician via secure video.</li>
+      <li><strong>Asynchronous (Store-and-Forward):</strong> You complete a detailed health questionnaire; your physician reviews your information and responds with a clinical assessment and treatment recommendation. You are not present in real time during the review.</li>
+    </ul>
+    <p>Your program type determines which visit type is used and is disclosed before enrollment.</p>
+
+    <h2>2. Benefits of Telehealth</h2>
+    <ul>
+      <li>Access to licensed physician care without travel to a physical office</li>
+      <li>Convenient scheduling from your home or private location</li>
+      <li>Faster access to evaluation and treatment</li>
+      <li>Secure ongoing communication with your care team</li>
     </ul>
 
-    <h2>4. Risks &amp; Limitations</h2>
+    <h2>3. Risks &amp; Limitations</h2>
     <ul>
-      <li>Telehealth is not a substitute for emergency care — call 911 for emergencies</li>
-      <li>Technology failures may delay care</li>
-      <li>Your provider relies on the accuracy of information you provide — incomplete or inaccurate information may affect your treatment</li>
-      <li>Not all medications or treatments are available via telehealth in all states</li>
+      <li>Your physician cannot physically examine you. Some conditions may require an in-person evaluation before a prescription can be issued.</li>
+      <li>Technology failures may interrupt a visit. Your provider will attempt to reconnect or contact you by phone.</li>
+      <li>Transmission of health information over electronic networks carries inherent security risks despite security measures in place.</li>
+      <li>Telehealth is not appropriate for emergencies. <strong>Call 911 immediately if an emergency develops.</strong></li>
+      <li>Your physician may determine at any time that a program or medication is not appropriate for you based on the information available via telehealth.</li>
     </ul>
 
-    <h2>5. Prescriptions</h2>
-    <p>If your provider determines that medication is appropriate, a prescription will be sent to a licensed compounding pharmacy. You are not guaranteed a prescription. Your provider may deny a prescription for any clinical reason.</p>
+    <h2>4. Your Rights</h2>
+    <ul>
+      <li>You have the right to receive care in person from a physician of your choice instead of or in addition to telehealth.</li>
+      <li>You have the right to know the identity, credentials, and license number of your treating physician — available in your patient portal and upon request before your visit.</li>
+      <li>All physicians providing services through My Orbit Health hold valid, current medical licenses in the states where they practice.</li>
+      <li>You will be asked to verify your identity and confirm your physical location at the time of your visit.</li>
+      <li>If you are located in a state where your treating physician is not licensed, please notify your care team before your visit.</li>
+    </ul>
 
-    <h2>6. Payment</h2>
-    <p>Your payment method is authorized at the time of intake submission but is <strong>not charged</strong> until a provider approves your prescription. If your prescription is denied, you will not be charged.</p>
-
-    <h2>7. Contact</h2>
-    <p>Questions? Contact us at ${escapeHtml(partner.contactEmail)}.</p>
+    <p style="font-size:13px;color:#666;margin-top:24px"><em>By checking the acknowledgment box at checkout, you consent to receive healthcare services via telehealth and confirm you understand the difference between synchronous and asynchronous visits, the benefits and risks of telehealth, your right to in-person care, and your right to know your provider's identity and credentials.</em></p>
   `);
 }
 
-// ─── Patient Enrollment Disclosure ────────────────────────────
-//
-// Legal-required disclosure patients must acknowledge before completing
-// enrollment. `DISCLOSURE_VERSION` is stamped onto each pending case so
-// we can prove exactly which revision of the text a patient agreed to
-// if legal ever needs to reproduce it.
-export const DISCLOSURE_VERSION = "2026-04-11-v1";
-
-export function generatePatientEnrollmentDisclosure(partner: PartnerConfig): string {
+// 2 of 4 — Electronic Communications Consent
+export function generateElectronicCommunicationsConsent(partner: PartnerConfig): string {
   const name = escapeHtml(partner.businessName);
-  const contact = escapeHtml(partner.contactEmail || "support@myorbithealth.com");
-  return legalShell(partner, "Patient Enrollment Disclosure", `
-    <p style="font-size:14px;color:#666;margin-bottom:24px"><em>Please read this disclosure carefully before completing your enrollment. By enrolling in a clinical program, you acknowledge that you have read and understood the information below.</em></p>
+  return legalShell(partner, "Electronic Communications Consent", `
+    <p style="font-size:14px;color:#666;margin-bottom:24px"><em>Email, SMS, portal messaging &amp; E-SIGN. Clinical services are provided by My Orbit Health in partnership with ${name}.</em></p>
 
-    <h2>1. About Your Clinical Provider</h2>
-    <p>You are enrolling in a clinical program provided by My Orbit Health ("MOH"), a telehealth medical practice owned and operated by a licensed California physician. All clinical services — including your physician consultation, medical evaluation, treatment recommendations, and prescriptions — are provided by licensed physicians employed or contracted by MOH.</p>
-    <p>${name} (your "Program Partner") is a marketing and enrollment partner of MOH. Your Program Partner is not a physician, does not provide clinical services, and does not make any medical decisions regarding your care. All clinical decisions are made exclusively by MOH's licensed physicians.</p>
+    <h2>1. How We Communicate With You</h2>
+    <p>By enrolling, you consent to receive communications electronically — including by email, SMS, in-platform messaging, and phone — for appointment updates, clinical notes, prescription notifications, program renewals, and billing information.</p>
 
-    <h2>2. About Your Physician Consultation</h2>
-    <p>Before any medication is prescribed, you will be evaluated by a licensed physician employed or contracted by MOH. That evaluation may be conducted as:</p>
+    <h2>2. Security</h2>
+    <p>My Orbit Health uses HIPAA-compliant platforms for clinical communications and data storage. However, email and SMS transmitted outside secured platforms may not be fully secure. You may request portal-only communication at any time.</p>
+
+    <h2>3. SMS Messages</h2>
+    <p>By providing your mobile number at enrollment you consent to receive SMS messages for reminders and updates. Message and data rates may apply. Text <strong>STOP</strong> to any message to opt out at any time.</p>
+
+    <h2>4. Electronic Signatures (E-SIGN)</h2>
+    <p>Your electronic acknowledgment of this document is legally binding under the federal E-SIGN Act and applicable state law, with the same legal effect as a handwritten signature.</p>
+
+    <h2>5. Technology Requirements</h2>
+    <p>You are responsible for maintaining a compatible device, reliable internet connectivity, a private location for health discussions, and updated browser or app software required by the patient platform.</p>
+
+    <p style="font-size:13px;color:#666;margin-top:24px"><em>By checking the acknowledgment box at checkout, you consent to receive communications electronically including email and SMS, understand the security limitations, and understand your electronic acknowledgment is legally binding under the E-SIGN Act.</em></p>
+  `);
+}
+
+// 3 of 4 — Compounded Medication Consent
+export function generateCompoundedMedicationConsent(partner: PartnerConfig): string {
+  const name = escapeHtml(partner.businessName);
+  return legalShell(partner, "Compounded Medication Consent", `
+    <p style="font-size:14px;color:#666;margin-bottom:24px"><em>FDA status, risks, and your pharmacy rights. Clinical services are provided by My Orbit Health in partnership with ${name}.</em></p>
+
+    <h2>1. What Compounded Medications Are</h2>
+    <p>If your physician prescribes medication as part of your program, it may be a compounded medication prepared specifically for you by a licensed 503A compounding pharmacy, based on your physician's individual prescription.</p>
+
+    <h2>2. Compounded Medications Are Not FDA-Approved</h2>
+    <div style="background:#FFF8ED;border-left:4px solid #E6A800;border-radius:0 8px 8px 0;padding:14px 18px;margin:12px 0;color:#7A5000;font-weight:500">
+      <strong>Important:</strong> Compounded medications are not FDA-approved. They have not been evaluated by the FDA for safety, effectiveness, or quality in the same manner as commercially manufactured FDA-approved drugs. Their use is based entirely on your physician's independent clinical judgment.
+    </div>
+
+    <h2>3. Risks to Understand</h2>
     <ul>
-      <li>A synchronous (live video) telehealth visit, or</li>
-      <li>An asynchronous telehealth visit, in which you complete a detailed health questionnaire and the physician reviews your information and responds within the timeframe disclosed at enrollment.</li>
-    </ul>
-    <p>The physician's evaluation is independent. The physician may determine that a particular program or medication is not appropriate for you based on your individual health history, current medications, or other clinical factors. Enrollment in a program does not guarantee that a prescription will be issued.</p>
-
-    <h2>3. About Your Medications</h2>
-    <p>If your physician determines that medication is appropriate for you, your prescription will be dispensed by a licensed 503A compounding pharmacy. Important facts about your medications:</p>
-    <ul>
-      <li>Compounded medications are prepared specifically for you pursuant to your physician's prescription. They are not FDA-approved drugs and have not been evaluated by the FDA for safety, efficacy, or quality in the same manner as FDA-approved drugs.</li>
-      <li>Your medication will be shipped directly to you from the compounding pharmacy. MOH does not dispense medications.</li>
-      <li>Your physician retains authority to modify, discontinue, or change your prescription at any time based on clinical judgment, your response to treatment, or changes in applicable law or pharmacy availability.</li>
-      <li>You should not share your prescription medications with any other person.</li>
-    </ul>
-
-    <h2>4. About Your Payment</h2>
-    <p>Your program fee is a single bundled charge that covers:</p>
-    <ul>
-      <li>Your physician consultation and ongoing clinical oversight;</li>
-      <li>Your compounded medication for the program period; and</li>
-      <li>Platform and administrative services.</li>
-    </ul>
-    <p>Your payment is collected by MOH. MOH collects the pharmaceutical component of your fee as authorized billing agent for the dispensing pharmacy. This means that when you pay your program fee, the pharmacy portion of that fee is held by MOH on behalf of the pharmacy and remitted to the pharmacy separately. You will see a single charge on your payment method.</p>
-    <p>Your program fee covers one program period as disclosed at the time of enrollment. Fees for subsequent program periods will be disclosed prior to renewal.</p>
-
-    <h2>5. About Your Program Partner</h2>
-    <p>${name} is compensated by MOH for marketing and enrollment services. ${name}'s compensation does not affect your program fee, the medications you are prescribed, or any clinical decision made by your physician. If ${name} is using their own brand name or platform to present this program to you, the underlying clinical services are still provided by MOH's licensed physicians.</p>
-
-    <h2>6. No Guarantees</h2>
-    <p>Individual results vary. No clinical program, medication, or treatment guarantees a specific outcome. The results described in marketing materials are not typical and may not reflect your individual experience. Only your physician can evaluate whether a program is appropriate for your individual health circumstances.</p>
-
-    <h2>7. Your Rights as a Patient</h2>
-    <ul>
-      <li>You have the right to ask questions about your treatment and to receive honest answers from your physician.</li>
-      <li>You have the right to decline any prescribed medication or treatment.</li>
-      <li>You have the right to seek a second opinion from another physician.</li>
-      <li>You have the right to access your medical records.</li>
-      <li>Your health information is protected by applicable privacy laws including HIPAA. MOH's Privacy Notice is available upon request.</li>
-      <li>You may discontinue your participation in a clinical program at any time, subject to the refund terms disclosed at enrollment.</li>
+      <li>Variability in potency, purity, and sterility compared to FDA-approved products, though licensed 503A pharmacies must comply with USP standards and state pharmacy regulations</li>
+      <li>The specific formulation prescribed has not been evaluated in clinical trials for safety or efficacy in the way FDA-approved medications have been</li>
+      <li>Compounded medications may produce side effects, allergic reactions, or adverse events — report any unexpected symptoms to your physician immediately</li>
+      <li>Long-term safety data for specific compounded formulations may be limited</li>
     </ul>
 
-    <h2>8. Contact Information</h2>
-    <p>If you have questions about your clinical care or billing, contact MOH's support team at: <strong>${contact}</strong></p>
+    <h2>4. Your Pharmacy Rights</h2>
+    <p>Your medication is dispensed by a licensed 503A compounding pharmacy and shipped directly to you. You have the right to request your prescription be transferred to any licensed pharmacy of your choice at any time. Contact patient support to initiate a transfer.</p>
+    <p>My Orbit Health collects your payment for the pharmaceutical component of your program as <strong>authorized billing agent for the dispensing pharmacy</strong>. The pharmacy is solely responsible for all pharmaceutical services.</p>
+
+    <p style="font-size:13px;color:#666;margin-top:24px"><em>By checking the acknowledgment box at checkout, you understand that medications prescribed may be compounded and are not FDA-approved, understand the associated risks, and understand your right to transfer your prescription to any licensed pharmacy of your choice.</em></p>
+  `);
+}
+
+// 4 of 4 — Program Enrollment Terms
+export function generateProgramEnrollmentTerms(partner: PartnerConfig): string {
+  const name = escapeHtml(partner.businessName);
+  return legalShell(partner, "Program Enrollment Terms", `
+    <p style="font-size:14px;color:#666;margin-bottom:24px"><em>Provider structure, fees, privacy, and patient rights. Clinical services are provided by My Orbit Health in partnership with ${name}.</em></p>
+
+    <h2>1. Your Clinical Provider</h2>
+    <p>Your clinical services are provided by <strong>My Orbit Health</strong>, a licensed telehealth medical practice, in partnership with <strong>${name}</strong>. All clinical decisions — evaluation, diagnosis, treatment recommendation, and prescribing — are made exclusively by My Orbit Health's licensed physicians, independent of any business or marketing considerations.</p>
+
+    <h2>2. About Your Program Partner</h2>
+    <p>${name} is a marketing and enrollment partner of My Orbit Health. ${name} is not a physician, does not provide clinical services, and does not make any clinical decisions about your care. ${name}'s compensation does not affect your program pricing or the medications you are prescribed.</p>
+
+    <h2>3. Your Program Fee</h2>
+    <p>Your program fee is a single bundled charge covering physician consultation and oversight, compounded medication for the program period, and platform and administrative services. You will be notified of any pricing changes before your next renewal date.</p>
+    <p>My Orbit Health collects the pharmaceutical component of your fee as <strong>authorized billing agent for the dispensing pharmacy</strong>. The pharmacy portion of your fee is held by My Orbit Health on behalf of the pharmacy and remitted to the pharmacy separately. You will see a single charge on your payment method.</p>
+
+    <h2>4. No Guarantee of Prescription</h2>
+    <p>Enrollment does not guarantee that a prescription will be issued. Your physician makes an independent clinical determination based on your health information. Refund eligibility if a prescription is not issued is governed by the refund policy disclosed at enrollment.</p>
+
+    <h2>5. Your Privacy</h2>
+    <p>Your health information is protected by HIPAA and applicable state privacy laws. My Orbit Health will not disclose your identifiable health information to ${name} or any third party except as required for treatment, payment, and healthcare operations — or as authorized by you, or as required by law. The full Notice of Privacy Practices is available in your patient portal.</p>
+
+    <h2>6. Your Patient Rights</h2>
+    <ul>
+      <li>Ask questions about your treatment and receive honest answers from your physician</li>
+      <li>Decline any prescribed medication or treatment at any time</li>
+      <li>Seek a second opinion from any physician of your choice</li>
+      <li>Request an in-person examination</li>
+      <li>Access and receive copies of your medical records</li>
+      <li>Request your prescription be transferred to a pharmacy of your choice</li>
+      <li>Discontinue your program at any time, subject to the refund terms disclosed at enrollment</li>
+      <li>File a complaint with the California Medical Board (licensing authority for My Orbit Health's physicians) at <strong>(800) 633-2322</strong> or <strong>mbc.ca.gov</strong>, or with the medical licensing board in your state of residence</li>
+    </ul>
+
+    <h2>7. Contact</h2>
+    <p>Questions about your clinical care or billing? Contact us at <strong>${escapeHtml(partner.contactEmail)}</strong>.</p>
     <p>If you have a clinical emergency, contact 911 or go to your nearest emergency room. Telehealth services are not appropriate for emergencies.</p>
 
-    <h2>Patient Acknowledgment</h2>
-    <p>By checking the acknowledgment box at checkout, you confirm that:</p>
-    <ul>
-      <li>You have read and understand this Patient Enrollment Disclosure;</li>
-      <li>You understand that clinical services are provided by MOH's licensed physicians, not by the Program Partner who referred you;</li>
-      <li>You understand that your medications are compounded by a licensed 503A compounding pharmacy and are not FDA-approved drugs;</li>
-      <li>You understand that MOH collects your full program fee, including the pharmaceutical component, as authorized billing agent for the dispensing pharmacy;</li>
-      <li>You understand that enrollment in a program does not guarantee that a prescription will be issued and that all prescribing decisions are made by a licensed physician;</li>
-      <li>You understand that individual results vary and no specific outcome is guaranteed;</li>
-      <li>You have had the opportunity to ask questions prior to acknowledging this disclosure.</li>
-    </ul>
-    <p style="font-size:13px;color:#666;margin-top:24px"><em>Your electronic acknowledgment is legally binding under the federal E-SIGN Act and applicable state law.</em></p>
+    <p style="font-size:13px;color:#666;margin-top:24px"><em>By checking the acknowledgment box at checkout, you understand your clinical services are provided by My Orbit Health's licensed physicians, understand enrollment does not guarantee a prescription, understand your health information is protected by HIPAA, and have been informed of your full patient rights.</em></p>
   `);
 }
