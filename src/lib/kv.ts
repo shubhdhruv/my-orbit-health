@@ -18,10 +18,15 @@ export async function savePartner(
 // Partner records are stored under their raw slug (no prefix), which
 // means a naive `kv.list()` returns every other key in the namespace
 // too — cases, portal indexes, magic tokens, vendor creds, price-list
-// sessions, patient-email indexes, etc. Many of those store raw strings
-// (not JSON), so the admin dashboard then fails with a JSON parse error
-// when it maps slugs through `getPartner`. Exclude every known
-// non-partner key prefix so only real partner slugs are returned.
+// sessions, singletons like `medplum-setup` / `md_review_v3`, etc.
+//
+// Fast-path prefix filter: skip obviously-not-a-partner keys without
+// even reading them. Then *shape-validate* the rest by loading them
+// and confirming the value is a JSON object whose `slug` matches the
+// key name. This is the only reliable way to tell a real partner from
+// any future singleton we forget to add to the exclude list — and it
+// also filters out raw-string values that would otherwise crash
+// `kv.get(key, "json")` upstream.
 const NON_PARTNER_KEY_PREFIXES = [
   "case:",
   "portal_host:",
@@ -30,23 +35,43 @@ const NON_PARTNER_KEY_PREFIXES = [
   "magic:",
   "pl_user:",
   "pl_session:",
+  "pl_log:",
   "vendor:",
 ];
 const NON_PARTNER_KEY_EXACT = new Set([
   "soap-template",
   "doctor_password_hash",
+  "medplum-setup",
+  "md_review_v3",
+  "pl_setup_done",
 ]);
 
 export async function listPartners(
   kv: KVNamespace
 ): Promise<string[]> {
   const list = await kv.list();
-  return list.keys
+  const candidates = list.keys
     .map((k) => k.name)
     .filter((name) =>
       !NON_PARTNER_KEY_EXACT.has(name) &&
       !NON_PARTNER_KEY_PREFIXES.some((p) => name.startsWith(p))
     );
+
+  // Shape-validate every candidate: must be a JSON object whose `slug`
+  // matches the key name. Any raw-string singleton or malformed record
+  // is silently dropped rather than crashing the admin dashboard.
+  const validated = await Promise.all(
+    candidates.map(async (name) => {
+      try {
+        const val = (await kv.get(name, "json")) as { slug?: unknown } | null;
+        if (val && typeof val === "object" && val.slug === name) return name;
+      } catch {
+        // raw-string value or invalid JSON — not a partner
+      }
+      return null;
+    })
+  );
+  return validated.filter((n): n is string => n !== null);
 }
 
 // ─── Pending Case helpers ────────────────────────────────────

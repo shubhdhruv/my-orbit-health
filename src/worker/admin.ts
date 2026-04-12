@@ -484,7 +484,7 @@ function renderDashboard(partners: PartnerConfig[]): string {
     <div class="stats">
       <div class="stat-card"><div class="value">${partners.length}</div><div class="label">Total Partners</div></div>
       <div class="stat-card"><div class="value">${partners.filter((p) => p.enabled !== false).length}</div><div class="label">Active</div></div>
-      <div class="stat-card"><div class="value">${partners.reduce((sum, p) => sum + p.services.length, 0)}</div><div class="label">Total Services</div></div>
+      <div class="stat-card"><div class="value">${partners.reduce((sum, p) => sum + (p.services?.length || 0), 0)}</div><div class="label">Total Services</div></div>
       <div class="stat-card"><div class="value">${partners.filter((p) => p.paymentMode === "platform").length}</div><div class="label">Platform Mode</div></div>
     </div>
 
