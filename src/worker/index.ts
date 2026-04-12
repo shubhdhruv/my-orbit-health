@@ -24,18 +24,23 @@ app.use("*", cors({
 
 // ─── Host-based dispatch for patient portal ──────────────────
 //
-// The portal uses per-brand subdomains (e.g. portal.kingdomlongevitylabs.com)
-// that CNAME to this Worker. We look up the partner by hostname and, if
-// matched, route ALL paths on that host through the portal router with
-// the resolved partner in context.
+// The portal uses per-brand subdomains (e.g. portal.kingdomlongevitylabs.com,
+// account.brand.com, my.brand.com) that CNAME to this Worker. We look up
+// the partner by hostname and, if matched, route ALL paths on that host
+// through the portal router with the resolved partner in context.
 //
-// If the request arrives on the hostname but doesn't match any partner,
+// If the request arrives on a hostname that doesn't match any partner,
 // we fall through so `/` still returns the health check and other
 // non-tenant routes remain reachable.
+//
+// Fast path: skip KV lookup for the main worker host (onboard.myorbithealth.com)
+// which handles intake/admin/doctor/webhooks traffic and never needs the
+// portal resolver. Any other host triggers the lookup so partners can
+// pick any subdomain they want.
+const MAIN_WORKER_HOST = "onboard.myorbithealth.com";
 app.use("*", async (c, next) => {
-  const host = c.req.header("Host") || "";
-  // Fast path: don't query KV for every request on the main worker host
-  if (!host.startsWith("portal.")) return next();
+  const host = (c.req.header("Host") || "").toLowerCase().split(":")[0];
+  if (host === MAIN_WORKER_HOST) return next();
   const partner = await getPartnerByHost(c.env.PARTNERS, host);
   if (!partner) return next();
   if (partner.enabled === false) {
@@ -96,7 +101,9 @@ app.get("/status/:id", async (c) => {
   const brandName = partner?.businessName || pendingCase.partnerName;
   const primaryColor = partner?.brandColors?.primary || "#4F46E5";
   const logoUrl = partner?.logoUrl || "";
-  const font = partner?.font || "Inter";
+  // Strip anything but letters/digits/spaces so a malformed font value
+  // can't break out of the CSS string or Google Fonts URL.
+  const font = ((partner?.font || "").replace(/[^A-Za-z0-9 ]/g, "").trim()) || "Inter";
 
   return c.html(renderStatusPage(pendingCase, brandName, primaryColor, logoUrl, font));
 });

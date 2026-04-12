@@ -5,6 +5,7 @@ import {
   savePendingCase,
   addCaseToPatientIndex,
   savePatientEmailIndex,
+  getPatientIdByEmail,
   saveMagicToken,
 } from "../lib/kv";
 import { PendingCase } from "../lib/types";
@@ -258,18 +259,30 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
   }
 
   // 3. Create patient + questionnaire response in Medplum
+  //
+  // On re-intake for the same email within this tenant, reuse the
+  // existing Medplum Patient ID so the portal email index stays stable
+  // and all orders aggregate under one patient. Otherwise a second
+  // intake would orphan the first order from the portal dashboard.
   let medplumPatientId: string | undefined;
   try {
-    const medplumPatient = await createMedplumPatient(c.env, {
-      firstName: body.answers?.firstName || "",
-      lastName: body.answers?.lastName || "",
-      email: body.answers?.email || "",
-      phone: body.answers?.phone || "",
-      dateOfBirth: body.answers?.dob || "",
-      gender: body.answers?.gender || "",
-      organizationId: partner.medplumOrgId || "",
-    });
-    medplumPatientId = medplumPatient.id;
+    const intakeEmailLower = (body.answers?.email || body.shipping?.email || "").toString().toLowerCase();
+    if (intakeEmailLower) {
+      const existingId = await getPatientIdByEmail(c.env.PARTNERS, slug, intakeEmailLower);
+      if (existingId) medplumPatientId = existingId;
+    }
+    if (!medplumPatientId) {
+      const medplumPatient = await createMedplumPatient(c.env, {
+        firstName: body.answers?.firstName || "",
+        lastName: body.answers?.lastName || "",
+        email: body.answers?.email || "",
+        phone: body.answers?.phone || "",
+        dateOfBirth: body.answers?.dob || "",
+        gender: body.answers?.gender || "",
+        organizationId: partner.medplumOrgId || "",
+      });
+      medplumPatientId = medplumPatient.id;
+    }
 
     // Submit intake answers as QuestionnaireResponse
     const medplumQuestionnaireId = partner.medplumQuestionnaireIds?.[serviceType];

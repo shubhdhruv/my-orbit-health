@@ -215,3 +215,19 @@ export async function consumeMagicToken(
   await kv.delete(`magic:${token}`);
   return data;
 }
+
+// Peek at a magic token without consuming it. Used so the caller can
+// validate tenant boundaries before burning the token on the wrong brand.
+export async function peekMagicToken(
+  kv: KVNamespace,
+  token: string,
+): Promise<MagicLinkPayload | null> {
+  return (await kv.get(`magic:${token}`, "json")) as MagicLinkPayload | null;
+}
+
+export async function deleteMagicToken(
+  kv: KVNamespace,
+  token: string,
+): Promise<void> {
+  await kv.delete(`magic:${token}`);
+}

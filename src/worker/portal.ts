@@ -24,7 +24,8 @@ import {
   getPatientIdByEmail,
   getPendingCase,
   saveMagicToken,
-  consumeMagicToken,
+  peekMagicToken,
+  deleteMagicToken,
 } from "../lib/kv";
 import { sendEmail, getPartnerEmailConfig, buildPortalMagicLinkEmail } from "./email";
 
@@ -66,7 +67,11 @@ async function buildSessionToken(
   partnerSlug: string,
   dateKey: string,
 ): Promise<string> {
-  const secret = env.MEDPLUM_CLIENT_SECRET || env.ADMIN_PASSWORD_HASH || "portal-fallback";
+  // Fail closed: without a server secret, sessions are trivially forgeable.
+  const secret = env.MEDPLUM_CLIENT_SECRET || env.ADMIN_PASSWORD_HASH;
+  if (!secret) {
+    throw new Error("Portal session secret is not configured (MEDPLUM_CLIENT_SECRET / ADMIN_PASSWORD_HASH missing)");
+  }
   return sha256(`${patientId}|${partnerSlug}|${dateKey}|patient|${secret}`);
 }
 
@@ -197,9 +202,13 @@ portal.get("/magic", async (c) => {
   const token = c.req.query("token");
   if (!token) return c.redirect("/portal/login?error=invalid");
 
-  const payload = await consumeMagicToken(c.env.PARTNERS, token);
+  // Peek first so a token pasted into the wrong tenant's portal isn't
+  // burned — user can still click the original link on the right brand.
+  const payload = await peekMagicToken(c.env.PARTNERS, token);
   if (!payload) return c.redirect("/portal/login?error=expired");
   if (payload.partnerSlug !== partner.slug) return c.redirect("/portal/login?error=wrong_tenant");
+  // Tenant matches — now consume it so it can't be replayed.
+  await deleteMagicToken(c.env.PARTNERS, token);
 
   const sessionValue = await signSession(c.env, payload.medplumPatientId, partner.slug);
 
@@ -229,7 +238,9 @@ portal.get("/logout", (c) => {
 portal.get("/dashboard", async (c) => {
   const partner = c.get("partner");
   const patientId = c.get("patientId");
-  const cases = await getPatientCases(c.env.PARTNERS, patientId);
+  const allCases = await getPatientCases(c.env.PARTNERS, patientId);
+  // Defense in depth: only show orders belonging to the current tenant.
+  const cases = allCases.filter((x) => x.partnerSlug === partner.slug);
   return c.html(renderDashboard(partner, cases));
 });
 
@@ -252,9 +263,17 @@ portal.get("/orders/:id", async (c) => {
 // Templates (server-rendered HTML, branded per partner)
 // ============================================================
 
+// Strip anything but letters/digits/spaces from partner.font so it can't
+// break out of the CSS font-family string or inject into the Google Fonts
+// URL. Falls back to "Inter" if sanitization leaves nothing.
+function safeFontName(font: string | undefined): string {
+  const cleaned = (font || "").replace(/[^A-Za-z0-9 ]/g, "").trim();
+  return cleaned || "Inter";
+}
+
 function baseStyles(partner: PartnerConfig): string {
   const primary = partner.brandColors.primary || "#0B1F3A";
-  const font = partner.font || "Inter";
+  const font = safeFontName(partner.font);
   return `
     :root { --primary: ${primary}; --primary-dim: ${primary}20; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -300,7 +319,7 @@ function brandHeader(partner: PartnerConfig, loggedIn: boolean): string {
 }
 
 function htmlShell(partner: PartnerConfig, title: string, body: string, loggedIn = true): string {
-  const font = partner.font || "Inter";
+  const font = safeFontName(partner.font);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
