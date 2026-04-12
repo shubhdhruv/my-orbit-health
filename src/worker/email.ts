@@ -243,14 +243,39 @@ export function buildAsyncPatientAckEmail(params: {
   serviceName: string;
   partnerName: string;
   paymentIntentId?: string;
+  bloodworkStatus?: "have-labs" | "buy-kit" | "not-required";
 }): string {
+  // Bloodwork-aware next steps. Patients buying a kit need to know the kit
+  // is shipping to them with instructions, and that the doctor's 1–2 day
+  // review only kicks in after lab results are back.
+  let nextSteps = "";
+  if (params.bloodworkStatus === "buy-kit") {
+    nextSteps = `
+      <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:16px 20px;margin-bottom:20px">
+        <p style="font-size:14px;font-weight:600;color:#0369a1;margin:0 0 8px">What happens next</p>
+        <ol style="font-size:14px;color:#333;margin:0;padding-left:20px;line-height:1.7">
+          <li>Your blood work kit will be mailed to you.</li>
+          <li>Instructions for collecting and returning your sample will be sent to you.</li>
+          <li>Once your results come back, your provider will review them and approve your prescription within 1–2 business days.</li>
+          <li>You will only be charged if your prescription is approved.</li>
+        </ol>
+      </div>`;
+  } else if (params.bloodworkStatus === "have-labs") {
+    nextSteps = `
+      <p style="font-size: 15px; color: #333; margin-bottom: 16px;">Your provider will review the lab results you uploaded along with your intake. This typically takes 1–2 business days. You will only be charged if your prescription is approved.</p>
+      <p style="font-size: 15px; color: #333; margin-bottom: 8px;">We will email you as soon as there is an update.</p>`;
+  } else {
+    nextSteps = `
+      <p style="font-size: 15px; color: #333; margin-bottom: 16px;">Your provider is now reviewing your information. This typically takes 1-2 business days. You will only be charged if your prescription is approved.</p>
+      <p style="font-size: 15px; color: #333; margin-bottom: 8px;">We will email you as soon as there is an update.</p>`;
+  }
+
   return `
     <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
       <h1 style="font-size: 20px; margin-bottom: 16px;">We Received Your Intake</h1>
       <p style="font-size: 15px; color: #333; margin-bottom: 16px;">Hi ${escapeHtml(params.patientName)},</p>
       <p style="font-size: 15px; color: #333; margin-bottom: 16px;">Thank you for completing your ${escapeHtml(params.serviceName)} intake through ${escapeHtml(params.partnerName)}.</p>
-      <p style="font-size: 15px; color: #333; margin-bottom: 16px;">Your provider is now reviewing your information. This typically takes 1-2 business days. You will only be charged if your prescription is approved.</p>
-      <p style="font-size: 15px; color: #333; margin-bottom: 8px;">We will email you as soon as there is an update.</p>
+      ${nextSteps}
       ${statusButton(params.paymentIntentId)}
       <p style="font-size: 14px; color: #666; margin-top: 32px;">Questions? Reply to this email.</p>
       <p style="font-size: 12px; color: #999; margin-top: 24px;">${escapeHtml(params.partnerName)} powered by My Orbit Health</p>

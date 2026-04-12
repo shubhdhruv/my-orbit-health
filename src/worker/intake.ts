@@ -416,6 +416,7 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
         isFirstVisit: true,
         daysSinceLastVisit: body.daysSinceLastVisit,
         dosingResult,
+        bloodworkStatus,
       });
     } catch (err) {
       console.error("Notification orchestration failed:", err);

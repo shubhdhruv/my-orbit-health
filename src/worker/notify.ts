@@ -51,6 +51,7 @@ export interface NotifyParams {
   isFirstVisit: boolean;
   daysSinceLastVisit?: number;    // Used for TX 90-day lapse enforcement
   dosingResult?: DosingResult;    // From dosing engine
+  bloodworkStatus?: "have-labs" | "buy-kit" | "not-required";
 }
 
 export interface NotifyResult {
@@ -150,6 +151,7 @@ export async function notifyOnIntake(
               serviceName,
               partnerName: partner.businessName,
               paymentIntentId: params.paymentIntentId,
+              bloodworkStatus: params.bloodworkStatus,
             }),
           }, patientEmailConfig.from);
           result.patientNotified = true;
