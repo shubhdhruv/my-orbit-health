@@ -436,7 +436,7 @@ function renderDashboard(partners: PartnerConfig[]): string {
   };
 
   const partnerRows = partners.map((p) => {
-    const services = p.services.map((s) => serviceLabels[s.type] || s.type).join(", ");
+    const services = (p.services || []).map((s) => serviceLabels[s.type] || s.type).join(", ");
     const statusColor = p.enabled !== false ? "#22c55e" : "#dc2626";
     const statusText = p.enabled !== false ? "Active" : "Disabled";
     return `<tr onclick="window.location='/admin/partner/${p.slug}'" style="cursor:pointer">
@@ -509,7 +509,7 @@ function renderPartnerDetail(partner: PartnerConfig): string {
     'wolverine': 'Wolverine', 'glo': 'GLO', 'klow': 'KLOW',
   };
 
-  const feeRows = partner.services.map((s) => {
+  const feeRows = (partner.services || []).map((s) => {
     const label = serviceLabels[s.type] || s.type;
     const fee = partner.platformFees?.[s.type] || 0;
     const influencerGets = s.initialPrice - fee;
@@ -627,7 +627,7 @@ function renderPartnerDetail(partner: PartnerConfig): string {
       <h3>Medplum Integration</h3>
       <table>
         <tr><td style="padding:6px 0;color:#666;font-size:13px;width:180px">Organization ID</td><td style="padding:6px 0;font-size:13px;font-family:monospace">${partner.medplumOrgId ? `<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534;margin-right:6px">LINKED</span>${partner.medplumOrgId}` : '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fecaca;color:#991b1b">NOT SET</span>'}</td></tr>
-        ${partner.services.map((s) => {
+        ${(partner.services || []).map((s) => {
           const label = serviceLabels[s.type] || s.type;
           const qId = partner.medplumQuestionnaireIds?.[s.type];
           return `<tr><td style="padding:6px 0;color:#666;font-size:13px">${label} Questionnaire</td><td style="padding:6px 0;font-size:11px;font-family:monospace">${qId ? `<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534;margin-right:6px">LINKED</span>${qId}` : '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fecaca;color:#991b1b">NOT SET</span>'}</td></tr>`;
@@ -702,7 +702,7 @@ function renderPartnerDetail(partner: PartnerConfig): string {
     <!-- Embed Codes -->
     <div class="card">
       <h3>Embed Codes</h3>
-      ${partner.services.map((s) => {
+      ${(partner.services || []).map((s) => {
         const label = serviceLabels[s.type] || s.type;
         return `<div style="margin-bottom:12px">
           <div class="field-label">${label}</div>
