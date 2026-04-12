@@ -730,6 +730,7 @@ export function generateCheckoutHTML(
         });
 
         const data = await res.json();
+        const boughtKit = (JSON.parse(sessionStorage.getItem('intakeAnswers') || '{}'))['bloodwork-status'] === 'buy-kit';
         if (data.success) {
           // Show branded success page
           document.querySelector('.page').innerHTML =
@@ -753,7 +754,9 @@ export function generateCheckoutHTML(
             '<p style="font-size:14px;color:#555;margin:2px 0 0 0">Your medication ships directly to your door</p></div>' +
             '</div>' +
             '<div style="background:' + CONFIG.primaryColor + '10;border:1px solid ' + CONFIG.primaryColor + '30;border-radius:10px;padding:16px;margin-bottom:24px">' +
-            '<p style="font-size:13px;color:#555;margin:0"><strong style="color:#1a1a2e">No charge today.</strong> You will only be billed if a provider approves your prescription.</p>' +
+            (boughtKit
+              ? '<p style="font-size:13px;color:#555;margin:0"><strong style="color:#1a1a2e">$5 charged today for your HRT Clearance Kit.</strong> You will only be charged for the prescription upon physician approval.</p>'
+              : '<p style="font-size:13px;color:#555;margin:0"><strong style="color:#1a1a2e">No charge today.</strong> You will only be billed if a provider approves your prescription.</p>') +
             '</div>' +
             '<p style="font-size:13px;color:#999;margin:0">Check your email for updates. Questions? Reply to any email from us.</p>' +
             '</div>';

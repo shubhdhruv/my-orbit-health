@@ -336,7 +336,32 @@ doctor.post("/case/:id/update-order", async (c) => {
     return c.json({ success: true });
   }
 
-  return c.json({ error: `Invalid order status: ${newStatus}. Must be "shipped" or "delivered".` }, 400);
+  // Blood work lifecycle updates. These drive the portal's blood work lane
+  // and are set manually by the doctor/admin until the lab API is wired.
+  // Accepts one or more of: bloodworkKitShipped, bloodworkReceived, bloodworkReviewed.
+  // All fields are idempotent — setting them again just overwrites the timestamp.
+  if (newStatus === "bloodwork") {
+    const now = new Date().toISOString();
+    if (body.bloodworkKitShipped) {
+      pendingCase.bloodworkKitShipped = true;
+      pendingCase.bloodworkKitShippedAt = now;
+    }
+    if (body.bloodworkReceived) {
+      pendingCase.bloodworkReceivedAt = now;
+    }
+    if (body.bloodworkReviewed) {
+      pendingCase.bloodworkReviewedAt = now;
+    }
+    await savePendingCase(c.env.PARTNERS, pendingCase);
+    return c.json({
+      success: true,
+      bloodworkKitShippedAt: pendingCase.bloodworkKitShippedAt,
+      bloodworkReceivedAt: pendingCase.bloodworkReceivedAt,
+      bloodworkReviewedAt: pendingCase.bloodworkReviewedAt,
+    });
+  }
+
+  return c.json({ error: `Invalid order status: ${newStatus}. Must be "shipped", "delivered", or "bloodwork".` }, 400);
 });
 
 // ─── Deny ────────────────────────────────────────────────────
@@ -745,7 +770,7 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
         : '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fef3c7;color:#92400e">KIT TO SHIP</span>';
       statusContent = '<div style="display:flex;align-items:center;gap:8px">'
         + kitBadge
-        + '<span style="font-size:12px;color:#888">Patient paid $124.99 for the HRT Clearance Kit. '
+        + '<span style="font-size:12px;color:#888">Patient paid for the HRT Clearance Kit. '
         + (c.bloodworkKitShipped ? 'Waiting on results.' : 'Order kit from Solutions For Your Wellness and ship to patient.')
         + '</span>'
         + '</div>';

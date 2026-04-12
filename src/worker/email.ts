@@ -543,6 +543,90 @@ export function buildPatientDeliveredEmail(params: {
   `;
 }
 
+// ─── Patient Portal: Magic Link Email ────────────────────────
+
+export function buildPortalMagicLinkEmail(params: {
+  brandName: string;
+  logoUrl?: string;
+  primaryColor?: string;
+  magicUrl: string;
+}): string {
+  const primary = params.primaryColor || "#0B1F3A";
+  const logoBlock = params.logoUrl
+    ? `<img src="${params.logoUrl}" alt="${escapeHtml(params.brandName)}" style="max-height:32px;max-width:160px" onerror="this.style.display='none'">`
+    : `<p style="font-size:18px;font-weight:700;color:#1a1a2e;margin:0">${escapeHtml(params.brandName)}</p>`;
+
+  return `
+    <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 520px; margin: 0 auto; padding: 40px 20px; color: #1a1a2e;">
+      <div style="text-align:center;margin-bottom:32px">${logoBlock}</div>
+      <h1 style="font-size:22px;font-weight:700;margin-bottom:12px;text-align:center">Sign in to your account</h1>
+      <p style="font-size:15px;color:#374151;margin-bottom:24px;text-align:center;line-height:1.5">
+        Click the button below to sign in. This link will expire in 15 minutes and can only be used once.
+      </p>
+      <div style="text-align:center;margin-bottom:24px">
+        <a href="${params.magicUrl}" style="display:inline-block;background:${primary};color:#fff;padding:14px 32px;border-radius:10px;text-decoration:none;font-size:15px;font-weight:600">Sign in to ${escapeHtml(params.brandName)}</a>
+      </div>
+      <p style="font-size:13px;color:#6b7280;text-align:center;margin-bottom:8px">Or copy and paste this URL into your browser:</p>
+      <p style="font-size:12px;color:#9ca3af;text-align:center;word-break:break-all;margin-bottom:32px">${params.magicUrl}</p>
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0">
+      <p style="font-size:12px;color:#9ca3af;text-align:center">
+        If you didn't request this email, you can safely ignore it. No changes have been made to your account.
+      </p>
+      <p style="font-size:12px;color:#9ca3af;text-align:center;margin-top:16px">
+        &copy; ${new Date().getFullYear()} ${escapeHtml(params.brandName)}
+      </p>
+    </div>
+  `;
+}
+
+// ─── Patient Portal: Welcome (post-checkout credential delivery) ─
+
+export function buildPortalWelcomeEmail(params: {
+  patientFirstName: string;
+  brandName: string;
+  logoUrl?: string;
+  primaryColor?: string;
+  magicUrl: string;
+  serviceName: string;
+}): string {
+  const primary = params.primaryColor || "#0B1F3A";
+  const logoBlock = params.logoUrl
+    ? `<img src="${params.logoUrl}" alt="${escapeHtml(params.brandName)}" style="max-height:32px;max-width:160px" onerror="this.style.display='none'">`
+    : `<p style="font-size:18px;font-weight:700;color:#1a1a2e;margin:0">${escapeHtml(params.brandName)}</p>`;
+
+  return `
+    <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 520px; margin: 0 auto; padding: 40px 20px; color: #1a1a2e;">
+      <div style="text-align:center;margin-bottom:32px">${logoBlock}</div>
+      <h1 style="font-size:24px;font-weight:700;margin-bottom:12px">Welcome, ${escapeHtml(params.patientFirstName)}</h1>
+      <p style="font-size:15px;color:#374151;margin-bottom:16px;line-height:1.5">
+        Thanks for choosing ${escapeHtml(params.brandName)}. Your ${escapeHtml(params.serviceName)} intake has been received and is being reviewed by your provider.
+      </p>
+      <p style="font-size:15px;color:#374151;margin-bottom:24px;line-height:1.5">
+        We've created an account for you so you can track every step — from physician approval through pharmacy shipment and delivery. Click below to sign in.
+      </p>
+      <div style="text-align:center;margin-bottom:24px">
+        <a href="${params.magicUrl}" style="display:inline-block;background:${primary};color:#fff;padding:14px 32px;border-radius:10px;text-decoration:none;font-size:15px;font-weight:600">Sign in to your account</a>
+      </div>
+      <p style="font-size:13px;color:#6b7280;line-height:1.5;margin-bottom:8px">
+        <strong>This sign-in link expires in 15 minutes.</strong> Any time you want to check on your order, return to this sign-in page and we'll email you a fresh link.
+      </p>
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0">
+      <p style="font-size:14px;color:#6b7280;line-height:1.5">
+        <strong>What to expect next:</strong>
+      </p>
+      <ul style="font-size:14px;color:#6b7280;line-height:1.7;padding-left:20px">
+        <li>Your provider reviews your intake (typically 1–2 business days)</li>
+        <li>If approved, your prescription is sent to the pharmacy</li>
+        <li>You'll get email updates at every step</li>
+        <li>Your card is only charged if your prescription is approved</li>
+      </ul>
+      <p style="font-size:12px;color:#9ca3af;text-align:center;margin-top:32px">
+        &copy; ${new Date().getFullYear()} ${escapeHtml(params.brandName)}
+      </p>
+    </div>
+  `;
+}
+
 function escapeHtml(str: string): string {
   return str
     .replace(/&/g, "&amp;")

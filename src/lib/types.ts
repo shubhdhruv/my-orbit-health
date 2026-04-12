@@ -87,6 +87,9 @@ export interface PartnerConfig {
   resendDomainId?: string; // Resend domain ID for verification tracking
   resendDomainStatus?: "not_started" | "pending" | "verified" | "failed";
   resendDnsRecords?: Array<{ record: string; name: string; type: string; value: string; ttl: number; status: string; priority?: number | null }>;
+  // Patient portal custom subdomain (e.g. "portal.kingdomlongevitylabs.com")
+  // Used for Host-based tenant routing on the portal worker routes.
+  portalDomain?: string;
   enabled: boolean;
   createdAt: string;
 }
@@ -137,6 +140,10 @@ export interface PendingCase {
   bloodworkKitPurchased?: boolean;   // Patient paid $124.99 for HRT clearance kit
   bloodworkKitPaymentId?: string;    // Stripe PaymentIntent ID for the kit charge
   bloodworkKitShipped?: boolean;     // Admin marks when the kit is physically shipped
+  // Bloodwork lifecycle timestamps (drives portal timeline)
+  bloodworkKitShippedAt?: string;    // ISO: kit shipped to patient
+  bloodworkReceivedAt?: string;      // ISO: lab has patient's sample
+  bloodworkReviewedAt?: string;      // ISO: provider has reviewed results
 
   // SOAP Note
   soapNoteId?: string;

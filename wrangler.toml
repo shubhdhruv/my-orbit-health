@@ -5,7 +5,7 @@ workers_dev = true
 
 [vars]
 ENVIRONMENT = "production"
-STRIPE_BYPASS = "true"
+STRIPE_BYPASS = "false"
 MEDPLUM_BASE_URL = "https://api.medplum.com"
 
 [[kv_namespaces]]
@@ -18,6 +18,16 @@ binding = "ASSETS"
 
 [[routes]]
 pattern = "onboard.myorbithealth.com/*"
+zone_name = "myorbithealth.com"
+
+# Patient portal — fallback subdomain on the MOH zone so the portal is
+# reachable before any client DNS is live. Per-brand vanity subdomains
+# (e.g. portal.kingdomlongevitylabs.com) are added as CNAMEs to this
+# Worker. To register a new client subdomain, add another [[routes]]
+# entry below with `zone_name` (if DNS is on Cloudflare under this
+# account) or configure it as a Workers Custom Domain in the dashboard.
+[[routes]]
+pattern = "portal.myorbithealth.com/*"
 zone_name = "myorbithealth.com"
 
 [triggers]

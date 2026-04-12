@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { Env } from "../lib/types";
+import { Env, PartnerConfig } from "../lib/types";
 import onboard from "./onboard";
 import intake from "./intake";
 import webhooks from "./webhooks";
@@ -8,11 +8,12 @@ import admin from "./admin";
 import mdReview from "./md-review";
 import doctor from "./doctor";
 import priceList from "./price-list";
-import { getPendingCase } from "../lib/kv";
+import portal from "./portal";
+import { getPendingCase, getPartnerByHost } from "../lib/kv";
 import { getPartner } from "../lib/kv";
 import { processFollowUps } from "./followup";
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<{ Bindings: Env; Variables: { partner: PartnerConfig; patientId: string } }>();
 
 // CORS for embedded forms
 app.use("*", cors({
@@ -20,6 +21,45 @@ app.use("*", cors({
   allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
   allowHeaders: ["Content-Type", "Authorization"],
 }));
+
+// ─── Host-based dispatch for patient portal ──────────────────
+//
+// The portal uses per-brand subdomains (e.g. portal.kingdomlongevitylabs.com)
+// that CNAME to this Worker. We look up the partner by hostname and, if
+// matched, route ALL paths on that host through the portal router with
+// the resolved partner in context.
+//
+// If the request arrives on the hostname but doesn't match any partner,
+// we fall through so `/` still returns the health check and other
+// non-tenant routes remain reachable.
+app.use("*", async (c, next) => {
+  const host = c.req.header("Host") || "";
+  // Fast path: don't query KV for every request on the main worker host
+  if (!host.startsWith("portal.")) return next();
+  const partner = await getPartnerByHost(c.env.PARTNERS, host);
+  if (!partner) return next();
+  if (partner.enabled === false) {
+    return c.html(
+      `<!DOCTYPE html><html><body style="font-family:system-ui;text-align:center;padding:48px"><h1>Portal temporarily unavailable</h1><p>Please contact support.</p></body></html>`,
+      503,
+    );
+  }
+  c.set("partner", partner);
+  return next();
+});
+
+// On a portal subdomain, the bare root `/` should land users at the portal
+// (dashboard if they have a session, login otherwise). This runs as
+// middleware so it hijacks `/` only when a partner was resolved; other
+// hosts fall through to the normal health check below.
+app.use("/", async (c, next) => {
+  if (c.get("partner")) return c.redirect("/portal/dashboard");
+  return next();
+});
+
+// Mount portal router on /portal paths — only takes effect when a partner
+// was resolved above. Routes like /portal/login, /portal/dashboard, etc.
+app.route("/portal", portal);
 
 // Influencer onboarding
 app.route("/onboard", onboard);

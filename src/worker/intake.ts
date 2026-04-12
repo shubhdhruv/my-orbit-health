@@ -1,15 +1,29 @@
 import { Hono } from "hono";
 import { Env } from "../lib/types";
-import { getPartner, savePendingCase } from "../lib/kv";
+import {
+  getPartner,
+  savePendingCase,
+  addCaseToPatientIndex,
+  savePatientEmailIndex,
+  saveMagicToken,
+} from "../lib/kv";
 import { PendingCase } from "../lib/types";
+import { sendEmail, getPartnerEmailConfig, buildPortalWelcomeEmail } from "./email";
 import { getServiceById } from "../lib/services";
 import { generateIntakeFormHTML } from "../templates/form-engine";
 import { generateRecommendationHTML } from "../templates/recommendation";
 import { generateCheckoutHTML } from "../templates/checkout";
 import { generateTermsOfService, generatePrivacyPolicy, generateTelehealthConsent } from "../templates/legal";
-import { createStripeClient, authorizePayment, chargeKitFee } from "./stripe";
+import { createStripeClient, authorizePayment, chargeKitFee, ensureCustomerWithPaymentMethod } from "./stripe";
 
 const BLOODWORK_KIT_PRICE = 5;
+
+// Generates a URL-safe random hex token for magic sign-in links.
+async function createRandomToken(bytes = 32): Promise<string> {
+  const arr = new Uint8Array(bytes);
+  crypto.getRandomValues(arr);
+  return Array.from(arr).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 import {
   createPatient as createMedplumPatient,
   createQuestionnaireResponse,
@@ -166,7 +180,36 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
     });
   }
 
-  // 1. Authorize payment (don't charge yet)
+  // 1. Ensure a Stripe Customer exists with the payment method attached.
+  //    This is required because a single PaymentMethod cannot be used on two
+  //    separate PaymentIntents (rx auth + kit charge) unless it's attached
+  //    to a Customer first.
+  const service = getServiceById(serviceType);
+  const bloodworkAnswer = body.answers?.["bloodwork-status"] as string | undefined;
+  const bloodworkStatus: "have-labs" | "buy-kit" | "not-required" =
+    !service?.requiresBloodwork ? "not-required"
+    : bloodworkAnswer === "have-labs" ? "have-labs"
+    : bloodworkAnswer === "buy-kit" ? "buy-kit"
+    : "not-required";
+
+  let stripeCustomerId: string | undefined;
+  if (c.env.STRIPE_BYPASS !== "true") {
+    try {
+      const stripe = createStripeClient(c.env.STRIPE_SECRET_KEY);
+      stripeCustomerId = await ensureCustomerWithPaymentMethod(
+        stripe,
+        partner,
+        body.shipping?.email || "",
+        body.paymentMethodId,
+      );
+    } catch (err) {
+      console.error("Stripe customer setup failed:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      return c.json({ error: `Card setup failed: ${msg}` }, 400);
+    }
+  }
+
+  // 2. Authorize the treatment payment (manual capture, captured on approval)
   let paymentIntentId: string;
   if (c.env.STRIPE_BYPASS === "true") {
     paymentIntentId = `bypass_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -179,7 +222,8 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
         chargeAmount,
         body.shipping?.email || "",
         body.paymentMethodId,
-        serviceType
+        serviceType,
+        stripeCustomerId,
       );
     } catch (err) {
       console.error("Payment authorization failed:", err);
@@ -188,17 +232,9 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
     }
   }
 
-  // 2. Determine bloodwork status
-  const service = getServiceById(serviceType);
-  const bloodworkAnswer = body.answers?.["bloodwork-status"] as string | undefined;
-  const bloodworkStatus: "have-labs" | "buy-kit" | "not-required" =
-    !service?.requiresBloodwork ? "not-required"
-    : bloodworkAnswer === "have-labs" ? "have-labs"
-    : bloodworkAnswer === "buy-kit" ? "buy-kit"
-    : "not-required";
   let bloodworkDocRefId: string | undefined;
 
-  // 2.5. If patient chose to buy the HRT Clearance Kit, charge $124.99 now
+  // 2.5. If patient chose to buy the HRT Clearance Kit, charge it now
   let bloodworkKitPaymentId: string | undefined;
   if (bloodworkStatus === "buy-kit" && c.env.STRIPE_BYPASS !== "true") {
     try {
@@ -209,6 +245,7 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
         BLOODWORK_KIT_PRICE,
         body.shipping?.email || "",
         body.paymentMethodId,
+        stripeCustomerId,
       );
     } catch (err) {
       console.error("HRT Clearance Kit charge failed:", err);
@@ -297,6 +334,56 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
       authExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     };
     await savePendingCase(c.env.PARTNERS, pendingCase);
+
+    // 3a. Maintain patient-side indexes so the portal can list a patient's
+    // orders and resolve their email to a Medplum ID at login time.
+    if (medplumPatientId) {
+      await addCaseToPatientIndex(c.env.PARTNERS, medplumPatientId, pendingCase.paymentIntentId);
+      const lowerEmail = (body.answers?.email || body.shipping?.email || "").toString().toLowerCase();
+      if (lowerEmail) {
+        await savePatientEmailIndex(c.env.PARTNERS, slug, lowerEmail, medplumPatientId);
+      }
+    }
+
+    // 3b. Send portal welcome email with a magic sign-in link. Only fires
+    // when the partner has a portalDomain configured — otherwise we skip
+    // quietly so existing partners without the portal wired up aren't
+    // affected. Failures are non-fatal: intake still completes.
+    if (partner.portalDomain && medplumPatientId) {
+      const welcomeEmail = (body.answers?.email || body.shipping?.email || "").toString().toLowerCase();
+      const firstName = (body.answers?.firstName || "").toString().trim() || "there";
+      if (welcomeEmail) {
+        try {
+          const token = await createRandomToken(32);
+          await saveMagicToken(c.env.PARTNERS, token, {
+            medplumPatientId,
+            partnerSlug: slug,
+            createdAt: new Date().toISOString(),
+          });
+          const magicUrl = `https://${partner.portalDomain}/portal/magic?token=${token}`;
+          const { apiKey, from } = getPartnerEmailConfig(partner, c.env.RESEND_API_KEY);
+          const html = buildPortalWelcomeEmail({
+            patientFirstName: firstName,
+            brandName: partner.businessName,
+            logoUrl: partner.logoUrl,
+            primaryColor: partner.brandColors?.primary,
+            magicUrl,
+            serviceName: service?.label || serviceType,
+          });
+          await sendEmail(
+            apiKey,
+            {
+              to: welcomeEmail,
+              subject: `Welcome to ${partner.businessName} — track your order`,
+              html,
+            },
+            from,
+          );
+        } catch (err) {
+          console.error("Portal welcome email failed:", err);
+        }
+      }
+    }
   } catch (err) {
     console.error("Failed to save pending case to KV:", err);
   }

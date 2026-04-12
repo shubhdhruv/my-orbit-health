@@ -36,6 +36,45 @@ export async function createConnectAccount(
   };
 }
 
+// Create (or reuse) a Customer and attach the payment method so the same PM
+// can be used on multiple PaymentIntents in the same flow (rx auth + kit
+// charge). Without this, Stripe treats a raw PaymentMethod as single-use.
+export async function ensureCustomerWithPaymentMethod(
+  stripe: Stripe,
+  partner: PartnerConfig,
+  customerEmail: string,
+  paymentMethodId: string,
+): Promise<string> {
+  const opts: Stripe.RequestOptions | undefined =
+    partner.paymentMode === "direct" && partner.stripeDirectAccountId
+      ? { stripeAccount: partner.stripeDirectAccountId }
+      : undefined;
+
+  // Try to reuse an existing customer for this email
+  const existing = await stripe.customers.list({ email: customerEmail, limit: 1 }, opts);
+  let customer: Stripe.Customer;
+  if (existing.data.length > 0) {
+    customer = existing.data[0];
+    await stripe.paymentMethods.attach(paymentMethodId, { customer: customer.id }, opts);
+    await stripe.customers.update(
+      customer.id,
+      { invoice_settings: { default_payment_method: paymentMethodId } },
+      opts,
+    );
+  } else {
+    customer = await stripe.customers.create(
+      {
+        email: customerEmail,
+        payment_method: paymentMethodId,
+        invoice_settings: { default_payment_method: paymentMethodId },
+        metadata: { partner_slug: partner.slug },
+      },
+      opts,
+    );
+  }
+  return customer.id;
+}
+
 // Authorize a card without charging (manual capture)
 export async function authorizePayment(
   stripe: Stripe,
@@ -43,11 +82,13 @@ export async function authorizePayment(
   amount: number,
   customerEmail: string,
   paymentMethodId: string,
-  serviceType?: string
+  serviceType?: string,
+  customerId?: string,
 ): Promise<string> {
   const params: Stripe.PaymentIntentCreateParams = {
     amount: amount * 100, // cents
     currency: "usd",
+    customer: customerId,
     payment_method: paymentMethodId,
     capture_method: "manual",
     confirm: true,
@@ -170,10 +211,12 @@ export async function chargeKitFee(
   amountDollars: number,
   customerEmail: string,
   paymentMethodId: string,
+  customerId?: string,
 ): Promise<string> {
   const params: Stripe.PaymentIntentCreateParams = {
     amount: Math.round(amountDollars * 100),
     currency: "usd",
+    customer: customerId,
     payment_method: paymentMethodId,
     capture_method: "automatic",
     confirm: true,

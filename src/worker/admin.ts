@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { Env, PartnerConfig, ServiceId } from "../lib/types";
-import { getPartner, savePartner, listPartners } from "../lib/kv";
+import { getPartner, savePartner, listPartners, savePortalDomainIndex, deletePortalDomainIndex } from "../lib/kv";
 import { getServiceById } from "../lib/services";
 import { createOrganization, buildIntakeQuestionnaire, createPatient as createMedplumPatient, createQuestionnaireResponse, createComposition } from "./medplum";
 
@@ -108,6 +108,19 @@ admin.post("/partner/:slug", async (c) => {
   if (body.senderEmail !== undefined) partner.senderEmail = body.senderEmail || undefined;
   if (body.senderName !== undefined) partner.senderName = body.senderName || undefined;
   if (body.resendApiKey !== undefined) partner.resendApiKey = body.resendApiKey || undefined;
+  // Patient portal subdomain — keep the portal_host reverse index in sync
+  // so the Host-based router can resolve tenant in O(1) per request.
+  if (body.portalDomain !== undefined) {
+    const normalized = (body.portalDomain as string).trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "") || undefined;
+    const old = partner.portalDomain;
+    if (old && old !== normalized) {
+      await deletePortalDomainIndex(c.env.PARTNERS, old);
+    }
+    partner.portalDomain = normalized;
+    if (normalized) {
+      await savePortalDomainIndex(c.env.PARTNERS, normalized, partner.slug);
+    }
+  }
 
   // Update platform fees
   if (body.platformFees) {
@@ -137,6 +150,32 @@ admin.post("/partner/:slug/toggle", async (c) => {
   partner.enabled = !partner.enabled;
   await savePartner(c.env.PARTNERS, partner);
   return c.json({ success: true, enabled: partner.enabled });
+});
+
+// Backfill patient portal indexes for a partner. Walks every PendingCase,
+// rebuilds `patient_cases:*` and `patient_email:*:*` so the portal can
+// immediately serve orders placed before the portal existed. Safe to run
+// multiple times — adds are idempotent. Only touches the given partner.
+admin.post("/partner/:slug/backfill-portal-index", async (c) => {
+  const slug = c.req.param("slug");
+  const partner = await getPartner(c.env.PARTNERS, slug);
+  if (!partner) return c.json({ error: "Not found" }, 404);
+
+  // Lazy imports to keep admin module lean at boot
+  const { listAllCases, addCaseToPatientIndex, savePatientEmailIndex } = await import("../lib/kv");
+  const cases = await listAllCases(c.env.PARTNERS);
+
+  let indexed = 0;
+  let skipped = 0;
+  for (const pc of cases) {
+    if (pc.partnerSlug !== slug) continue;
+    if (!pc.medplumPatientId || !pc.patientEmail) { skipped++; continue; }
+    await addCaseToPatientIndex(c.env.PARTNERS, pc.medplumPatientId, pc.paymentIntentId);
+    await savePatientEmailIndex(c.env.PARTNERS, slug, pc.patientEmail, pc.medplumPatientId);
+    indexed++;
+  }
+
+  return c.json({ success: true, indexed, skipped, partner: slug });
 });
 
 // Update platform fees for a partner
@@ -558,6 +597,13 @@ function renderPartnerDetail(partner: PartnerConfig): string {
         <div><div class="field-label">Payment Mode</div><div class="field-value">${partner.paymentMode === "platform" ? "Platform (MOH collects)" : "Direct (Own Stripe)"}</div></div>
         <div><div class="field-label">Joined</div><div class="field-value">${new Date(partner.createdAt).toLocaleDateString()}</div></div>
       </div>
+      <div class="field-row">
+        <div style="grid-column: 1 / -1">
+          <div class="field-label">Patient Portal Domain</div>
+          <input class="edit-input" id="portalDomain" value="${partner.portalDomain || ""}" placeholder="portal.kingdomlongevitylabs.com">
+          <p style="font-size:11px;color:#888;margin-top:6px">Subdomain CNAMEd to the MOH worker. Leave blank if this partner doesn't have a patient portal yet. Must match the DNS CNAME you set up for the patient login URL.</p>
+        </div>
+      </div>
       <div class="btn-row">
         <button class="btn btn-primary" onclick="saveBrand()">Save Changes</button>
       </div>
@@ -638,6 +684,21 @@ function renderPartnerDetail(partner: PartnerConfig): string {
       `}
     </div>
 
+    <!-- Patient Portal -->
+    <div class="card">
+      <h3>Patient Portal</h3>
+      ${partner.portalDomain ? `
+        <table style="margin-bottom:16px">
+          <tr><td style="padding:6px 0;color:#666;font-size:13px;width:180px">Login URL</td><td style="padding:6px 0;font-size:14px;font-weight:600"><a href="https://${partner.portalDomain}/portal/login" target="_blank" style="color:#3b82f6">https://${partner.portalDomain}/portal/login</a></td></tr>
+          <tr><td style="padding:6px 0;color:#666;font-size:13px">DNS</td><td style="padding:6px 0;font-size:12px;color:#666">Ensure a CNAME record for <code>${partner.portalDomain.replace(/^portal\./, "portal.")}</code> points to the MOH worker.</td></tr>
+        </table>
+        <p style="font-size:12px;color:#888;margin-bottom:12px">New orders placed after portal was configured automatically send a magic sign-in link. To populate the portal with previous orders, run the index backfill below.</p>
+        <button class="btn btn-primary" onclick="backfillPortal()">Backfill Portal Index</button>
+      ` : `
+        <p style="font-size:14px;color:#666;margin-bottom:8px">No portal domain configured. Set one under <strong>Brand Configuration</strong> above, then add a CNAME record pointing that subdomain at the MOH worker.</p>
+      `}
+    </div>
+
     <!-- Embed Codes -->
     <div class="card">
       <h3>Embed Codes</h3>
@@ -677,6 +738,7 @@ function renderPartnerDetail(partner: PartnerConfig): string {
         logoUrl: document.getElementById('logoUrl').value,
         primaryColor: document.getElementById('primaryColor').value,
         secondaryColor: document.getElementById('secondaryColor').value,
+        portalDomain: document.getElementById('portalDomain').value,
       };
       const res = await fetch('/admin/partner/' + SLUG, {
         method: 'POST',
@@ -733,6 +795,20 @@ function renderPartnerDetail(partner: PartnerConfig): string {
           showToast('Status: ' + (data.status || 'not verified') + '. Check DNS records.');
         }
         setTimeout(() => location.reload(), 1500);
+      } catch (err) {
+        showToast('Network error');
+      }
+    }
+
+    async function backfillPortal() {
+      try {
+        const res = await fetch('/admin/partner/' + SLUG + '/backfill-portal-index', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Backfilled ' + data.indexed + ' cases (' + data.skipped + ' skipped)');
+        } else {
+          showToast(data.error || 'Backfill failed');
+        }
       } catch (err) {
         showToast('Network error');
       }
