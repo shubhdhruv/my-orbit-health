@@ -263,6 +263,87 @@ doctor.post("/case/:id/approve", async (c) => {
   return c.json({ success: true });
 });
 
+// ─── Shared shipped-case helper ──────────────────────────────
+// Used by both the single-case /update-order endpoint and the bulk
+// CSV import endpoint. Same side effects: updates KV + fires the
+// branded patient shipped email. Throws on validation errors.
+
+async function markCaseShipped(
+  env: Env,
+  caseId: string,
+  tracking: { trackingNumber: string; carrier?: string; trackingUrl?: string; pharmacyOrderId?: string }
+): Promise<void> {
+  const pendingCase = await getPendingCase(env.PARTNERS, caseId);
+  if (!pendingCase) throw new Error("Case not found");
+  if (pendingCase.status !== "approved") throw new Error("Only approved cases can be shipped");
+  if (pendingCase.orderStatus === "shipped" || pendingCase.orderStatus === "delivered") {
+    throw new Error("Already shipped");
+  }
+
+  const partner = await getPartner(env.PARTNERS, pendingCase.partnerSlug);
+  const emailConfig = partner
+    ? getPartnerEmailConfig(partner, env.RESEND_API_KEY)
+    : { apiKey: env.RESEND_API_KEY, from: undefined as string | undefined };
+
+  pendingCase.orderStatus = "shipped";
+  pendingCase.shippedAt = new Date().toISOString();
+  pendingCase.trackingNumber = tracking.trackingNumber;
+  if (tracking.carrier) pendingCase.carrier = tracking.carrier;
+  if (tracking.trackingUrl) pendingCase.trackingUrl = tracking.trackingUrl;
+  if (tracking.pharmacyOrderId) pendingCase.pharmacyOrderId = tracking.pharmacyOrderId;
+  await savePendingCase(env.PARTNERS, pendingCase);
+
+  try {
+    await sendEmail(emailConfig.apiKey, {
+      to: pendingCase.patientEmail,
+      subject: `Your ${pendingCase.serviceName} has shipped!`,
+      html: buildPatientShippedEmail({
+        patientName: pendingCase.patientName,
+        serviceName: pendingCase.serviceName,
+        partnerName: pendingCase.partnerName,
+        carrier: pendingCase.carrier,
+        trackingNumber: pendingCase.trackingNumber,
+        trackingUrl: pendingCase.trackingUrl,
+        paymentIntentId: pendingCase.paymentIntentId,
+      }),
+    }, emailConfig.from);
+  } catch (err) {
+    console.error("Shipped email failed:", err);
+  }
+}
+
+// Minimal RFC-4180-ish CSV parser: handles quoted fields with embedded
+// commas, quotes ("" escape), and \r\n or \n line endings.
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += ch;
+      continue;
+    }
+    if (ch === '"') { inQuotes = true; continue; }
+    if (ch === ",") { row.push(field); field = ""; continue; }
+    if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+      row.push(field);
+      if (row.length > 1 || row[0] !== "") rows.push(row);
+      row = [];
+      field = "";
+      continue;
+    }
+    field += ch;
+  }
+  if (field !== "" || row.length > 0) { row.push(field); rows.push(row); }
+  return rows;
+}
+
 // ─── Update Order Status ────────────────────────────────────
 
 doctor.post("/case/:id/update-order", async (c) => {
@@ -281,33 +362,17 @@ doctor.post("/case/:id/update-order", async (c) => {
     : { apiKey: c.env.RESEND_API_KEY, from: undefined as string | undefined };
 
   if (newStatus === "shipped") {
-    pendingCase.orderStatus = "shipped";
-    pendingCase.shippedAt = new Date().toISOString();
-    if (body.trackingNumber) pendingCase.trackingNumber = body.trackingNumber;
-    if (body.trackingUrl) pendingCase.trackingUrl = body.trackingUrl;
-    if (body.carrier) pendingCase.carrier = body.carrier;
-    if (body.pharmacyOrderId) pendingCase.pharmacyOrderId = body.pharmacyOrderId;
-    await savePendingCase(c.env.PARTNERS, pendingCase);
-
-    // Email patient (branded)
+    if (!body.trackingNumber) return c.json({ error: "trackingNumber required" }, 400);
     try {
-      await sendEmail(emailConfig.apiKey, {
-        to: pendingCase.patientEmail,
-        subject: `Your ${pendingCase.serviceName} has shipped!`,
-        html: buildPatientShippedEmail({
-          patientName: pendingCase.patientName,
-          serviceName: pendingCase.serviceName,
-          partnerName: pendingCase.partnerName,
-          carrier: pendingCase.carrier,
-          trackingNumber: pendingCase.trackingNumber,
-          trackingUrl: pendingCase.trackingUrl,
-          paymentIntentId: pendingCase.paymentIntentId,
-        }),
-      }, emailConfig.from);
+      await markCaseShipped(c.env, id, {
+        trackingNumber: body.trackingNumber,
+        carrier: body.carrier,
+        trackingUrl: body.trackingUrl,
+        pharmacyOrderId: body.pharmacyOrderId,
+      });
     } catch (err) {
-      console.error("Shipped email failed:", err);
+      return c.json({ error: (err as Error).message }, 400);
     }
-
     return c.json({ success: true });
   }
 
@@ -362,6 +427,140 @@ doctor.post("/case/:id/update-order", async (c) => {
   }
 
   return c.json({ error: `Invalid order status: ${newStatus}. Must be "shipped", "delivered", or "bloodwork".` }, 400);
+});
+
+// ─── CSV Tracking Import (bulk mark-shipped) ────────────────
+// Pair to /export.csv. Paste-back flow: export approved cases,
+// hand-key into RxHQ portal, receive tracking numbers from RxHQ,
+// upload a CSV here to mark every case shipped + fire the patient
+// shipped email. Swaps out for direct API calls once RxHQ API is live.
+
+doctor.get("/import-tracking", (c) => {
+  return c.html(`<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Import Tracking CSV</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px; color: #111; }
+  h1 { font-size: 22px; margin: 0 0 8px; }
+  p { color: #555; line-height: 1.5; }
+  .card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px; margin-top: 20px; }
+  label { display: block; font-weight: 600; margin-bottom: 8px; font-size: 14px; }
+  input[type=file] { display: block; margin-bottom: 16px; }
+  button { background: #4F46E5; color: #fff; border: 0; padding: 12px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  button:hover { background: #4338ca; }
+  a.back { color: #4F46E5; text-decoration: none; font-size: 14px; }
+  code { background: #eef2ff; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+  .hint { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px 16px; margin-top: 16px; border-radius: 4px; font-size: 13px; color: #78350f; }
+</style>
+</head><body>
+  <a href="/doctor" class="back">&larr; Back to dashboard</a>
+  <h1>Import Tracking CSV</h1>
+  <p>Upload a CSV from RxHQ (or any pharmacy) to bulk-mark cases as shipped. Every case matched in the file will be updated and the patient will get a branded shipped email automatically.</p>
+
+  <div class="card">
+    <form method="post" action="/doctor/import-tracking" enctype="multipart/form-data">
+      <label for="file">CSV file</label>
+      <input type="file" name="file" id="file" accept=".csv,text/csv" required>
+      <button type="submit">Upload &amp; Mark Shipped</button>
+    </form>
+  </div>
+
+  <div class="hint">
+    <strong>Required columns</strong> (header names are case-insensitive and matched fuzzily):<br>
+    <code>Case ID</code> (or <code>Payment Intent</code>) &middot; <code>Tracking #</code> (or <code>Tracking Number</code>)<br>
+    <strong>Optional:</strong> <code>Carrier</code>, <code>Tracking URL</code>, <code>Pharmacy Order ID</code>
+  </div>
+</body></html>`);
+});
+
+doctor.post("/import-tracking", async (c) => {
+  const contentType = c.req.header("content-type") || "";
+  let csvText = "";
+  if (contentType.includes("multipart/form-data")) {
+    const form = await c.req.formData();
+    const file = form.get("file") as unknown as { text?: () => Promise<string> } | null;
+    if (!file || typeof file.text !== "function") {
+      return c.json({ error: "No file uploaded" }, 400);
+    }
+    csvText = await file.text();
+  } else {
+    csvText = await c.req.text();
+  }
+
+  const rows = parseCsv(csvText);
+  if (rows.length < 2) return c.json({ error: "CSV has no data rows" }, 400);
+
+  const headers = rows[0].map((h) => h.trim().toLowerCase());
+  const findCol = (predicate: (h: string) => boolean) => headers.findIndex(predicate);
+  const idIdx = findCol((h) => /case\s*id|payment\s*intent/.test(h));
+  const trackingIdx = findCol((h) => /tracking/.test(h) && !/url/.test(h));
+  const carrierIdx = findCol((h) => /carrier/.test(h));
+  const urlIdx = findCol((h) => /tracking\s*url|track\s*url/.test(h));
+  const orderIdIdx = findCol((h) => /pharmacy\s*order|order\s*id/.test(h));
+
+  if (idIdx < 0 || trackingIdx < 0) {
+    return c.json({
+      error: "CSV must include a Case ID (or Payment Intent) column and a Tracking # column",
+      headersSeen: rows[0],
+    }, 400);
+  }
+
+  const results: { updated: string[]; skipped: { row: number; reason: string }[]; errors: { row: number; caseId: string; error: string }[] } = {
+    updated: [],
+    skipped: [],
+    errors: [],
+  };
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    const caseId = (row[idIdx] || "").trim();
+    const trackingNumber = (row[trackingIdx] || "").trim();
+    if (!caseId || !trackingNumber) {
+      results.skipped.push({ row: i + 1, reason: "missing Case ID or Tracking #" });
+      continue;
+    }
+    const carrier = carrierIdx >= 0 ? (row[carrierIdx] || "").trim() : "";
+    const trackingUrl = urlIdx >= 0 ? (row[urlIdx] || "").trim() : "";
+    const pharmacyOrderId = orderIdIdx >= 0 ? (row[orderIdIdx] || "").trim() : "";
+    try {
+      await markCaseShipped(c.env, caseId, {
+        trackingNumber,
+        carrier: carrier || undefined,
+        trackingUrl: trackingUrl || undefined,
+        pharmacyOrderId: pharmacyOrderId || undefined,
+      });
+      results.updated.push(caseId);
+    } catch (err) {
+      results.errors.push({ row: i + 1, caseId, error: (err as Error).message });
+    }
+  }
+
+  // If called from a browser form, render a results page. If called via
+  // API (JSON content or explicit ?format=json), return JSON.
+  const wantsJson = c.req.query("format") === "json" || contentType.includes("application/json");
+  if (wantsJson) return c.json(results);
+
+  const row = (label: string, value: string, color: string) =>
+    `<div style="display:flex;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #e5e7eb"><span style="font-weight:600">${label}</span><span style="color:${color};font-weight:700">${value}</span></div>`;
+
+  const listBlock = (title: string, items: string[]) => items.length === 0 ? "" :
+    `<h3 style="margin:24px 0 8px;font-size:15px">${title}</h3><ul style="font-family:monospace;font-size:13px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px 32px;margin:0">${items.map(i => `<li>${i}</li>`).join("")}</ul>`;
+
+  return c.html(`<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Import Results</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:720px;margin:40px auto;padding:0 20px;color:#111}h1{font-size:22px}a{color:#4F46E5;text-decoration:none}.card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;margin-top:16px}</style>
+</head><body>
+  <a href="/doctor">&larr; Back to dashboard</a>
+  <h1>Tracking Import Results</h1>
+  <div class="card">
+    ${row("Updated (marked shipped + emailed)", String(results.updated.length), "#22c55e")}
+    ${row("Skipped (missing data)", String(results.skipped.length), "#f59e0b")}
+    ${row("Errors", String(results.errors.length), "#ef4444")}
+  </div>
+  ${listBlock("Updated cases", results.updated)}
+  ${listBlock("Skipped rows", results.skipped.map(s => `row ${s.row}: ${s.reason}`))}
+  ${listBlock("Errors", results.errors.map(e => `row ${e.row} (${e.caseId}): ${e.error}`))}
+  <p style="margin-top:24px"><a href="/doctor/import-tracking">&larr; Import another CSV</a></p>
+</body></html>`);
 });
 
 // ─── Deny ────────────────────────────────────────────────────
@@ -716,7 +915,8 @@ function renderDashboard(cases: import("../lib/types").PendingCase[]): string {
         : '<div class="empty">No active orders. Approved prescriptions will appear here until delivered.</div>'}
     </div>
     <div id="tab-approved" class="tab-content">
-      <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px">
+        <a href="/doctor/import-tracking" style="display:inline-block;background:#4F46E5;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">⬆ Import Tracking (CSV)</a>
         <a href="/doctor/export.csv" style="display:inline-block;background:#22c55e;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">⬇ Export Approved (CSV)</a>
       </div>
       ${approved.length > 0
