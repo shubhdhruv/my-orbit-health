@@ -15,11 +15,38 @@ export async function savePartner(
   await kv.put(partner.slug, JSON.stringify(partner));
 }
 
+// Partner records are stored under their raw slug (no prefix), which
+// means a naive `kv.list()` returns every other key in the namespace
+// too — cases, portal indexes, magic tokens, vendor creds, price-list
+// sessions, patient-email indexes, etc. Many of those store raw strings
+// (not JSON), so the admin dashboard then fails with a JSON parse error
+// when it maps slugs through `getPartner`. Exclude every known
+// non-partner key prefix so only real partner slugs are returned.
+const NON_PARTNER_KEY_PREFIXES = [
+  "case:",
+  "portal_host:",
+  "patient_cases:",
+  "patient_email:",
+  "magic:",
+  "pl_user:",
+  "pl_session:",
+  "vendor:",
+];
+const NON_PARTNER_KEY_EXACT = new Set([
+  "soap-template",
+  "doctor_password_hash",
+]);
+
 export async function listPartners(
   kv: KVNamespace
 ): Promise<string[]> {
   const list = await kv.list();
-  return list.keys.map((k) => k.name);
+  return list.keys
+    .map((k) => k.name)
+    .filter((name) =>
+      !NON_PARTNER_KEY_EXACT.has(name) &&
+      !NON_PARTNER_KEY_PREFIXES.some((p) => name.startsWith(p))
+    );
 }
 
 // ─── Pending Case helpers ────────────────────────────────────
