@@ -482,6 +482,15 @@ export function generateCheckoutHTML(
           <p style="margin-top:8px; font-size:11px">*Product packaging may vary. Prescriptions will be fulfilled by a licensed compounding pharmacy.</p>
         </div>
 
+        <div style="margin:16px 0 8px 0;padding:14px 16px;background:#f8f9fa;border:1px solid #e5e7eb;border-radius:10px">
+          <label for="disclosureAck" style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+            <input type="checkbox" id="disclosureAck" style="margin-top:3px;width:16px;height:16px;flex-shrink:0;cursor:pointer">
+            <span style="font-size:13px;color:#333;line-height:1.5">
+              I have read and understand the <a href="${baseUrl}/form/${partner.slug}/enrollment-disclosure" target="_blank" style="color:var(--primary);font-weight:600">Patient Enrollment Disclosure</a>, including that clinical services are provided by licensed My Orbit Health physicians (not ${partner.businessName}), that my medications are compounded by a licensed 503A pharmacy and are not FDA-approved, and that enrollment does not guarantee a prescription.
+            </span>
+          </label>
+        </div>
+
         <button class="btn-submit" id="submitBtn" onclick="submitOrder()">
           <span id="btnText">Please enter your address to continue</span>
         </button>
@@ -631,7 +640,7 @@ export function generateCheckoutHTML(
       } catch (e) {}
     })();
 
-    // Enable submit when all required fields filled
+    // Enable submit when all required fields filled AND disclosure acknowledged
     function checkForm() {
       const firstName = document.getElementById('firstName').value;
       const lastName = document.getElementById('lastName').value;
@@ -643,12 +652,17 @@ export function generateCheckoutHTML(
       const city = document.getElementById('city').value;
       const state = document.getElementById('state').value;
       const zip = document.getElementById('zip').value;
+      const disclosureOk = document.getElementById('disclosureAck').checked;
       const btn = document.getElementById('submitBtn');
       const btnText = document.getElementById('btnText');
 
-      if (firstName && lastName && email && phone && dob && gender && street && city && state && zip) {
+      const fieldsFilled = firstName && lastName && email && phone && dob && gender && street && city && state && zip;
+      if (fieldsFilled && disclosureOk) {
         btn.disabled = false;
         btnText.textContent = 'Complete Order';
+      } else if (fieldsFilled && !disclosureOk) {
+        btn.disabled = true;
+        btnText.textContent = 'Please acknowledge the Patient Enrollment Disclosure';
       } else {
         btn.disabled = true;
         btnText.textContent = 'Please fill in all required fields';
@@ -659,6 +673,7 @@ export function generateCheckoutHTML(
       el.addEventListener('input', checkForm);
       el.addEventListener('change', checkForm);
     });
+    document.getElementById('disclosureAck').addEventListener('change', checkForm);
 
     async function submitOrder() {
       const btn = document.getElementById('submitBtn');
@@ -713,6 +728,7 @@ export function generateCheckoutHTML(
           disqualified,
           disqualifyReasons,
           selectedPlan,
+          disclosureAcknowledged: document.getElementById('disclosureAck').checked,
           shipping: {
             street: document.getElementById('street').value,
             apt: document.getElementById('apt').value,

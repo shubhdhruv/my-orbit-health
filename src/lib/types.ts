@@ -160,6 +160,13 @@ export interface PendingCase {
   // Follow-up email tracking (ISO timestamps of when each was sent)
   followUpsSent?: Record<string, string>;
 
+  // Legal: Patient Enrollment Disclosure acknowledgment (proof of consent)
+  disclosureAcknowledged?: boolean;
+  disclosureAcknowledgedAt?: string;   // ISO timestamp
+  disclosureVersion?: string;          // Which revision of the disclosure text
+  disclosureIp?: string;               // Client IP at time of acknowledgment
+  disclosureUserAgent?: string;        // Client UA at time of acknowledgment
+
   // Timestamps
   createdAt: string;
   authExpiresAt: string;

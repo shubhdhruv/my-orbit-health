@@ -159,3 +159,83 @@ export function generateTelehealthConsent(partner: PartnerConfig): string {
     <p>Questions? Contact us at ${escapeHtml(partner.contactEmail)}.</p>
   `);
 }
+
+// ─── Patient Enrollment Disclosure ────────────────────────────
+//
+// Legal-required disclosure patients must acknowledge before completing
+// enrollment. `DISCLOSURE_VERSION` is stamped onto each pending case so
+// we can prove exactly which revision of the text a patient agreed to
+// if legal ever needs to reproduce it.
+export const DISCLOSURE_VERSION = "2026-04-11-v1";
+
+export function generatePatientEnrollmentDisclosure(partner: PartnerConfig): string {
+  const name = escapeHtml(partner.businessName);
+  const contact = escapeHtml(partner.contactEmail || "support@myorbithealth.com");
+  return legalShell(partner, "Patient Enrollment Disclosure", `
+    <p style="font-size:14px;color:#666;margin-bottom:24px"><em>Please read this disclosure carefully before completing your enrollment. By enrolling in a clinical program, you acknowledge that you have read and understood the information below.</em></p>
+
+    <h2>1. About Your Clinical Provider</h2>
+    <p>You are enrolling in a clinical program provided by My Orbit Health ("MOH"), a telehealth medical practice owned and operated by a licensed California physician. All clinical services — including your physician consultation, medical evaluation, treatment recommendations, and prescriptions — are provided by licensed physicians employed or contracted by MOH.</p>
+    <p>${name} (your "Program Partner") is a marketing and enrollment partner of MOH. Your Program Partner is not a physician, does not provide clinical services, and does not make any medical decisions regarding your care. All clinical decisions are made exclusively by MOH's licensed physicians.</p>
+
+    <h2>2. About Your Physician Consultation</h2>
+    <p>Before any medication is prescribed, you will be evaluated by a licensed physician employed or contracted by MOH. That evaluation may be conducted as:</p>
+    <ul>
+      <li>A synchronous (live video) telehealth visit, or</li>
+      <li>An asynchronous telehealth visit, in which you complete a detailed health questionnaire and the physician reviews your information and responds within the timeframe disclosed at enrollment.</li>
+    </ul>
+    <p>The physician's evaluation is independent. The physician may determine that a particular program or medication is not appropriate for you based on your individual health history, current medications, or other clinical factors. Enrollment in a program does not guarantee that a prescription will be issued.</p>
+
+    <h2>3. About Your Medications</h2>
+    <p>If your physician determines that medication is appropriate for you, your prescription will be dispensed by a licensed 503A compounding pharmacy. Important facts about your medications:</p>
+    <ul>
+      <li>Compounded medications are prepared specifically for you pursuant to your physician's prescription. They are not FDA-approved drugs and have not been evaluated by the FDA for safety, efficacy, or quality in the same manner as FDA-approved drugs.</li>
+      <li>Your medication will be shipped directly to you from the compounding pharmacy. MOH does not dispense medications.</li>
+      <li>Your physician retains authority to modify, discontinue, or change your prescription at any time based on clinical judgment, your response to treatment, or changes in applicable law or pharmacy availability.</li>
+      <li>You should not share your prescription medications with any other person.</li>
+    </ul>
+
+    <h2>4. About Your Payment</h2>
+    <p>Your program fee is a single bundled charge that covers:</p>
+    <ul>
+      <li>Your physician consultation and ongoing clinical oversight;</li>
+      <li>Your compounded medication for the program period; and</li>
+      <li>Platform and administrative services.</li>
+    </ul>
+    <p>Your payment is collected by MOH. MOH collects the pharmaceutical component of your fee as authorized billing agent for the dispensing pharmacy. This means that when you pay your program fee, the pharmacy portion of that fee is held by MOH on behalf of the pharmacy and remitted to the pharmacy separately. You will see a single charge on your payment method.</p>
+    <p>Your program fee covers one program period as disclosed at the time of enrollment. Fees for subsequent program periods will be disclosed prior to renewal.</p>
+
+    <h2>5. About Your Program Partner</h2>
+    <p>${name} is compensated by MOH for marketing and enrollment services. ${name}'s compensation does not affect your program fee, the medications you are prescribed, or any clinical decision made by your physician. If ${name} is using their own brand name or platform to present this program to you, the underlying clinical services are still provided by MOH's licensed physicians.</p>
+
+    <h2>6. No Guarantees</h2>
+    <p>Individual results vary. No clinical program, medication, or treatment guarantees a specific outcome. The results described in marketing materials are not typical and may not reflect your individual experience. Only your physician can evaluate whether a program is appropriate for your individual health circumstances.</p>
+
+    <h2>7. Your Rights as a Patient</h2>
+    <ul>
+      <li>You have the right to ask questions about your treatment and to receive honest answers from your physician.</li>
+      <li>You have the right to decline any prescribed medication or treatment.</li>
+      <li>You have the right to seek a second opinion from another physician.</li>
+      <li>You have the right to access your medical records.</li>
+      <li>Your health information is protected by applicable privacy laws including HIPAA. MOH's Privacy Notice is available upon request.</li>
+      <li>You may discontinue your participation in a clinical program at any time, subject to the refund terms disclosed at enrollment.</li>
+    </ul>
+
+    <h2>8. Contact Information</h2>
+    <p>If you have questions about your clinical care or billing, contact MOH's support team at: <strong>${contact}</strong></p>
+    <p>If you have a clinical emergency, contact 911 or go to your nearest emergency room. Telehealth services are not appropriate for emergencies.</p>
+
+    <h2>Patient Acknowledgment</h2>
+    <p>By checking the acknowledgment box at checkout, you confirm that:</p>
+    <ul>
+      <li>You have read and understand this Patient Enrollment Disclosure;</li>
+      <li>You understand that clinical services are provided by MOH's licensed physicians, not by the Program Partner who referred you;</li>
+      <li>You understand that your medications are compounded by a licensed 503A compounding pharmacy and are not FDA-approved drugs;</li>
+      <li>You understand that MOH collects your full program fee, including the pharmaceutical component, as authorized billing agent for the dispensing pharmacy;</li>
+      <li>You understand that enrollment in a program does not guarantee that a prescription will be issued and that all prescribing decisions are made by a licensed physician;</li>
+      <li>You understand that individual results vary and no specific outcome is guaranteed;</li>
+      <li>You have had the opportunity to ask questions prior to acknowledging this disclosure.</li>
+    </ul>
+    <p style="font-size:13px;color:#666;margin-top:24px"><em>Your electronic acknowledgment is legally binding under the federal E-SIGN Act and applicable state law.</em></p>
+  `);
+}

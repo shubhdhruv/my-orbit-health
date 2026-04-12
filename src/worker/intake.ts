@@ -14,7 +14,7 @@ import { getServiceById } from "../lib/services";
 import { generateIntakeFormHTML } from "../templates/form-engine";
 import { generateRecommendationHTML } from "../templates/recommendation";
 import { generateCheckoutHTML } from "../templates/checkout";
-import { generateTermsOfService, generatePrivacyPolicy, generateTelehealthConsent } from "../templates/legal";
+import { generateTermsOfService, generatePrivacyPolicy, generateTelehealthConsent, generatePatientEnrollmentDisclosure, DISCLOSURE_VERSION } from "../templates/legal";
 import { createStripeClient, authorizePayment, chargeKitFee, ensureCustomerWithPaymentMethod } from "./stripe";
 
 const BLOODWORK_KIT_PRICE = 5;
@@ -113,6 +113,12 @@ intake.get("/:slug/telehealth-consent", async (c) => {
   return c.html(generateTelehealthConsent(partner));
 });
 
+intake.get("/:slug/enrollment-disclosure", async (c) => {
+  const partner = await getPartner(c.env.PARTNERS, c.req.param("slug"));
+  if (!partner) return c.text("Partner not found", 404);
+  return c.html(generatePatientEnrollmentDisclosure(partner));
+});
+
 // Upload lab results file → Medplum Binary
 intake.post("/:slug/:serviceType/upload-labs", async (c) => {
   const { slug, serviceType } = c.req.param();
@@ -153,6 +159,21 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
   const serviceConfig = partner.services.find((s) => s.type === serviceType);
 
   if (!serviceConfig) return c.json({ error: "Service not available" }, 400);
+
+  // Legal: patient must acknowledge the Patient Enrollment Disclosure
+  // before we authorize payment or create any Medplum records. This is
+  // a hard gate — refusal to acknowledge stops the flow cold.
+  if (body.disclosureAcknowledged !== true) {
+    return c.json({
+      error: "You must acknowledge the Patient Enrollment Disclosure before completing enrollment.",
+    }, 400);
+  }
+  const disclosureAcknowledgedAt = new Date().toISOString();
+  const disclosureIp =
+    c.req.header("CF-Connecting-IP") ||
+    c.req.header("X-Forwarded-For")?.split(",")[0]?.trim() ||
+    "";
+  const disclosureUserAgent = c.req.header("User-Agent") || "";
 
   // Determine charge amount based on selected plan
   const chargeAmount = body.selectedPlan?.price || serviceConfig.initialPrice;
@@ -343,6 +364,12 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
       bloodworkKitPaymentId,
       answers: body.answers || {},
       routingConstraints: routing?.constraints || [],
+      // Legal consent audit trail
+      disclosureAcknowledged: true,
+      disclosureAcknowledgedAt,
+      disclosureVersion: DISCLOSURE_VERSION,
+      disclosureIp,
+      disclosureUserAgent,
       createdAt: new Date().toISOString(),
       authExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     };
