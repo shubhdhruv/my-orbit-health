@@ -1,6 +1,6 @@
 /**
  * PNP DOSING SCHEMA — FINAL PATCH (v2 → v3)
- * 
+ *
  * These entries REPLACE or ADD to pnp_dosing_schema_v2.json as follows:
  *
  * REPLACE:  testosterone-oral     (was PENDING — now Jatenzo protocol)
@@ -10,7 +10,7 @@
  * UPDATE:   klow                  (regulatory status: GHK-Cu + KPV 503B confirmed)
  *
  * All other service IDs in v2 remain unchanged.
- * 
+ *
  * FINAL SCHEMA = v2 entries + these patch entries (replacing where noted above)
  */
 
@@ -189,11 +189,23 @@
     ],
     "follow_up_schedule": "6 weeks: async lab (total T at 3-5hr post-dose + hematocrit + BP self-report) + dose adjustment. 3 months: async (total T + BP + hematocrit). 6 months: async labs (total T + hematocrit + PSA if ≥40 + BP). Every 6 months thereafter.",
     "escalation_triggers": [
-      { "trigger": "BP >160/100 at any check", "action": "HOLD Jatenzo. Sync visit." },
-      { "trigger": "New BP >140/90 (new onset hypertension)", "action": "Provider review flag. Do not auto-refill." },
+      {
+        "trigger": "BP >160/100 at any check",
+        "action": "HOLD Jatenzo. Sync visit."
+      },
+      {
+        "trigger": "New BP >140/90 (new onset hypertension)",
+        "action": "Provider review flag. Do not auto-refill."
+      },
       { "trigger": "Hematocrit >54%", "action": "HOLD. Sync visit." },
-      { "trigger": "MACE symptoms (chest pain, SOB, arm pain, sudden neurological symptoms)", "action": "HOLD. Direct to ER immediately." },
-      { "trigger": "PSA ≥4 or rapid rise", "action": "Sync visit. Urology referral." }
+      {
+        "trigger": "MACE symptoms (chest pain, SOB, arm pain, sudden neurological symptoms)",
+        "action": "HOLD. Direct to ER immediately."
+      },
+      {
+        "trigger": "PSA ≥4 or rapid rise",
+        "action": "Sync visit. Urology referral."
+      }
     ],
     "routing_note": "Route to testosterone-oral (Jatenzo) if: patient reports needle aversion OR patient preference for oral over injectable AND labs confirm eligibility. Route to testosterone-injectable if: patient has uncontrolled or borderline hypertension, prior MACE history, or post-initiation BP elevation on Jatenzo.",
     "visit_model": {
@@ -293,9 +305,15 @@
     "progesterone_rule": "NOT required at standard doses (0.5g 2x/week). Document rationale in chart. If patient requires high-dose or daily vaginal estrogen long-term: reassess progesterone need at that point.",
     "follow_up_schedule": "8 weeks: async symptom form (vaginal dryness, dyspareunia, urinary symptoms — improvement assessment). 6 months: async (symptom control, refill, assess if systemic symptoms have emerged). Annually: async (refill, symptom reassessment, mammogram reminder).",
     "escalation_triggers": [
-      { "trigger": "New unexplained vaginal bleeding at any point", "action": "HOLD estrogen. Same-day sync visit. Do not resume until evaluated." },
+      {
+        "trigger": "New unexplained vaginal bleeding at any point",
+        "action": "HOLD estrogen. Same-day sync visit. Do not resume until evaluated."
+      },
       { "trigger": "New breast mass", "action": "HOLD. Sync visit." },
-      { "trigger": "Systemic symptoms emerge (hot flashes, night sweats, mood)", "action": "Async note to provider. Consider adding systemic estrogen. Sync visit for combination regimen discussion." }
+      {
+        "trigger": "Systemic symptoms emerge (hot flashes, night sweats, mood)",
+        "action": "Async note to provider. Consider adding systemic estrogen. Sync visit for combination regimen discussion."
+      }
     ],
     "visit_model": {
       "initial": "ONE synchronous video visit — confirms GSM diagnosis, absolute contraindications, and consent.",
@@ -321,7 +339,10 @@
       },
       "titration": [
         { "step": "Initiation", "dose": "0.5mg/day", "duration": "4-6 weeks" },
-        { "step": "Every 4-6 weeks", "action": "Titrate based on symptom control and E2 serum level. Increase to 1mg/day if symptoms persist." }
+        {
+          "step": "Every 4-6 weeks",
+          "action": "Titrate based on symptom control and E2 serum level. Increase to 1mg/day if symptoms persist."
+        }
       ],
       "max_dose": "2mg/day — rarely required. Most patients controlled at 0.5-1mg/day.",
       "adjustment_rules": [
@@ -357,10 +378,30 @@
       "mammogram_current_status"
     ],
     "disqualifiers": [
-      { "field": "unexplained_vaginal_bleeding", "value": "yes", "reason": "Absolute CI. Hard block + sync visit.", "block_type": "hard" },
-      { "field": "breast_cancer_history", "value": "active", "reason": "Absolute CI.", "block_type": "hard" },
-      { "field": "vte_history_active_or_recent", "value": "yes", "reason": "High-risk CI.", "block_type": "hard" },
-      { "field": "e2_baseline_lab", "condition": "not_obtained", "reason": "Cannot prescribe without baseline E2. System block.", "block_type": "hard" }
+      {
+        "field": "unexplained_vaginal_bleeding",
+        "value": "yes",
+        "reason": "Absolute CI. Hard block + sync visit.",
+        "block_type": "hard"
+      },
+      {
+        "field": "breast_cancer_history",
+        "value": "active",
+        "reason": "Absolute CI.",
+        "block_type": "hard"
+      },
+      {
+        "field": "vte_history_active_or_recent",
+        "value": "yes",
+        "reason": "High-risk CI.",
+        "block_type": "hard"
+      },
+      {
+        "field": "e2_baseline_lab",
+        "condition": "not_obtained",
+        "reason": "Cannot prescribe without baseline E2. System block.",
+        "block_type": "hard"
+      }
     ],
     "required_labs": [
       {
@@ -391,9 +432,15 @@
     "mammogram_workflow": "Same as estrogen-patches — annual mammogram acknowledgment required before refill authorized.",
     "follow_up_schedule": "6 weeks: async symptom form + E2 if dose adjustment. 3 months: async symptom + titration. 6 months: async labs (E2, FSH if needed). Annually: async form + labs + mammogram acknowledgment.",
     "escalation_triggers": [
-      { "trigger": "New unexplained vaginal bleeding", "action": "HOLD. Same-day sync visit." },
+      {
+        "trigger": "New unexplained vaginal bleeding",
+        "action": "HOLD. Same-day sync visit."
+      },
       { "trigger": "VTE symptoms", "action": "HOLD. ER referral." },
-      { "trigger": "New breast mass or abnormal mammogram", "action": "HOLD. Sync visit." }
+      {
+        "trigger": "New breast mass or abnormal mammogram",
+        "action": "HOLD. Sync visit."
+      }
     ],
     "visit_model": {
       "initial": "ONE synchronous video visit. Lab results at or before visit.",
@@ -509,9 +556,18 @@
     "injection_training": "Provider or nurse must confirm patient understands SQ injection technique at initial video visit. Patient demonstrates or verbally confirms technique. Document in chart. Injection guide sent via Healthie after visit.",
     "follow_up_schedule": "2 weeks: async tolerability check (injection site reactions, flushing, nausea). 6 weeks: async (energy, sleep, recovery response assessment). 3 months: async outcome assessment + refill decision. Every 3 months thereafter.",
     "escalation_triggers": [
-      { "trigger": "Significant injection site reactions (abscess, severe inflammation)", "action": "Hold. Sync visit." },
-      { "trigger": "Chest tightness or palpitations post-injection", "action": "Hold. Sync visit. Evaluate cardiac history." },
-      { "trigger": "Hypoglycemia symptoms in diabetic patient", "action": "Hold. Sync visit. Glucose review." }
+      {
+        "trigger": "Significant injection site reactions (abscess, severe inflammation)",
+        "action": "Hold. Sync visit."
+      },
+      {
+        "trigger": "Chest tightness or palpitations post-injection",
+        "action": "Hold. Sync visit. Evaluate cardiac history."
+      },
+      {
+        "trigger": "Hypoglycemia symptoms in diabetic patient",
+        "action": "Hold. Sync visit. Glucose review."
+      }
     ],
     "visit_model": {
       "initial": "ONE synchronous video visit. Off-label consent on video. Injection technique confirmed.",
@@ -572,17 +628,45 @@
       "off_label_informed_consent_signed"
     ],
     "disqualifiers": [
-      { "field": "current_pregnancy", "value": "yes", "reason": "Hard block. No safety data for any component.", "block_type": "hard" },
-      { "field": "wilson_disease_history", "value": "yes", "reason": "GHK-Cu contains copper — absolute CI in Wilson's disease. Hard block.", "block_type": "hard" },
-      { "field": "copper_sensitivity", "value": "yes", "reason": "Relative CI. Route to provider review.", "block_type": "soft_review" },
-      { "field": "cancer_history_active", "value": "yes", "reason": "Growth-promoting components — angiogenic risk in active malignancy. Route to provider review.", "block_type": "soft_review" },
-      { "field": "off_label_informed_consent_signed", "value": "false", "reason": "Hard block.", "block_type": "hard" }
+      {
+        "field": "current_pregnancy",
+        "value": "yes",
+        "reason": "Hard block. No safety data for any component.",
+        "block_type": "hard"
+      },
+      {
+        "field": "wilson_disease_history",
+        "value": "yes",
+        "reason": "GHK-Cu contains copper — absolute CI in Wilson's disease. Hard block.",
+        "block_type": "hard"
+      },
+      {
+        "field": "copper_sensitivity",
+        "value": "yes",
+        "reason": "Relative CI. Route to provider review.",
+        "block_type": "soft_review"
+      },
+      {
+        "field": "cancer_history_active",
+        "value": "yes",
+        "reason": "Growth-promoting components — angiogenic risk in active malignancy. Route to provider review.",
+        "block_type": "soft_review"
+      },
+      {
+        "field": "off_label_informed_consent_signed",
+        "value": "false",
+        "reason": "Hard block.",
+        "block_type": "hard"
+      }
     ],
     "required_labs": [
       { "panel": "None required at baseline", "required_before_start": false }
     ],
     "follow_up_schedule": "4 weeks (end of loading): async tolerability + outcome check. Monthly during maintenance: async.",
-    "visit_model": { "initial": "ONE synchronous video visit. Off-label consent on video.", "follow_up": "Async." },
+    "visit_model": {
+      "initial": "ONE synchronous video visit. Off-label consent on video.",
+      "follow_up": "Async."
+    },
     "automation_level": "decision_support",
     "automation_notes": "Hard blocks (pregnancy, Wilson's disease, consent) buildable now. Wilson's disease disqualifier is unique to this service and KLOW — must be in intake form. All dose logic blocked until MD confirms blend ratio and frequency."
   },
@@ -639,18 +723,51 @@
       "off_label_informed_consent_signed"
     ],
     "disqualifiers": [
-      { "field": "current_pregnancy", "value": "yes", "reason": "Hard block. No safety data.", "block_type": "hard" },
-      { "field": "wilson_disease_history", "value": "yes", "reason": "GHK-Cu — absolute CI. Hard block.", "block_type": "hard" },
-      { "field": "copper_sensitivity", "value": "yes", "reason": "Relative CI. Provider review.", "block_type": "soft_review" },
-      { "field": "cancer_history_active", "value": "yes", "reason": "Growth-promoting components. Provider review.", "block_type": "soft_review" },
-      { "field": "immunosuppressive_medications", "value": "yes", "reason": "KPV immune-modulating — flag for provider review. Potential interaction.", "block_type": "soft_review" },
-      { "field": "off_label_informed_consent_signed", "value": "false", "reason": "Hard block.", "block_type": "hard" }
+      {
+        "field": "current_pregnancy",
+        "value": "yes",
+        "reason": "Hard block. No safety data.",
+        "block_type": "hard"
+      },
+      {
+        "field": "wilson_disease_history",
+        "value": "yes",
+        "reason": "GHK-Cu — absolute CI. Hard block.",
+        "block_type": "hard"
+      },
+      {
+        "field": "copper_sensitivity",
+        "value": "yes",
+        "reason": "Relative CI. Provider review.",
+        "block_type": "soft_review"
+      },
+      {
+        "field": "cancer_history_active",
+        "value": "yes",
+        "reason": "Growth-promoting components. Provider review.",
+        "block_type": "soft_review"
+      },
+      {
+        "field": "immunosuppressive_medications",
+        "value": "yes",
+        "reason": "KPV immune-modulating — flag for provider review. Potential interaction.",
+        "block_type": "soft_review"
+      },
+      {
+        "field": "off_label_informed_consent_signed",
+        "value": "false",
+        "reason": "Hard block.",
+        "block_type": "hard"
+      }
     ],
     "required_labs": [
       { "panel": "None required at baseline", "required_before_start": false }
     ],
     "follow_up_schedule": "4 weeks (end of loading): async tolerability + outcome check. Monthly during maintenance: async.",
-    "visit_model": { "initial": "ONE synchronous video visit. Off-label consent on video.", "follow_up": "Async." },
+    "visit_model": {
+      "initial": "ONE synchronous video visit. Off-label consent on video.",
+      "follow_up": "Async."
+    },
     "automation_level": "decision_support",
     "automation_notes": "Hard blocks (pregnancy, Wilson's disease, consent) buildable now. Immunosuppressant flag is a soft route to provider review — buildable. Wilson's disease disqualifier shared with GLO. KPV-specific immunosuppressant interaction flag is unique to KLOW. Dose logic blocked until MD confirms blend ratio."
   }

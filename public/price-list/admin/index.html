@@ -1,570 +1,825 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>My Orbit Health — Admin</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    background: #f4f5f7;
-    color: #1a1a1a;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    min-height: 100vh;
-  }
-  .header {
-    background: #ffffff;
-    border-bottom: 1px solid #e2e4e8;
-    padding: 12px 24px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    box-shadow: 0 1px 8px rgba(0,0,0,0.06);
-  }
-  .header-left { display: flex; align-items: center; gap: 12px; }
-  .header-left svg { width: 36px; height: 36px; }
-  .header-left svg circle.outer { fill: none; stroke: #2563eb; stroke-width: 2.5; }
-  .header-left svg circle.inner { fill: #2563eb; }
-  .header-left .logo-text { font-size: 17px; font-weight: 700; color: #1a1a1a; letter-spacing: -0.02em; }
-  .admin-badge {
-    background: #eff4ff;
-    color: #2563eb;
-    font-size: 11px;
-    font-weight: 700;
-    padding: 4px 10px;
-    border-radius: 5px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-  .header-right { display: flex; gap: 10px; }
-  .btn-secondary {
-    background: transparent;
-    border: 1px solid #ddd;
-    color: #666;
-    padding: 7px 14px;
-    border-radius: 7px;
-    font-size: 13px;
-    cursor: pointer;
-    transition: all 0.2s;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    font-family: inherit;
-  }
-  .btn-secondary:hover { border-color: #aaa; color: #222; }
-  .main { padding: 28px 24px; max-width: 1100px; margin: 0 auto; }
-  .tabs {
-    display: flex;
-    gap: 4px;
-    margin-bottom: 28px;
-    border-bottom: 2px solid #e5e7eb;
-  }
-  .tab {
-    padding: 10px 20px;
-    font-size: 14px;
-    font-weight: 500;
-    color: #aaa;
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -2px;
-    transition: all 0.2s;
-  }
-  .tab:hover { color: #555; }
-  .tab.active { color: #2563eb; border-bottom-color: #2563eb; }
-  .tab-content { display: none; }
-  .tab-content.active { display: block; }
-  .section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 20px;
-  }
-  .section-header h2 { font-size: 18px; font-weight: 700; color: #1a1a1a; }
-  .section-header p { color: #999; font-size: 13px; margin-top: 4px; }
-  .btn-primary {
-    background: #2563eb;
-    border: none;
-    border-radius: 8px;
-    padding: 10px 18px;
-    color: #fff;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.2s;
-    font-family: inherit;
-  }
-  .btn-primary:hover { background: #1d4ed8; }
-  .table-card {
-    background: #ffffff;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 1px 6px rgba(0,0,0,0.04);
-  }
-  table { width: 100%; border-collapse: collapse; }
-  thead tr { background: #fafbfc; border-bottom: 1px solid #e5e7eb; }
-  th {
-    padding: 11px 16px;
-    text-align: left;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: #bbb;
-  }
-  tbody tr { border-bottom: 1px solid #f0f1f3; transition: background 0.1s; }
-  tbody tr:last-child { border-bottom: none; }
-  tbody tr:hover { background: #fafbfc; }
-  td { padding: 13px 16px; color: #444; font-size: 14px; }
-  td.mono { font-family: 'SF Mono', Consolas, monospace; font-size: 12px; color: #888; }
-  .role-badge {
-    display: inline-block;
-    padding: 3px 8px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  .role-admin { background: #f0eaf8; color: #8a5abf; }
-  .role-user { background: #eff4ff; color: #2563eb; }
-  .status-active { color: #22c55e; font-size: 12px; font-weight: 600; }
-  .status-inactive { color: #ccc; font-size: 12px; }
-  .action-btn {
-    background: transparent;
-    border: 1px solid #e2e4e8;
-    color: #aaa;
-    padding: 5px 10px;
-    border-radius: 5px;
-    font-size: 12px;
-    cursor: pointer;
-    transition: all 0.15s;
-    font-family: inherit;
-  }
-  .action-btn:hover { border-color: #ffaaaa; color: #cc3333; background: #fff5f5; }
-  .modal-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.4);
-    z-index: 200;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-  }
-  .modal-overlay.open { display: flex; }
-  .modal {
-    background: #ffffff;
-    border: 1px solid #e2e4e8;
-    border-radius: 14px;
-    padding: 28px;
-    width: 100%;
-    max-width: 420px;
-    box-shadow: 0 8px 40px rgba(0,0,0,0.12);
-  }
-  .modal h3 { font-size: 18px; margin-bottom: 20px; color: #1a1a1a; }
-  .form-group { margin-bottom: 16px; }
-  .form-group label {
-    display: block;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: #999;
-    margin-bottom: 7px;
-  }
-  .form-group input {
-    width: 100%;
-    background: #f8f9fa;
-    border: 1px solid #e2e4e8;
-    border-radius: 7px;
-    padding: 10px 12px;
-    color: #1a1a1a;
-    font-size: 14px;
-    font-family: inherit;
-    outline: none;
-    transition: border-color 0.2s;
-  }
-  .form-group input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.08); }
-  .modal-actions { display: flex; gap: 10px; margin-top: 22px; justify-content: flex-end; }
-  .msg { padding: 10px 14px; border-radius: 7px; font-size: 13px; margin-bottom: 16px; display: none; }
-  .msg.error { background: #fff5f5; border: 1px solid #ffcccc; color: #cc3333; }
-  .msg.success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #16a34a; }
-  .log-filter { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
-  .log-filter input {
-    flex: 1;
-    min-width: 150px;
-    background: #ffffff;
-    border: 1px solid #e2e4e8;
-    border-radius: 7px;
-    padding: 9px 12px;
-    color: #1a1a1a;
-    font-size: 13px;
-    font-family: inherit;
-    outline: none;
-  }
-  .log-filter input:focus { border-color: #2563eb; }
-  .empty-state { padding: 40px; text-align: center; color: #ccc; font-size: 14px; }
-</style>
-</head>
-<body>
-
-<div class="header">
-  <div class="header-left">
-    <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-      <circle class="outer" cx="24" cy="24" r="20"/>
-      <circle class="inner" cx="24" cy="24" r="8"/>
-    </svg>
-    <span class="logo-text">My Orbit Health</span>
-    <span class="admin-badge">Admin Panel</span>
-  </div>
-  <div class="header-right">
-    <a href="/price-list/dashboard" class="btn-secondary">View Price List</a>
-    <button class="btn-secondary" onclick="logout()">Sign Out</button>
-  </div>
-</div>
-
-<div class="main">
-  <div class="tabs">
-    <div class="tab active" onclick="showTab('users')">Users</div>
-    <div class="tab" onclick="showTab('logs')">Login Activity</div>
-    <div class="tab" onclick="showTab('setup')">Setup</div>
-  </div>
-
-  <!-- USERS TAB -->
-  <div id="tab-users" class="tab-content active">
-    <div class="section-header">
-      <div>
-        <h2>User Management</h2>
-        <p>Add and manage access to the price list</p>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Orbit Health — Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: #f4f5f7;
+        color: #1a1a1a;
+        font-family:
+          "Inter",
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        min-height: 100vh;
+      }
+      .header {
+        background: #ffffff;
+        border-bottom: 1px solid #e2e4e8;
+        padding: 12px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        box-shadow: 0 1px 8px rgba(0, 0, 0, 0.06);
+      }
+      .header-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .header-left svg {
+        width: 36px;
+        height: 36px;
+      }
+      .header-left svg circle.outer {
+        fill: none;
+        stroke: #2563eb;
+        stroke-width: 2.5;
+      }
+      .header-left svg circle.inner {
+        fill: #2563eb;
+      }
+      .header-left .logo-text {
+        font-size: 17px;
+        font-weight: 700;
+        color: #1a1a1a;
+        letter-spacing: -0.02em;
+      }
+      .admin-badge {
+        background: #eff4ff;
+        color: #2563eb;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 5px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .header-right {
+        display: flex;
+        gap: 10px;
+      }
+      .btn-secondary {
+        background: transparent;
+        border: 1px solid #ddd;
+        color: #666;
+        padding: 7px 14px;
+        border-radius: 7px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        font-family: inherit;
+      }
+      .btn-secondary:hover {
+        border-color: #aaa;
+        color: #222;
+      }
+      .main {
+        padding: 28px 24px;
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+      .tabs {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 28px;
+        border-bottom: 2px solid #e5e7eb;
+      }
+      .tab {
+        padding: 10px 20px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #aaa;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -2px;
+        transition: all 0.2s;
+      }
+      .tab:hover {
+        color: #555;
+      }
+      .tab.active {
+        color: #2563eb;
+        border-bottom-color: #2563eb;
+      }
+      .tab-content {
+        display: none;
+      }
+      .tab-content.active {
+        display: block;
+      }
+      .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
+      }
+      .section-header h2 {
+        font-size: 18px;
+        font-weight: 700;
+        color: #1a1a1a;
+      }
+      .section-header p {
+        color: #999;
+        font-size: 13px;
+        margin-top: 4px;
+      }
+      .btn-primary {
+        background: #2563eb;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 18px;
+        color: #fff;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+        font-family: inherit;
+      }
+      .btn-primary:hover {
+        background: #1d4ed8;
+      }
+      .table-card {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 1px 6px rgba(0, 0, 0, 0.04);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      thead tr {
+        background: #fafbfc;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      th {
+        padding: 11px 16px;
+        text-align: left;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #bbb;
+      }
+      tbody tr {
+        border-bottom: 1px solid #f0f1f3;
+        transition: background 0.1s;
+      }
+      tbody tr:last-child {
+        border-bottom: none;
+      }
+      tbody tr:hover {
+        background: #fafbfc;
+      }
+      td {
+        padding: 13px 16px;
+        color: #444;
+        font-size: 14px;
+      }
+      td.mono {
+        font-family: "SF Mono", Consolas, monospace;
+        font-size: 12px;
+        color: #888;
+      }
+      .role-badge {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .role-admin {
+        background: #f0eaf8;
+        color: #8a5abf;
+      }
+      .role-user {
+        background: #eff4ff;
+        color: #2563eb;
+      }
+      .status-active {
+        color: #22c55e;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .status-inactive {
+        color: #ccc;
+        font-size: 12px;
+      }
+      .action-btn {
+        background: transparent;
+        border: 1px solid #e2e4e8;
+        color: #aaa;
+        padding: 5px 10px;
+        border-radius: 5px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.15s;
+        font-family: inherit;
+      }
+      .action-btn:hover {
+        border-color: #ffaaaa;
+        color: #cc3333;
+        background: #fff5f5;
+      }
+      .modal-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        z-index: 200;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+      .modal-overlay.open {
+        display: flex;
+      }
+      .modal {
+        background: #ffffff;
+        border: 1px solid #e2e4e8;
+        border-radius: 14px;
+        padding: 28px;
+        width: 100%;
+        max-width: 420px;
+        box-shadow: 0 8px 40px rgba(0, 0, 0, 0.12);
+      }
+      .modal h3 {
+        font-size: 18px;
+        margin-bottom: 20px;
+        color: #1a1a1a;
+      }
+      .form-group {
+        margin-bottom: 16px;
+      }
+      .form-group label {
+        display: block;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #999;
+        margin-bottom: 7px;
+      }
+      .form-group input {
+        width: 100%;
+        background: #f8f9fa;
+        border: 1px solid #e2e4e8;
+        border-radius: 7px;
+        padding: 10px 12px;
+        color: #1a1a1a;
+        font-size: 14px;
+        font-family: inherit;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      .form-group input:focus {
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+      }
+      .modal-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 22px;
+        justify-content: flex-end;
+      }
+      .msg {
+        padding: 10px 14px;
+        border-radius: 7px;
+        font-size: 13px;
+        margin-bottom: 16px;
+        display: none;
+      }
+      .msg.error {
+        background: #fff5f5;
+        border: 1px solid #ffcccc;
+        color: #cc3333;
+      }
+      .msg.success {
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        color: #16a34a;
+      }
+      .log-filter {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+      }
+      .log-filter input {
+        flex: 1;
+        min-width: 150px;
+        background: #ffffff;
+        border: 1px solid #e2e4e8;
+        border-radius: 7px;
+        padding: 9px 12px;
+        color: #1a1a1a;
+        font-size: 13px;
+        font-family: inherit;
+        outline: none;
+      }
+      .log-filter input:focus {
+        border-color: #2563eb;
+      }
+      .empty-state {
+        padding: 40px;
+        text-align: center;
+        color: #ccc;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div class="header-left">
+        <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+          <circle class="outer" cx="24" cy="24" r="20" />
+          <circle class="inner" cx="24" cy="24" r="8" />
+        </svg>
+        <span class="logo-text">My Orbit Health</span>
+        <span class="admin-badge">Admin Panel</span>
       </div>
-      <button class="btn-primary" onclick="openAddUser()">+ Add User</button>
-    </div>
-    <div class="msg" id="userMsg"></div>
-    <div class="table-card">
-      <table>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Username</th>
-            <th>Role</th>
-            <th>Status</th>
-            <th>Created</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="usersBody">
-          <tr><td colspan="6" class="empty-state">Loading...</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- LOGS TAB -->
-  <div id="tab-logs" class="tab-content">
-    <div class="section-header">
-      <div>
-        <h2>Login Activity</h2>
-        <p>Track who is viewing the price list and when</p>
-      </div>
-      <button class="btn-primary" onclick="loadLogs()">Refresh</button>
-    </div>
-    <div class="log-filter">
-      <input type="text" id="logSearch" placeholder="Filter by username or action..." oninput="filterLogs()">
-    </div>
-    <div class="table-card">
-      <table>
-        <thead>
-          <tr>
-            <th>Time</th>
-            <th>User</th>
-            <th>Action</th>
-            <th>IP Address</th>
-          </tr>
-        </thead>
-        <tbody id="logsBody">
-          <tr><td colspan="4" class="empty-state">Click refresh to load activity</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- SETUP TAB -->
-  <div id="tab-setup" class="tab-content">
-    <div class="section-header">
-      <div>
-        <h2>Initial Setup</h2>
-        <p>Run this once to create your admin account after deploying</p>
+      <div class="header-right">
+        <a href="/price-list/dashboard" class="btn-secondary"
+          >View Price List</a
+        >
+        <button class="btn-secondary" onclick="logout()">Sign Out</button>
       </div>
     </div>
-    <div class="table-card" style="padding:28px; max-width:500px;">
-      <p style="color:#666; font-size:14px; margin-bottom:20px; line-height:1.6;">
-        If you haven't run setup yet, use the form below to create your admin account. This only works once.
-      </p>
-      <div class="msg" id="setupMsg"></div>
-      <div class="form-group">
-        <label>Admin Name</label>
-        <input type="text" id="setupName" placeholder="Your name">
+
+    <div class="main">
+      <div class="tabs">
+        <div class="tab active" onclick="showTab('users')">Users</div>
+        <div class="tab" onclick="showTab('logs')">Login Activity</div>
+        <div class="tab" onclick="showTab('setup')">Setup</div>
       </div>
-      <div class="form-group">
-        <label>Admin Password</label>
-        <input type="password" id="setupPass" placeholder="Min 8 characters">
+
+      <!-- USERS TAB -->
+      <div id="tab-users" class="tab-content active">
+        <div class="section-header">
+          <div>
+            <h2>User Management</h2>
+            <p>Add and manage access to the price list</p>
+          </div>
+          <button class="btn-primary" onclick="openAddUser()">
+            + Add User
+          </button>
+        </div>
+        <div class="msg" id="userMsg"></div>
+        <div class="table-card">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Username</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="usersBody">
+              <tr>
+                <td colspan="6" class="empty-state">Loading...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
-      <div class="form-group">
-        <label>Confirm Password</label>
-        <input type="password" id="setupPass2" placeholder="Repeat password">
+
+      <!-- LOGS TAB -->
+      <div id="tab-logs" class="tab-content">
+        <div class="section-header">
+          <div>
+            <h2>Login Activity</h2>
+            <p>Track who is viewing the price list and when</p>
+          </div>
+          <button class="btn-primary" onclick="loadLogs()">Refresh</button>
+        </div>
+        <div class="log-filter">
+          <input
+            type="text"
+            id="logSearch"
+            placeholder="Filter by username or action..."
+            oninput="filterLogs()"
+          />
+        </div>
+        <div class="table-card">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>User</th>
+                <th>Action</th>
+                <th>IP Address</th>
+              </tr>
+            </thead>
+            <tbody id="logsBody">
+              <tr>
+                <td colspan="4" class="empty-state">
+                  Click refresh to load activity
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
-      <button class="btn-primary" onclick="runSetup()">Create Admin Account</button>
+
+      <!-- SETUP TAB -->
+      <div id="tab-setup" class="tab-content">
+        <div class="section-header">
+          <div>
+            <h2>Initial Setup</h2>
+            <p>Run this once to create your admin account after deploying</p>
+          </div>
+        </div>
+        <div class="table-card" style="padding: 28px; max-width: 500px">
+          <p
+            style="
+              color: #666;
+              font-size: 14px;
+              margin-bottom: 20px;
+              line-height: 1.6;
+            "
+          >
+            If you haven't run setup yet, use the form below to create your
+            admin account. This only works once.
+          </p>
+          <div class="msg" id="setupMsg"></div>
+          <div class="form-group">
+            <label>Admin Name</label>
+            <input type="text" id="setupName" placeholder="Your name" />
+          </div>
+          <div class="form-group">
+            <label>Admin Password</label>
+            <input
+              type="password"
+              id="setupPass"
+              placeholder="Min 8 characters"
+            />
+          </div>
+          <div class="form-group">
+            <label>Confirm Password</label>
+            <input
+              type="password"
+              id="setupPass2"
+              placeholder="Repeat password"
+            />
+          </div>
+          <button class="btn-primary" onclick="runSetup()">
+            Create Admin Account
+          </button>
+        </div>
+      </div>
     </div>
-  </div>
-</div>
 
-<!-- ADD USER MODAL -->
-<div class="modal-overlay" id="addUserModal">
-  <div class="modal">
-    <h3>Add New User</h3>
-    <div class="msg" id="addUserMsg"></div>
-    <div class="form-group">
-      <label>Full Name</label>
-      <input type="text" id="newName" placeholder="e.g. Dr. Sarah Johnson">
+    <!-- ADD USER MODAL -->
+    <div class="modal-overlay" id="addUserModal">
+      <div class="modal">
+        <h3>Add New User</h3>
+        <div class="msg" id="addUserMsg"></div>
+        <div class="form-group">
+          <label>Full Name</label>
+          <input
+            type="text"
+            id="newName"
+            placeholder="e.g. Dr. Sarah Johnson"
+          />
+        </div>
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" id="newUsername" placeholder="e.g. drjohnson" />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input
+            type="password"
+            id="newPassword"
+            placeholder="Min 6 characters"
+          />
+        </div>
+        <div class="modal-actions">
+          <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+          <button class="btn-primary" onclick="addUser()">Create User</button>
+        </div>
+      </div>
     </div>
-    <div class="form-group">
-      <label>Username</label>
-      <input type="text" id="newUsername" placeholder="e.g. drjohnson">
-    </div>
-    <div class="form-group">
-      <label>Password</label>
-      <input type="password" id="newPassword" placeholder="Min 6 characters">
-    </div>
-    <div class="modal-actions">
-      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn-primary" onclick="addUser()">Create User</button>
-    </div>
-  </div>
-</div>
 
-<script>
-const API = '/price-list/api';
-let allLogs = [];
+    <script>
+      const API = "/price-list/api";
+      let allLogs = [];
 
-// Auth check
-(async () => {
-  const token = localStorage.getItem('moh_token');
-  if (!token) {
-    // Allow access to setup tab without being logged in
-    showTab2('setup');
-    return;
-  }
-  try {
-    const r = await fetch(`${API}/verify`, { headers: { Authorization: `Bearer ${token}` } });
-    const d = await r.json();
-    if (!d.valid || d.role !== 'admin') { window.location.href = '/price-list'; return; }
-  } catch(e) { window.location.href = '/price-list'; }
-  loadUsers();
-})();
+      // Auth check
+      (async () => {
+        const token = localStorage.getItem("moh_token");
+        if (!token) {
+          // Allow access to setup tab without being logged in
+          showTab2("setup");
+          return;
+        }
+        try {
+          const r = await fetch(`${API}/verify`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const d = await r.json();
+          if (!d.valid || d.role !== "admin") {
+            window.location.href = "/price-list";
+            return;
+          }
+        } catch (e) {
+          window.location.href = "/price-list";
+        }
+        loadUsers();
+      })();
 
-function authHeader() {
-  return { Authorization: `Bearer ${localStorage.getItem('moh_token')}`, 'Content-Type': 'application/json' };
-}
+      function authHeader() {
+        return {
+          Authorization: `Bearer ${localStorage.getItem("moh_token")}`,
+          "Content-Type": "application/json",
+        };
+      }
 
-function showTab(name) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-  event.target.classList.add('active');
-  document.getElementById(`tab-${name}`).classList.add('active');
-  if (name === 'logs') loadLogs();
-}
+      function showTab(name) {
+        document
+          .querySelectorAll(".tab")
+          .forEach((t) => t.classList.remove("active"));
+        document
+          .querySelectorAll(".tab-content")
+          .forEach((t) => t.classList.remove("active"));
+        event.target.classList.add("active");
+        document.getElementById(`tab-${name}`).classList.add("active");
+        if (name === "logs") loadLogs();
+      }
 
-function showTab2(name) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-  const tab = document.querySelector(`.tab[onclick="showTab('${name}')"]`);
-  if (tab) tab.classList.add('active');
-  document.getElementById(`tab-${name}`).classList.add('active');
-}
+      function showTab2(name) {
+        document
+          .querySelectorAll(".tab")
+          .forEach((t) => t.classList.remove("active"));
+        document
+          .querySelectorAll(".tab-content")
+          .forEach((t) => t.classList.remove("active"));
+        const tab = document.querySelector(
+          `.tab[onclick="showTab('${name}')"]`,
+        );
+        if (tab) tab.classList.add("active");
+        document.getElementById(`tab-${name}`).classList.add("active");
+      }
 
-async function loadUsers() {
-  const tbody = document.getElementById('usersBody');
-  try {
-    const r = await fetch(`${API}/admin/users`, { headers: authHeader() });
-    const d = await r.json();
-    if (!d.users || d.users.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No users yet</td></tr>';
-      return;
-    }
-    tbody.innerHTML = d.users.map(u => `
+      async function loadUsers() {
+        const tbody = document.getElementById("usersBody");
+        try {
+          const r = await fetch(`${API}/admin/users`, {
+            headers: authHeader(),
+          });
+          const d = await r.json();
+          if (!d.users || d.users.length === 0) {
+            tbody.innerHTML =
+              '<tr><td colspan="6" class="empty-state">No users yet</td></tr>';
+            return;
+          }
+          tbody.innerHTML = d.users
+            .map(
+              (u) => `
       <tr>
         <td>${esc(u.name)}</td>
         <td class="mono">${esc(u.username)}</td>
         <td><span class="role-badge role-${u.role}">${u.role}</span></td>
-        <td><span class="${u.active ? 'status-active' : 'status-inactive'}">${u.active ? '\u25CF Active' : '\u25CF Inactive'}</span></td>
+        <td><span class="${u.active ? "status-active" : "status-inactive"}">${u.active ? "\u25CF Active" : "\u25CF Inactive"}</span></td>
         <td class="mono" style="font-size:12px">${new Date(u.created_at).toLocaleDateString()}</td>
         <td>
-          ${u.username !== 'admin' ? `<button class="action-btn del" onclick="deleteUser('${u.username}', '${esc(u.name)}')">Remove</button>` : '<span style="color:#333;font-size:12px">Protected</span>'}
+          ${u.username !== "admin" ? `<button class="action-btn del" onclick="deleteUser('${u.username}', '${esc(u.name)}')">Remove</button>` : '<span style="color:#333;font-size:12px">Protected</span>'}
         </td>
       </tr>
-    `).join('');
-  } catch(e) {
-    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Failed to load users</td></tr>';
-  }
-}
+    `,
+            )
+            .join("");
+        } catch (e) {
+          tbody.innerHTML =
+            '<tr><td colspan="6" class="empty-state">Failed to load users</td></tr>';
+        }
+      }
 
-async function loadLogs() {
-  const tbody = document.getElementById('logsBody');
-  tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Loading...</td></tr>';
-  try {
-    const r = await fetch(`${API}/admin/logs`, { headers: authHeader() });
-    const d = await r.json();
-    allLogs = d.logs || [];
-    renderLogs(allLogs);
-  } catch(e) {
-    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Failed to load logs</td></tr>';
-  }
-}
+      async function loadLogs() {
+        const tbody = document.getElementById("logsBody");
+        tbody.innerHTML =
+          '<tr><td colspan="4" class="empty-state">Loading...</td></tr>';
+        try {
+          const r = await fetch(`${API}/admin/logs`, { headers: authHeader() });
+          const d = await r.json();
+          allLogs = d.logs || [];
+          renderLogs(allLogs);
+        } catch (e) {
+          tbody.innerHTML =
+            '<tr><td colspan="4" class="empty-state">Failed to load logs</td></tr>';
+        }
+      }
 
-function filterLogs() {
-  const q = document.getElementById('logSearch').value.toLowerCase();
-  const filtered = allLogs.filter(l =>
-    l.username.toLowerCase().includes(q) || l.action.toLowerCase().includes(q)
-  );
-  renderLogs(filtered);
-}
+      function filterLogs() {
+        const q = document.getElementById("logSearch").value.toLowerCase();
+        const filtered = allLogs.filter(
+          (l) =>
+            l.username.toLowerCase().includes(q) ||
+            l.action.toLowerCase().includes(q),
+        );
+        renderLogs(filtered);
+      }
 
-function renderLogs(logs) {
-  const tbody = document.getElementById('logsBody');
-  if (logs.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No activity found</td></tr>';
-    return;
-  }
-  tbody.innerHTML = logs.map(l => {
-    const date = new Date(l.timestamp);
-    const timeStr = date.toLocaleString();
-    const actionLabel = l.action === 'login' ? 'Signed in'
-      : l.action === 'logout' ? 'Signed out'
-      : l.action.startsWith('created_user') ? `Created user: ${l.action.split(':')[1]}`
-      : l.action.startsWith('deleted_user') ? `Deleted user: ${l.action.split(':')[1]}`
-      : l.action;
-    return `<tr>
+      function renderLogs(logs) {
+        const tbody = document.getElementById("logsBody");
+        if (logs.length === 0) {
+          tbody.innerHTML =
+            '<tr><td colspan="4" class="empty-state">No activity found</td></tr>';
+          return;
+        }
+        tbody.innerHTML = logs
+          .map((l) => {
+            const date = new Date(l.timestamp);
+            const timeStr = date.toLocaleString();
+            const actionLabel =
+              l.action === "login"
+                ? "Signed in"
+                : l.action === "logout"
+                  ? "Signed out"
+                  : l.action.startsWith("created_user")
+                    ? `Created user: ${l.action.split(":")[1]}`
+                    : l.action.startsWith("deleted_user")
+                      ? `Deleted user: ${l.action.split(":")[1]}`
+                      : l.action;
+            return `<tr>
       <td class="mono" style="font-size:12px;white-space:nowrap">${timeStr}</td>
       <td><span style="color:#2563eb;font-weight:600">${esc(l.username)}</span></td>
       <td style="color:#888">${actionLabel}</td>
       <td class="mono" style="font-size:11px;color:#444">${esc(l.ip)}</td>
     </tr>`;
-  }).join('');
-}
+          })
+          .join("");
+      }
 
-function openAddUser() {
-  document.getElementById('newName').value = '';
-  document.getElementById('newUsername').value = '';
-  document.getElementById('newPassword').value = '';
-  showMsg('addUserMsg', '', '');
-  document.getElementById('addUserModal').classList.add('open');
-}
+      function openAddUser() {
+        document.getElementById("newName").value = "";
+        document.getElementById("newUsername").value = "";
+        document.getElementById("newPassword").value = "";
+        showMsg("addUserMsg", "", "");
+        document.getElementById("addUserModal").classList.add("open");
+      }
 
-function closeModal() {
-  document.getElementById('addUserModal').classList.remove('open');
-}
+      function closeModal() {
+        document.getElementById("addUserModal").classList.remove("open");
+      }
 
-async function addUser() {
-  const name = document.getElementById('newName').value.trim();
-  const username = document.getElementById('newUsername').value.trim();
-  const password = document.getElementById('newPassword').value;
+      async function addUser() {
+        const name = document.getElementById("newName").value.trim();
+        const username = document.getElementById("newUsername").value.trim();
+        const password = document.getElementById("newPassword").value;
 
-  if (!name || !username || !password) {
-    showMsg('addUserMsg', 'All fields are required.', 'error');
-    return;
-  }
+        if (!name || !username || !password) {
+          showMsg("addUserMsg", "All fields are required.", "error");
+          return;
+        }
 
-  try {
-    const r = await fetch(`${API}/admin/users`, {
-      method: 'POST',
-      headers: authHeader(),
-      body: JSON.stringify({ name, username, password })
-    });
-    const d = await r.json();
-    if (!r.ok) {
-      showMsg('addUserMsg', d.error || 'Failed to create user.', 'error');
-      return;
-    }
-    closeModal();
-    showMsg('userMsg', `User "${name}" created successfully.`, 'success');
-    loadUsers();
-  } catch(e) {
-    showMsg('addUserMsg', 'Connection error.', 'error');
-  }
-}
+        try {
+          const r = await fetch(`${API}/admin/users`, {
+            method: "POST",
+            headers: authHeader(),
+            body: JSON.stringify({ name, username, password }),
+          });
+          const d = await r.json();
+          if (!r.ok) {
+            showMsg("addUserMsg", d.error || "Failed to create user.", "error");
+            return;
+          }
+          closeModal();
+          showMsg("userMsg", `User "${name}" created successfully.`, "success");
+          loadUsers();
+        } catch (e) {
+          showMsg("addUserMsg", "Connection error.", "error");
+        }
+      }
 
-async function deleteUser(username, name) {
-  if (!confirm(`Remove access for "${name}"? They will no longer be able to log in.`)) return;
-  try {
-    const r = await fetch(`${API}/admin/users/${username}`, {
-      method: 'DELETE',
-      headers: authHeader()
-    });
-    const d = await r.json();
-    if (!r.ok) {
-      showMsg('userMsg', d.error || 'Failed to remove user.', 'error');
-      return;
-    }
-    showMsg('userMsg', `Access removed for "${name}".`, 'success');
-    loadUsers();
-  } catch(e) {
-    showMsg('userMsg', 'Connection error.', 'error');
-  }
-}
+      async function deleteUser(username, name) {
+        if (
+          !confirm(
+            `Remove access for "${name}"? They will no longer be able to log in.`,
+          )
+        )
+          return;
+        try {
+          const r = await fetch(`${API}/admin/users/${username}`, {
+            method: "DELETE",
+            headers: authHeader(),
+          });
+          const d = await r.json();
+          if (!r.ok) {
+            showMsg("userMsg", d.error || "Failed to remove user.", "error");
+            return;
+          }
+          showMsg("userMsg", `Access removed for "${name}".`, "success");
+          loadUsers();
+        } catch (e) {
+          showMsg("userMsg", "Connection error.", "error");
+        }
+      }
 
-async function runSetup() {
-  const name = document.getElementById('setupName').value.trim();
-  const pass = document.getElementById('setupPass').value;
-  const pass2 = document.getElementById('setupPass2').value;
+      async function runSetup() {
+        const name = document.getElementById("setupName").value.trim();
+        const pass = document.getElementById("setupPass").value;
+        const pass2 = document.getElementById("setupPass2").value;
 
-  if (!name || !pass) { showMsg('setupMsg', 'Name and password required.', 'error'); return; }
-  if (pass !== pass2) { showMsg('setupMsg', 'Passwords do not match.', 'error'); return; }
-  if (pass.length < 8) { showMsg('setupMsg', 'Password must be at least 8 characters.', 'error'); return; }
+        if (!name || !pass) {
+          showMsg("setupMsg", "Name and password required.", "error");
+          return;
+        }
+        if (pass !== pass2) {
+          showMsg("setupMsg", "Passwords do not match.", "error");
+          return;
+        }
+        if (pass.length < 8) {
+          showMsg(
+            "setupMsg",
+            "Password must be at least 8 characters.",
+            "error",
+          );
+          return;
+        }
 
-  try {
-    const r = await fetch(`${API}/setup`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_name: name, admin_password: pass })
-    });
-    const d = await r.json();
-    if (!r.ok) { showMsg('setupMsg', d.error, 'error'); return; }
-    showMsg('setupMsg', 'Admin account created! Go to the login page to sign in.', 'success');
-  } catch(e) {
-    showMsg('setupMsg', 'Connection error.', 'error');
-  }
-}
+        try {
+          const r = await fetch(`${API}/setup`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ admin_name: name, admin_password: pass }),
+          });
+          const d = await r.json();
+          if (!r.ok) {
+            showMsg("setupMsg", d.error, "error");
+            return;
+          }
+          showMsg(
+            "setupMsg",
+            "Admin account created! Go to the login page to sign in.",
+            "success",
+          );
+        } catch (e) {
+          showMsg("setupMsg", "Connection error.", "error");
+        }
+      }
 
-function showMsg(id, text, type) {
-  const el = document.getElementById(id);
-  el.textContent = text;
-  el.className = `msg ${type}`;
-  el.style.display = text ? 'block' : 'none';
-}
+      function showMsg(id, text, type) {
+        const el = document.getElementById(id);
+        el.textContent = text;
+        el.className = `msg ${type}`;
+        el.style.display = text ? "block" : "none";
+      }
 
-function esc(str) {
-  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+      function esc(str) {
+        return String(str || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
 
-async function logout() {
-  const token = localStorage.getItem('moh_token');
-  try { await fetch(`${API}/logout`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } }); } catch(e) {}
-  localStorage.removeItem('moh_token');
-  localStorage.removeItem('moh_name');
-  localStorage.removeItem('moh_role');
-  window.location.href = '/price-list';
-}
+      async function logout() {
+        const token = localStorage.getItem("moh_token");
+        try {
+          await fetch(`${API}/logout`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        } catch (e) {}
+        localStorage.removeItem("moh_token");
+        localStorage.removeItem("moh_name");
+        localStorage.removeItem("moh_role");
+        window.location.href = "/price-list";
+      }
 
-document.getElementById('addUserModal').addEventListener('click', function(e) {
-  if (e.target === this) closeModal();
-});
-</script>
-</body>
+      document
+        .getElementById("addUserModal")
+        .addEventListener("click", function (e) {
+          if (e.target === this) closeModal();
+        });
+    </script>
+  </body>
 </html>

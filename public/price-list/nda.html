@@ -1,479 +1,595 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>My Orbit Health — NDA Sign-Up</title>
-<meta property="og:title" content="My Orbit Health — NDA Sign-Up">
-<meta property="og:description" content="Sign our NDA to access partner pricing and product details.">
-<meta property="og:type" content="website">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    min-height: 100vh;
-    background: #f4f5f7;
-    color: #1a1a1a;
-  }
-
-  /* ── Header ── */
-  .header {
-    background: #ffffff;
-    border-bottom: 1px solid #e2e4e8;
-    padding: 12px 24px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    box-shadow: 0 1px 8px rgba(0,0,0,0.06);
-  }
-  .header-left { display: flex; align-items: center; gap: 12px; text-decoration: none; }
-  .header-left svg { width: 36px; height: 36px; }
-  .header-left svg circle.outer { fill: none; stroke: #2563eb; stroke-width: 2.5; }
-  .header-left svg circle.inner { fill: #2563eb; }
-  .header-left .logo-text { font-size: 17px; font-weight: 700; color: #1a1a1a; letter-spacing: -0.02em; }
-  .back-link {
-    font-size: 14px;
-    font-weight: 500;
-    color: #2563eb;
-    text-decoration: none;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    transition: color 0.2s;
-  }
-  .back-link:hover { color: #1d4ed8; }
-
-  /* ── Main Layout ── */
-  .main {
-    max-width: 1120px;
-    margin: 0 auto;
-    padding: 48px 24px 80px;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 48px;
-    align-items: start;
-  }
-
-  /* ── Left Column ── */
-  .left {
-    position: sticky;
-    top: 100px;
-  }
-  .confidential-badge {
-    display: inline-block;
-    background: #eff6ff;
-    color: #2563eb;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    padding: 5px 12px;
-    border-radius: 6px;
-    margin-bottom: 20px;
-  }
-  .left h1 {
-    font-size: 32px;
-    font-weight: 700;
-    letter-spacing: -0.03em;
-    line-height: 1.2;
-    margin-bottom: 12px;
-    color: #1a1a1a;
-  }
-  .left .subtext {
-    font-size: 16px;
-    color: #555;
-    line-height: 1.6;
-    margin-bottom: 40px;
-  }
-
-  /* ── Steps ── */
-  .steps { display: flex; flex-direction: column; gap: 24px; margin-bottom: 40px; }
-  .step {
-    display: flex;
-    gap: 16px;
-    align-items: flex-start;
-  }
-  .step-number {
-    width: 32px;
-    height: 32px;
-    min-width: 32px;
-    background: #2563eb;
-    color: #fff;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    font-weight: 700;
-    margin-top: 2px;
-  }
-  .step-content h3 {
-    font-size: 15px;
-    font-weight: 600;
-    color: #1a1a1a;
-    margin-bottom: 4px;
-  }
-  .step-content p {
-    font-size: 14px;
-    color: #666;
-    line-height: 1.5;
-  }
-
-  /* ── Covers Box ── */
-  .covers-box {
-    background: #ffffff;
-    border: 1px solid #e2e4e8;
-    border-radius: 12px;
-    padding: 24px;
-  }
-  .covers-box h4 {
-    font-size: 14px;
-    font-weight: 600;
-    color: #1a1a1a;
-    margin-bottom: 16px;
-  }
-  .covers-list {
-    list-style: none;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-  .covers-list li {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 14px;
-    color: #444;
-    line-height: 1.4;
-  }
-  .covers-list li .check {
-    width: 20px;
-    height: 20px;
-    min-width: 20px;
-    background: #eff6ff;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .covers-list li .check svg {
-    width: 12px;
-    height: 12px;
-    stroke: #2563eb;
-    fill: none;
-    stroke-width: 2.5;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-
-  /* ── Right Column / Card ── */
-  .form-card {
-    background: #ffffff;
-    border: 1px solid #e2e4e8;
-    border-radius: 16px;
-    padding: 36px 32px;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.06);
-  }
-  .form-card h2 {
-    font-size: 20px;
-    font-weight: 700;
-    margin-bottom: 24px;
-    letter-spacing: -0.02em;
-  }
-
-  /* ── Form Fields ── */
-  .field { margin-bottom: 20px; }
-  .field label {
-    display: block;
-    font-size: 13px;
-    font-weight: 600;
-    color: #333;
-    margin-bottom: 6px;
-  }
-  .field input {
-    width: 100%;
-    padding: 12px 14px;
-    border: 1px solid #d1d5db;
-    border-radius: 10px;
-    font-size: 15px;
-    font-family: inherit;
-    color: #1a1a1a;
-    background: #fafafa;
-    transition: border-color 0.2s, box-shadow 0.2s;
-    outline: none;
-  }
-  .field input:focus {
-    border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
-    background: #fff;
-  }
-  .field input::placeholder { color: #aaa; }
-
-  /* ── Submit Button ── */
-  .submit-btn {
-    width: 100%;
-    padding: 14px 24px;
-    background: #2563eb;
-    color: #ffffff;
-    border: none;
-    border-radius: 10px;
-    font-size: 15px;
-    font-weight: 600;
-    font-family: inherit;
-    cursor: pointer;
-    transition: background 0.2s;
-    margin-top: 4px;
-  }
-  .submit-btn:hover { background: #1d4ed8; }
-  .submit-btn:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-  }
-
-  .form-note {
-    text-align: center;
-    font-size: 12px;
-    color: #999;
-    margin-top: 16px;
-    line-height: 1.4;
-  }
-
-  /* ── Success / Error States ── */
-  .success-state {
-    display: none;
-    text-align: center;
-    padding: 24px 0;
-  }
-  .success-icon {
-    width: 56px;
-    height: 56px;
-    background: #ecfdf5;
-    border-radius: 50%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 16px;
-  }
-  .success-icon svg {
-    width: 28px;
-    height: 28px;
-    stroke: #059669;
-    fill: none;
-    stroke-width: 2.5;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-  .success-state h3 {
-    font-size: 20px;
-    font-weight: 700;
-    margin-bottom: 8px;
-    color: #1a1a1a;
-  }
-  .success-state p {
-    font-size: 14px;
-    color: #555;
-    line-height: 1.6;
-    max-width: 320px;
-    margin: 0 auto;
-  }
-
-  .error-msg {
-    display: none;
-    background: #fef2f2;
-    border: 1px solid #fecaca;
-    color: #b91c1c;
-    font-size: 13px;
-    padding: 10px 14px;
-    border-radius: 8px;
-    margin-bottom: 16px;
-    line-height: 1.4;
-  }
-
-  /* ── Responsive ── */
-  @media (max-width: 768px) {
-    .main {
-      grid-template-columns: 1fr;
-      gap: 32px;
-      padding: 32px 20px 60px;
-    }
-    .left {
-      position: static;
-    }
-    .left h1 { font-size: 26px; }
-    .form-card { padding: 28px 24px; }
-  }
-</style>
-</head>
-<body>
-
-<!-- Header -->
-<header class="header">
-  <a href="/price-list/" class="header-left">
-    <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-      <circle class="outer" cx="24" cy="24" r="20"/>
-      <circle class="inner" cx="24" cy="24" r="8"/>
-    </svg>
-    <span class="logo-text">My Orbit Health</span>
-  </a>
-  <a href="/price-list/" class="back-link">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>
-    </svg>
-    Back
-  </a>
-</header>
-
-<!-- Main Content -->
-<div class="main">
-
-  <!-- Left Column -->
-  <div class="left">
-    <div class="confidential-badge">Confidential</div>
-    <h1>Non-Disclosure Agreement</h1>
-    <p class="subtext">Sign our NDA to access partner pricing and product details.</p>
-
-    <div class="steps">
-      <div class="step">
-        <div class="step-number">1</div>
-        <div class="step-content">
-          <h3>Fill out the form</h3>
-          <p>Enter your name, email, and company. Takes 30 seconds.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-number">2</div>
-        <div class="step-content">
-          <h3>Sign the NDA via DocuSign</h3>
-          <p>You'll receive an NDA in your inbox — review and e-sign in minutes.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-number">3</div>
-        <div class="step-content">
-          <h3>Get access to pricing</h3>
-          <p>Once signed, you'll receive login credentials for the partner price list.</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="covers-box">
-      <h4>What the NDA covers</h4>
-      <ul class="covers-list">
-        <li>
-          <span class="check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>
-          Product pricing and wholesale rates
-        </li>
-        <li>
-          <span class="check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>
-          Proprietary formulations and suppliers
-        </li>
-        <li>
-          <span class="check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>
-          Partner terms and revenue structures
-        </li>
-        <li>
-          <span class="check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>
-          Business strategies and market data
-        </li>
-      </ul>
-    </div>
-  </div>
-
-  <!-- Right Column -->
-  <div class="right">
-    <div class="form-card">
-      <h2>Request NDA</h2>
-
-      <div class="error-msg" id="errorMsg"></div>
-
-      <form id="ndaForm">
-        <div class="field">
-          <label for="name">Full Name</label>
-          <input type="text" id="name" name="name" placeholder="Jane Smith" required autocomplete="name">
-        </div>
-        <div class="field">
-          <label for="email">Email</label>
-          <input type="email" id="email" name="email" placeholder="jane@company.com" required autocomplete="email">
-        </div>
-        <div class="field">
-          <label for="company">Company</label>
-          <input type="text" id="company" name="company" placeholder="Acme Health" required autocomplete="organization">
-        </div>
-        <button type="submit" class="submit-btn" id="submitBtn">Send Me the NDA</button>
-      </form>
-
-      <p class="form-note">Powered by DocuSign &middot; E-sign from any device</p>
-
-      <div class="success-state" id="successState">
-        <div class="success-icon">
-          <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-        </div>
-        <h3>NDA sent!</h3>
-        <p>Check your inbox for the DocuSign NDA. Review and e-sign it, then we'll send your partner login credentials.</p>
-      </div>
-    </div>
-  </div>
-
-</div>
-
-<script>
-(function() {
-  var form = document.getElementById('ndaForm');
-  var btn = document.getElementById('submitBtn');
-  var errorMsg = document.getElementById('errorMsg');
-  var successState = document.getElementById('successState');
-
-  form.addEventListener('submit', function(e) {
-    e.preventDefault();
-    errorMsg.style.display = 'none';
-
-    var name = document.getElementById('name').value.trim();
-    var email = document.getElementById('email').value.trim();
-    var company = document.getElementById('company').value.trim();
-
-    if (!name || !email || !company) {
-      errorMsg.textContent = 'Please fill out all fields.';
-      errorMsg.style.display = 'block';
-      return;
-    }
-
-    btn.disabled = true;
-    btn.textContent = 'Sending NDA...';
-
-    fetch('/price-list/api/nda', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, email: email, company: company })
-    })
-    .then(function(res) {
-      if (!res.ok) {
-        return res.json().then(function(data) {
-          throw new Error(data.error || 'Something went wrong. Please try again.');
-        });
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Orbit Health — NDA Sign-Up</title>
+    <meta property="og:title" content="My Orbit Health — NDA Sign-Up" />
+    <meta
+      property="og:description"
+      content="Sign our NDA to access partner pricing and product details."
+    />
+    <meta property="og:type" content="website" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
       }
-      return res.json();
-    })
-    .then(function() {
-      form.style.display = 'none';
-      document.querySelector('.form-note').style.display = 'none';
-      successState.style.display = 'block';
-    })
-    .catch(function(err) {
-      errorMsg.textContent = err.message || 'Something went wrong. Please try again.';
-      errorMsg.style.display = 'block';
-      btn.disabled = false;
-      btn.textContent = 'Send Me the NDA';
-    });
-  });
-})();
-</script>
 
-</body>
+      body {
+        font-family:
+          "Inter",
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        min-height: 100vh;
+        background: #f4f5f7;
+        color: #1a1a1a;
+      }
+
+      /* ── Header ── */
+      .header {
+        background: #ffffff;
+        border-bottom: 1px solid #e2e4e8;
+        padding: 12px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        box-shadow: 0 1px 8px rgba(0, 0, 0, 0.06);
+      }
+      .header-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        text-decoration: none;
+      }
+      .header-left svg {
+        width: 36px;
+        height: 36px;
+      }
+      .header-left svg circle.outer {
+        fill: none;
+        stroke: #2563eb;
+        stroke-width: 2.5;
+      }
+      .header-left svg circle.inner {
+        fill: #2563eb;
+      }
+      .header-left .logo-text {
+        font-size: 17px;
+        font-weight: 700;
+        color: #1a1a1a;
+        letter-spacing: -0.02em;
+      }
+      .back-link {
+        font-size: 14px;
+        font-weight: 500;
+        color: #2563eb;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: color 0.2s;
+      }
+      .back-link:hover {
+        color: #1d4ed8;
+      }
+
+      /* ── Main Layout ── */
+      .main {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 48px 24px 80px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 48px;
+        align-items: start;
+      }
+
+      /* ── Left Column ── */
+      .left {
+        position: sticky;
+        top: 100px;
+      }
+      .confidential-badge {
+        display: inline-block;
+        background: #eff6ff;
+        color: #2563eb;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 5px 12px;
+        border-radius: 6px;
+        margin-bottom: 20px;
+      }
+      .left h1 {
+        font-size: 32px;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        line-height: 1.2;
+        margin-bottom: 12px;
+        color: #1a1a1a;
+      }
+      .left .subtext {
+        font-size: 16px;
+        color: #555;
+        line-height: 1.6;
+        margin-bottom: 40px;
+      }
+
+      /* ── Steps ── */
+      .steps {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+        margin-bottom: 40px;
+      }
+      .step {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+      }
+      .step-number {
+        width: 32px;
+        height: 32px;
+        min-width: 32px;
+        background: #2563eb;
+        color: #fff;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        font-weight: 700;
+        margin-top: 2px;
+      }
+      .step-content h3 {
+        font-size: 15px;
+        font-weight: 600;
+        color: #1a1a1a;
+        margin-bottom: 4px;
+      }
+      .step-content p {
+        font-size: 14px;
+        color: #666;
+        line-height: 1.5;
+      }
+
+      /* ── Covers Box ── */
+      .covers-box {
+        background: #ffffff;
+        border: 1px solid #e2e4e8;
+        border-radius: 12px;
+        padding: 24px;
+      }
+      .covers-box h4 {
+        font-size: 14px;
+        font-weight: 600;
+        color: #1a1a1a;
+        margin-bottom: 16px;
+      }
+      .covers-list {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .covers-list li {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+        color: #444;
+        line-height: 1.4;
+      }
+      .covers-list li .check {
+        width: 20px;
+        height: 20px;
+        min-width: 20px;
+        background: #eff6ff;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .covers-list li .check svg {
+        width: 12px;
+        height: 12px;
+        stroke: #2563eb;
+        fill: none;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      /* ── Right Column / Card ── */
+      .form-card {
+        background: #ffffff;
+        border: 1px solid #e2e4e8;
+        border-radius: 16px;
+        padding: 36px 32px;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+      }
+      .form-card h2 {
+        font-size: 20px;
+        font-weight: 700;
+        margin-bottom: 24px;
+        letter-spacing: -0.02em;
+      }
+
+      /* ── Form Fields ── */
+      .field {
+        margin-bottom: 20px;
+      }
+      .field label {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 6px;
+      }
+      .field input {
+        width: 100%;
+        padding: 12px 14px;
+        border: 1px solid #d1d5db;
+        border-radius: 10px;
+        font-size: 15px;
+        font-family: inherit;
+        color: #1a1a1a;
+        background: #fafafa;
+        transition:
+          border-color 0.2s,
+          box-shadow 0.2s;
+        outline: none;
+      }
+      .field input:focus {
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+        background: #fff;
+      }
+      .field input::placeholder {
+        color: #aaa;
+      }
+
+      /* ── Submit Button ── */
+      .submit-btn {
+        width: 100%;
+        padding: 14px 24px;
+        background: #2563eb;
+        color: #ffffff;
+        border: none;
+        border-radius: 10px;
+        font-size: 15px;
+        font-weight: 600;
+        font-family: inherit;
+        cursor: pointer;
+        transition: background 0.2s;
+        margin-top: 4px;
+      }
+      .submit-btn:hover {
+        background: #1d4ed8;
+      }
+      .submit-btn:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+      }
+
+      .form-note {
+        text-align: center;
+        font-size: 12px;
+        color: #999;
+        margin-top: 16px;
+        line-height: 1.4;
+      }
+
+      /* ── Success / Error States ── */
+      .success-state {
+        display: none;
+        text-align: center;
+        padding: 24px 0;
+      }
+      .success-icon {
+        width: 56px;
+        height: 56px;
+        background: #ecfdf5;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 16px;
+      }
+      .success-icon svg {
+        width: 28px;
+        height: 28px;
+        stroke: #059669;
+        fill: none;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .success-state h3 {
+        font-size: 20px;
+        font-weight: 700;
+        margin-bottom: 8px;
+        color: #1a1a1a;
+      }
+      .success-state p {
+        font-size: 14px;
+        color: #555;
+        line-height: 1.6;
+        max-width: 320px;
+        margin: 0 auto;
+      }
+
+      .error-msg {
+        display: none;
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #b91c1c;
+        font-size: 13px;
+        padding: 10px 14px;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        line-height: 1.4;
+      }
+
+      /* ── Responsive ── */
+      @media (max-width: 768px) {
+        .main {
+          grid-template-columns: 1fr;
+          gap: 32px;
+          padding: 32px 20px 60px;
+        }
+        .left {
+          position: static;
+        }
+        .left h1 {
+          font-size: 26px;
+        }
+        .form-card {
+          padding: 28px 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Header -->
+    <header class="header">
+      <a href="/price-list/" class="header-left">
+        <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+          <circle class="outer" cx="24" cy="24" r="20" />
+          <circle class="inner" cx="24" cy="24" r="8" />
+        </svg>
+        <span class="logo-text">My Orbit Health</span>
+      </a>
+      <a href="/price-list/" class="back-link">
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M19 12H5" />
+          <path d="m12 19-7-7 7-7" />
+        </svg>
+        Back
+      </a>
+    </header>
+
+    <!-- Main Content -->
+    <div class="main">
+      <!-- Left Column -->
+      <div class="left">
+        <div class="confidential-badge">Confidential</div>
+        <h1>Non-Disclosure Agreement</h1>
+        <p class="subtext">
+          Sign our NDA to access partner pricing and product details.
+        </p>
+
+        <div class="steps">
+          <div class="step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <h3>Fill out the form</h3>
+              <p>Enter your name, email, and company. Takes 30 seconds.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <h3>Sign the NDA via DocuSign</h3>
+              <p>
+                You'll receive an NDA in your inbox — review and e-sign in
+                minutes.
+              </p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <h3>Get access to pricing</h3>
+              <p>
+                Once signed, you'll receive login credentials for the partner
+                price list.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="covers-box">
+          <h4>What the NDA covers</h4>
+          <ul class="covers-list">
+            <li>
+              <span class="check"
+                ><svg viewBox="0 0 24 24">
+                  <polyline points="20 6 9 17 4 12" /></svg
+              ></span>
+              Product pricing and wholesale rates
+            </li>
+            <li>
+              <span class="check"
+                ><svg viewBox="0 0 24 24">
+                  <polyline points="20 6 9 17 4 12" /></svg
+              ></span>
+              Proprietary formulations and suppliers
+            </li>
+            <li>
+              <span class="check"
+                ><svg viewBox="0 0 24 24">
+                  <polyline points="20 6 9 17 4 12" /></svg
+              ></span>
+              Partner terms and revenue structures
+            </li>
+            <li>
+              <span class="check"
+                ><svg viewBox="0 0 24 24">
+                  <polyline points="20 6 9 17 4 12" /></svg
+              ></span>
+              Business strategies and market data
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Right Column -->
+      <div class="right">
+        <div class="form-card">
+          <h2>Request NDA</h2>
+
+          <div class="error-msg" id="errorMsg"></div>
+
+          <form id="ndaForm">
+            <div class="field">
+              <label for="name">Full Name</label>
+              <input
+                type="text"
+                id="name"
+                name="name"
+                placeholder="Jane Smith"
+                required
+                autocomplete="name"
+              />
+            </div>
+            <div class="field">
+              <label for="email">Email</label>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                placeholder="jane@company.com"
+                required
+                autocomplete="email"
+              />
+            </div>
+            <div class="field">
+              <label for="company">Company</label>
+              <input
+                type="text"
+                id="company"
+                name="company"
+                placeholder="Acme Health"
+                required
+                autocomplete="organization"
+              />
+            </div>
+            <button type="submit" class="submit-btn" id="submitBtn">
+              Send Me the NDA
+            </button>
+          </form>
+
+          <p class="form-note">
+            Powered by DocuSign &middot; E-sign from any device
+          </p>
+
+          <div class="success-state" id="successState">
+            <div class="success-icon">
+              <svg viewBox="0 0 24 24">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+            <h3>NDA sent!</h3>
+            <p>
+              Check your inbox for the DocuSign NDA. Review and e-sign it, then
+              we'll send your partner login credentials.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        var form = document.getElementById("ndaForm");
+        var btn = document.getElementById("submitBtn");
+        var errorMsg = document.getElementById("errorMsg");
+        var successState = document.getElementById("successState");
+
+        form.addEventListener("submit", function (e) {
+          e.preventDefault();
+          errorMsg.style.display = "none";
+
+          var name = document.getElementById("name").value.trim();
+          var email = document.getElementById("email").value.trim();
+          var company = document.getElementById("company").value.trim();
+
+          if (!name || !email || !company) {
+            errorMsg.textContent = "Please fill out all fields.";
+            errorMsg.style.display = "block";
+            return;
+          }
+
+          btn.disabled = true;
+          btn.textContent = "Sending NDA...";
+
+          fetch("/price-list/api/nda", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: name,
+              email: email,
+              company: company,
+            }),
+          })
+            .then(function (res) {
+              if (!res.ok) {
+                return res.json().then(function (data) {
+                  throw new Error(
+                    data.error || "Something went wrong. Please try again.",
+                  );
+                });
+              }
+              return res.json();
+            })
+            .then(function () {
+              form.style.display = "none";
+              document.querySelector(".form-note").style.display = "none";
+              successState.style.display = "block";
+            })
+            .catch(function (err) {
+              errorMsg.textContent =
+                err.message || "Something went wrong. Please try again.";
+              errorMsg.style.display = "block";
+              btn.disabled = false;
+              btn.textContent = "Send Me the NDA";
+            });
+        });
+      })();
+    </script>
+  </body>
 </html>

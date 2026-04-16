@@ -1,459 +1,645 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>My Orbit Health — Price List</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    background: #f4f5f7;
-    color: #1a1a1a;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    min-height: 100vh;
-  }
-  .header {
-    background: #ffffff;
-    border-bottom: 1px solid #e2e4e8;
-    padding: 12px 24px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    box-shadow: 0 1px 8px rgba(0,0,0,0.06);
-  }
-  .header-left { display: flex; align-items: center; gap: 12px; }
-  .header-left svg { width: 36px; height: 36px; }
-  .header-left svg circle.outer { fill: none; stroke: #2563eb; stroke-width: 2.5; }
-  .header-left svg circle.inner { fill: #2563eb; }
-  .header-left .logo-text { font-size: 17px; font-weight: 700; color: #1a1a1a; letter-spacing: -0.02em; }
-  .header-right { display: flex; align-items: center; gap: 14px; }
-  .user-badge { font-size: 13px; color: #888; }
-  .user-badge span { color: #2563eb; font-weight: 600; }
-  .logout-btn {
-    background: transparent;
-    border: 1px solid #ddd;
-    color: #777;
-    padding: 7px 14px;
-    border-radius: 7px;
-    font-size: 13px;
-    cursor: pointer;
-    transition: all 0.2s;
-    font-family: inherit;
-  }
-  .logout-btn:hover { border-color: #aaa; color: #333; }
-  /* TABS */
-  .tabs {
-    background: #ffffff;
-    border-bottom: 2px solid #e5e7eb;
-    padding: 0 24px;
-    display: flex;
-    gap: 0;
-  }
-  .tab-btn {
-    padding: 14px 24px;
-    font-size: 14px;
-    font-weight: 600;
-    color: #aaa;
-    cursor: pointer;
-    border-bottom: 3px solid transparent;
-    margin-bottom: -2px;
-    transition: all 0.2s;
-    background: none;
-    border-top: none;
-    border-left: none;
-    border-right: none;
-    letter-spacing: 0.02em;
-    font-family: inherit;
-  }
-  .tab-btn:hover { color: #555; }
-  .tab-btn.active { color: #2563eb; border-bottom-color: #2563eb; }
-  .tab-btn.ruo.active { color: #c05c1a; border-bottom-color: #c05c1a; }
-  /* RUO WARNING BANNER */
-  .ruo-banner {
-    background: #fff8f0;
-    border-bottom: 1px solid #f0d4b0;
-    padding: 10px 24px;
-    font-size: 13px;
-    color: #8a4a10;
-    display: none;
-    align-items: center;
-    gap: 8px;
-  }
-  .ruo-banner.visible { display: flex; }
-  .ruo-banner strong { font-weight: 700; }
-  /* CONTROLS */
-  .controls {
-    padding: 14px 24px;
-    background: #ffffff;
-    border-bottom: 1px solid #e5e7eb;
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    align-items: center;
-  }
-  .search-wrap {
-    position: relative;
-    flex: 1;
-    min-width: 200px;
-  }
-  .search-wrap svg {
-    position: absolute;
-    left: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #bbb;
-  }
-  .search-input {
-    width: 100%;
-    background: #f8f9fa;
-    border: 1px solid #e2e4e8;
-    border-radius: 8px;
-    padding: 10px 12px 10px 38px;
-    color: #1a1a1a;
-    font-size: 14px;
-    font-family: inherit;
-    outline: none;
-    transition: border-color 0.2s;
-  }
-  .search-input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.08); }
-  select {
-    background: #f8f9fa;
-    border: 1px solid #e2e4e8;
-    border-radius: 8px;
-    padding: 10px 14px;
-    color: #333;
-    font-size: 14px;
-    font-family: inherit;
-    outline: none;
-    cursor: pointer;
-    min-width: 150px;
-  }
-  select:focus { border-color: #2563eb; }
-  .count-badge {
-    background: #f0f1f3;
-    border: 1px solid #e2e4e8;
-    border-radius: 7px;
-    padding: 8px 14px;
-    font-size: 13px;
-    color: #888;
-    white-space: nowrap;
-  }
-  .count-badge span { color: #2563eb; font-weight: 700; }
-  .count-badge span.ruo { color: #c05c1a; }
-  /* TABLE */
-  .table-wrap { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  thead tr { background: #fafbfc; border-bottom: 2px solid #e5e7eb; }
-  th {
-    padding: 11px 16px;
-    text-align: left;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: #aaa;
-    white-space: nowrap;
-  }
-  tbody tr { background: #ffffff; border-bottom: 1px solid #f0f1f3; transition: background 0.1s; }
-  tbody tr:hover { background: #f8f9fb; }
-  td { padding: 11px 16px; color: #333; vertical-align: middle; }
-  td.price { color: #2563eb; font-weight: 700; font-size: 14px; white-space: nowrap; }
-  td.price.ruo { color: #c05c1a; }
-  .cat-badge {
-    display: inline-block;
-    padding: 3px 9px;
-    border-radius: 5px;
-    font-size: 11px;
-    font-weight: 600;
-    background: #eff4ff;
-    color: #2563eb;
-    letter-spacing: 0.03em;
-    white-space: nowrap;
-  }
-  .supplier-badge {
-    display: inline-block;
-    padding: 3px 9px;
-    border-radius: 5px;
-    font-size: 11px;
-    background: #eeeef8;
-    color: #5a6abf;
-    white-space: nowrap;
-  }
-  .ruo-badge {
-    display: inline-block;
-    padding: 3px 9px;
-    border-radius: 5px;
-    font-size: 11px;
-    font-weight: 600;
-    background: #fff0e8;
-    color: #c05c1a;
-    white-space: nowrap;
-  }
-  .desc-cell { max-width: 420px; line-height: 1.4; color: #444; }
-  .fill-cell { color: #666; font-size: 13px; white-space: nowrap; }
-  .empty { text-align: center; padding: 80px 20px; color: #bbb; }
-  .empty h3 { font-size: 18px; margin-bottom: 8px; color: #ccc; }
-  .footer {
-    padding: 18px 24px;
-    border-top: 1px solid #e5e7eb;
-    color: #bbb;
-    font-size: 12px;
-    text-align: center;
-    background: #fafbfc;
-  }
-  @media (max-width: 600px) {
-    .header { padding: 10px 14px; }
-    .controls { padding: 12px 14px; }
-    td, th { padding: 9px 12px; }
-    .desc-cell { max-width: 180px; }
-  }
-</style>
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Orbit Health — Price List</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: #f4f5f7;
+        color: #1a1a1a;
+        font-family:
+          "Inter",
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        min-height: 100vh;
+      }
+      .header {
+        background: #ffffff;
+        border-bottom: 1px solid #e2e4e8;
+        padding: 12px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        box-shadow: 0 1px 8px rgba(0, 0, 0, 0.06);
+      }
+      .header-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .header-left svg {
+        width: 36px;
+        height: 36px;
+      }
+      .header-left svg circle.outer {
+        fill: none;
+        stroke: #2563eb;
+        stroke-width: 2.5;
+      }
+      .header-left svg circle.inner {
+        fill: #2563eb;
+      }
+      .header-left .logo-text {
+        font-size: 17px;
+        font-weight: 700;
+        color: #1a1a1a;
+        letter-spacing: -0.02em;
+      }
+      .header-right {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .user-badge {
+        font-size: 13px;
+        color: #888;
+      }
+      .user-badge span {
+        color: #2563eb;
+        font-weight: 600;
+      }
+      .logout-btn {
+        background: transparent;
+        border: 1px solid #ddd;
+        color: #777;
+        padding: 7px 14px;
+        border-radius: 7px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-family: inherit;
+      }
+      .logout-btn:hover {
+        border-color: #aaa;
+        color: #333;
+      }
+      /* TABS */
+      .tabs {
+        background: #ffffff;
+        border-bottom: 2px solid #e5e7eb;
+        padding: 0 24px;
+        display: flex;
+        gap: 0;
+      }
+      .tab-btn {
+        padding: 14px 24px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #aaa;
+        cursor: pointer;
+        border-bottom: 3px solid transparent;
+        margin-bottom: -2px;
+        transition: all 0.2s;
+        background: none;
+        border-top: none;
+        border-left: none;
+        border-right: none;
+        letter-spacing: 0.02em;
+        font-family: inherit;
+      }
+      .tab-btn:hover {
+        color: #555;
+      }
+      .tab-btn.active {
+        color: #2563eb;
+        border-bottom-color: #2563eb;
+      }
+      .tab-btn.ruo.active {
+        color: #c05c1a;
+        border-bottom-color: #c05c1a;
+      }
+      /* RUO WARNING BANNER */
+      .ruo-banner {
+        background: #fff8f0;
+        border-bottom: 1px solid #f0d4b0;
+        padding: 10px 24px;
+        font-size: 13px;
+        color: #8a4a10;
+        display: none;
+        align-items: center;
+        gap: 8px;
+      }
+      .ruo-banner.visible {
+        display: flex;
+      }
+      .ruo-banner strong {
+        font-weight: 700;
+      }
+      /* CONTROLS */
+      .controls {
+        padding: 14px 24px;
+        background: #ffffff;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .search-wrap {
+        position: relative;
+        flex: 1;
+        min-width: 200px;
+      }
+      .search-wrap svg {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #bbb;
+      }
+      .search-input {
+        width: 100%;
+        background: #f8f9fa;
+        border: 1px solid #e2e4e8;
+        border-radius: 8px;
+        padding: 10px 12px 10px 38px;
+        color: #1a1a1a;
+        font-size: 14px;
+        font-family: inherit;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      .search-input:focus {
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+      }
+      select {
+        background: #f8f9fa;
+        border: 1px solid #e2e4e8;
+        border-radius: 8px;
+        padding: 10px 14px;
+        color: #333;
+        font-size: 14px;
+        font-family: inherit;
+        outline: none;
+        cursor: pointer;
+        min-width: 150px;
+      }
+      select:focus {
+        border-color: #2563eb;
+      }
+      .count-badge {
+        background: #f0f1f3;
+        border: 1px solid #e2e4e8;
+        border-radius: 7px;
+        padding: 8px 14px;
+        font-size: 13px;
+        color: #888;
+        white-space: nowrap;
+      }
+      .count-badge span {
+        color: #2563eb;
+        font-weight: 700;
+      }
+      .count-badge span.ruo {
+        color: #c05c1a;
+      }
+      /* TABLE */
+      .table-wrap {
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      thead tr {
+        background: #fafbfc;
+        border-bottom: 2px solid #e5e7eb;
+      }
+      th {
+        padding: 11px 16px;
+        text-align: left;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #aaa;
+        white-space: nowrap;
+      }
+      tbody tr {
+        background: #ffffff;
+        border-bottom: 1px solid #f0f1f3;
+        transition: background 0.1s;
+      }
+      tbody tr:hover {
+        background: #f8f9fb;
+      }
+      td {
+        padding: 11px 16px;
+        color: #333;
+        vertical-align: middle;
+      }
+      td.price {
+        color: #2563eb;
+        font-weight: 700;
+        font-size: 14px;
+        white-space: nowrap;
+      }
+      td.price.ruo {
+        color: #c05c1a;
+      }
+      .cat-badge {
+        display: inline-block;
+        padding: 3px 9px;
+        border-radius: 5px;
+        font-size: 11px;
+        font-weight: 600;
+        background: #eff4ff;
+        color: #2563eb;
+        letter-spacing: 0.03em;
+        white-space: nowrap;
+      }
+      .supplier-badge {
+        display: inline-block;
+        padding: 3px 9px;
+        border-radius: 5px;
+        font-size: 11px;
+        background: #eeeef8;
+        color: #5a6abf;
+        white-space: nowrap;
+      }
+      .ruo-badge {
+        display: inline-block;
+        padding: 3px 9px;
+        border-radius: 5px;
+        font-size: 11px;
+        font-weight: 600;
+        background: #fff0e8;
+        color: #c05c1a;
+        white-space: nowrap;
+      }
+      .desc-cell {
+        max-width: 420px;
+        line-height: 1.4;
+        color: #444;
+      }
+      .fill-cell {
+        color: #666;
+        font-size: 13px;
+        white-space: nowrap;
+      }
+      .empty {
+        text-align: center;
+        padding: 80px 20px;
+        color: #bbb;
+      }
+      .empty h3 {
+        font-size: 18px;
+        margin-bottom: 8px;
+        color: #ccc;
+      }
+      .footer {
+        padding: 18px 24px;
+        border-top: 1px solid #e5e7eb;
+        color: #bbb;
+        font-size: 12px;
+        text-align: center;
+        background: #fafbfc;
+      }
+      @media (max-width: 600px) {
+        .header {
+          padding: 10px 14px;
+        }
+        .controls {
+          padding: 12px 14px;
+        }
+        td,
+        th {
+          padding: 9px 12px;
+        }
+        .desc-cell {
+          max-width: 180px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div class="header-left">
+        <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+          <circle class="outer" cx="24" cy="24" r="20" />
+          <circle class="inner" cx="24" cy="24" r="8" />
+        </svg>
+        <span class="logo-text">My Orbit Health</span>
+      </div>
+      <div class="header-right">
+        <span class="user-badge">Logged in as <span id="userName"></span></span>
+        <button class="logout-btn" onclick="logout()">Sign Out</button>
+      </div>
+    </div>
 
-<div class="header">
-  <div class="header-left">
-    <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-      <circle class="outer" cx="24" cy="24" r="20"/>
-      <circle class="inner" cx="24" cy="24" r="8"/>
-    </svg>
-    <span class="logo-text">My Orbit Health</span>
-  </div>
-  <div class="header-right">
-    <span class="user-badge">Logged in as <span id="userName"></span></span>
-    <button class="logout-btn" onclick="logout()">Sign Out</button>
-  </div>
-</div>
+    <!-- TABS -->
+    <div class="tabs">
+      <button
+        class="tab-btn active"
+        id="tab-pharmacy"
+        onclick="switchTab('pharmacy')"
+      >
+        Pharmacy Price List
+      </button>
+      <button class="tab-btn ruo" id="tab-ruo" onclick="switchTab('ruo')">
+        Research Use Only (RUO)
+      </button>
+    </div>
 
-<!-- TABS -->
-<div class="tabs">
-  <button class="tab-btn active" id="tab-pharmacy" onclick="switchTab('pharmacy')">Pharmacy Price List</button>
-  <button class="tab-btn ruo" id="tab-ruo" onclick="switchTab('ruo')">Research Use Only (RUO)</button>
-</div>
+    <!-- RUO WARNING -->
+    <div class="ruo-banner" id="ruoBanner">
+      <strong>Research Use Only (RUO).</strong> These products are for research
+      purposes only and are not intended for human use, diagnostic procedures,
+      or therapeutic applications.
+    </div>
 
-<!-- RUO WARNING -->
-<div class="ruo-banner" id="ruoBanner">
-  <strong>Research Use Only (RUO).</strong> These products are for research purposes only and are not intended for human use, diagnostic procedures, or therapeutic applications.
-</div>
+    <!-- CONTROLS -->
+    <div class="controls">
+      <div class="search-wrap">
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <circle cx="11" cy="11" r="8" />
+          <path d="m21 21-4.35-4.35" />
+        </svg>
+        <input
+          class="search-input"
+          id="searchInput"
+          type="text"
+          placeholder="Search products..."
+          oninput="applyFilters()"
+        />
+      </div>
+      <select id="catFilter" onchange="applyFilters()">
+        <option value="">All Categories</option>
+      </select>
+      <select id="supFilter" onchange="applyFilters()" style="display: none">
+        <option value="">All Suppliers</option>
+      </select>
+      <select id="sortSelect" onchange="applyFilters()">
+        <option value="name_asc">Name A-Z</option>
+        <option value="name_desc">Name Z-A</option>
+        <option value="price_asc">Price Low-High</option>
+        <option value="price_desc">Price High-Low</option>
+      </select>
+      <div class="count-badge">
+        Showing <span id="resultCount">0</span> products
+      </div>
+    </div>
 
-<!-- CONTROLS -->
-<div class="controls">
-  <div class="search-wrap">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-    </svg>
-    <input class="search-input" id="searchInput" type="text" placeholder="Search products..." oninput="applyFilters()">
-  </div>
-  <select id="catFilter" onchange="applyFilters()">
-    <option value="">All Categories</option>
-  </select>
-  <select id="supFilter" onchange="applyFilters()" style="display:none">
-    <option value="">All Suppliers</option>
-  </select>
-  <select id="sortSelect" onchange="applyFilters()">
-    <option value="name_asc">Name A-Z</option>
-    <option value="name_desc">Name Z-A</option>
-    <option value="price_asc">Price Low-High</option>
-    <option value="price_desc">Price High-Low</option>
-  </select>
-  <div class="count-badge">Showing <span id="resultCount">0</span> products</div>
-</div>
+    <div class="table-wrap">
+      <table id="mainTable">
+        <thead id="tableHead"></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+      <div class="empty" id="emptyState" style="display: none">
+        <h3>No products found</h3>
+        <p>Try adjusting your search or filters</p>
+      </div>
+    </div>
 
-<div class="table-wrap">
-  <table id="mainTable">
-    <thead id="tableHead"></thead>
-    <tbody id="tableBody"></tbody>
-  </table>
-  <div class="empty" id="emptyState" style="display:none">
-    <h3>No products found</h3>
-    <p>Try adjusting your search or filters</p>
-  </div>
-</div>
+    <div class="footer">
+      &copy; My Orbit Health LLC &nbsp;|&nbsp; Confidential &nbsp;|&nbsp; Prices
+      subject to change without notice
+    </div>
 
-<div class="footer">
-  &copy; My Orbit Health LLC &nbsp;|&nbsp; Confidential &nbsp;|&nbsp; Prices subject to change without notice
-</div>
+    <script src="products-data.js"></script>
+    <script>
+      const API = "/price-list/api";
+      let currentTab = "pharmacy";
+      let filtered = [];
 
-<script src="products-data.js"></script>
-<script>
-const API = '/price-list/api';
-let currentTab = 'pharmacy';
-let filtered = [];
+      // Auth check
+      (async () => {
+        const token = localStorage.getItem("moh_token");
+        if (!token) {
+          window.location.href = "/price-list";
+          return;
+        }
+        try {
+          const r = await fetch(`${API}/verify`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const d = await r.json();
+          if (!d.valid) {
+            window.location.href = "/price-list";
+            return;
+          }
+          document.getElementById("userName").textContent =
+            localStorage.getItem("moh_name") || d.name;
+        } catch (e) {
+          window.location.href = "/price-list";
+        }
+      })();
 
-// Auth check
-(async () => {
-  const token = localStorage.getItem('moh_token');
-  if (!token) { window.location.href = '/price-list'; return; }
-  try {
-    const r = await fetch(`${API}/verify`, { headers: { Authorization: `Bearer ${token}` } });
-    const d = await r.json();
-    if (!d.valid) { window.location.href = '/price-list'; return; }
-    document.getElementById('userName').textContent = localStorage.getItem('moh_name') || d.name;
-  } catch(e) { window.location.href = '/price-list'; }
-})();
+      function switchTab(tab) {
+        currentTab = tab;
+        document
+          .getElementById("tab-pharmacy")
+          .classList.toggle("active", tab === "pharmacy");
+        document
+          .getElementById("tab-ruo")
+          .classList.toggle("active", tab === "ruo");
+        document
+          .getElementById("ruoBanner")
+          .classList.toggle("visible", tab === "ruo");
+        document.getElementById("supFilter").style.display =
+          tab === "pharmacy" ? "" : "none";
 
-function switchTab(tab) {
-  currentTab = tab;
-  document.getElementById('tab-pharmacy').classList.toggle('active', tab === 'pharmacy');
-  document.getElementById('tab-ruo').classList.toggle('active', tab === 'ruo');
-  document.getElementById('ruoBanner').classList.toggle('visible', tab === 'ruo');
-  document.getElementById('supFilter').style.display = tab === 'pharmacy' ? '' : 'none';
+        // Reset search and filters
+        document.getElementById("searchInput").value = "";
+        document.getElementById("catFilter").value = "";
+        if (document.getElementById("supFilter"))
+          document.getElementById("supFilter").value = "";
 
-  // Reset search and filters
-  document.getElementById('searchInput').value = '';
-  document.getElementById('catFilter').value = '';
-  if (document.getElementById('supFilter')) document.getElementById('supFilter').value = '';
+        // Rebuild category filter
+        buildFilters();
+        applyFilters();
+      }
 
-  // Rebuild category filter
-  buildFilters();
-  applyFilters();
-}
+      function buildFilters() {
+        const catEl = document.getElementById("catFilter");
+        const supEl = document.getElementById("supFilter");
 
-function buildFilters() {
-  const catEl = document.getElementById('catFilter');
-  const supEl = document.getElementById('supFilter');
+        if (currentTab === "pharmacy") {
+          const cats = [...new Set(PRODUCTS.map((p) => p.category))].sort();
+          const sups = [
+            ...new Set(PRODUCTS.map((p) => p.supplier).filter(Boolean)),
+          ].sort();
+          catEl.innerHTML =
+            '<option value="">All Categories</option>' +
+            cats
+              .map((c) => `<option value="${esc(c)}">${esc(c)}</option>`)
+              .join("");
+          supEl.innerHTML =
+            '<option value="">All Suppliers</option>' +
+            sups
+              .map((s) => `<option value="${esc(s)}">${esc(s)}</option>`)
+              .join("");
 
-  if (currentTab === 'pharmacy') {
-    const cats = [...new Set(PRODUCTS.map(p => p.category))].sort();
-    const sups = [...new Set(PRODUCTS.map(p => p.supplier).filter(Boolean))].sort();
-    catEl.innerHTML = '<option value="">All Categories</option>' + cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
-    supEl.innerHTML = '<option value="">All Suppliers</option>' + sups.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
-
-    // Set pharmacy table headers
-    document.getElementById('tableHead').innerHTML = `
+          // Set pharmacy table headers
+          document.getElementById("tableHead").innerHTML = `
       <tr>
         <th>Category</th>
         <th>Description</th>
         <th>Price</th>
         <th>Supplier</th>
       </tr>`;
-  } else {
-    // RUO - no categories, just name/fill/price
-    catEl.innerHTML = '<option value="">All Products</option>';
-    document.getElementById('tableHead').innerHTML = `
+        } else {
+          // RUO - no categories, just name/fill/price
+          catEl.innerHTML = '<option value="">All Products</option>';
+          document.getElementById("tableHead").innerHTML = `
       <tr>
         <th>Product</th>
         <th>Fill / Size</th>
         <th>Price</th>
         <th>Type</th>
       </tr>`;
-  }
-}
+        }
+      }
 
-function applyFilters() {
-  const q = document.getElementById('searchInput').value.toLowerCase();
-  const cat = document.getElementById('catFilter').value;
-  const sup = document.getElementById('supFilter').value;
-  const sort = document.getElementById('sortSelect').value;
+      function applyFilters() {
+        const q = document.getElementById("searchInput").value.toLowerCase();
+        const cat = document.getElementById("catFilter").value;
+        const sup = document.getElementById("supFilter").value;
+        const sort = document.getElementById("sortSelect").value;
 
-  if (currentTab === 'pharmacy') {
-    filtered = PRODUCTS.filter(p => {
-      const matchQ = !q ||
-        p.description.toLowerCase().includes(q) ||
-        p.category.toLowerCase().includes(q) ||
-        (p.supplier || '').toLowerCase().includes(q) ||
-        p.price.includes(q);
-      const matchCat = !cat || p.category === cat;
-      const matchSup = !sup || p.supplier === sup;
-      return matchQ && matchCat && matchSup;
-    });
+        if (currentTab === "pharmacy") {
+          filtered = PRODUCTS.filter((p) => {
+            const matchQ =
+              !q ||
+              p.description.toLowerCase().includes(q) ||
+              p.category.toLowerCase().includes(q) ||
+              (p.supplier || "").toLowerCase().includes(q) ||
+              p.price.includes(q);
+            const matchCat = !cat || p.category === cat;
+            const matchSup = !sup || p.supplier === sup;
+            return matchQ && matchCat && matchSup;
+          });
 
-    filtered.sort((a, b) => {
-      if (sort === 'name_asc') return a.description.localeCompare(b.description);
-      if (sort === 'name_desc') return b.description.localeCompare(a.description);
-      if (sort === 'price_asc') return a.price_val - b.price_val;
-      if (sort === 'price_desc') return b.price_val - a.price_val;
-      return 0;
-    });
-  } else {
-    filtered = RUO_PRODUCTS.filter(p => {
-      return !q ||
-        p.name.toLowerCase().includes(q) ||
-        p.fill.toLowerCase().includes(q) ||
-        p.price.includes(q);
-    });
+          filtered.sort((a, b) => {
+            if (sort === "name_asc")
+              return a.description.localeCompare(b.description);
+            if (sort === "name_desc")
+              return b.description.localeCompare(a.description);
+            if (sort === "price_asc") return a.price_val - b.price_val;
+            if (sort === "price_desc") return b.price_val - a.price_val;
+            return 0;
+          });
+        } else {
+          filtered = RUO_PRODUCTS.filter((p) => {
+            return (
+              !q ||
+              p.name.toLowerCase().includes(q) ||
+              p.fill.toLowerCase().includes(q) ||
+              p.price.includes(q)
+            );
+          });
 
-    filtered.sort((a, b) => {
-      if (sort === 'name_asc') return a.name.localeCompare(b.name);
-      if (sort === 'name_desc') return b.name.localeCompare(a.name);
-      if (sort === 'price_asc') return a.price_val - b.price_val;
-      if (sort === 'price_desc') return b.price_val - a.price_val;
-      return 0;
-    });
-  }
+          filtered.sort((a, b) => {
+            if (sort === "name_asc") return a.name.localeCompare(b.name);
+            if (sort === "name_desc") return b.name.localeCompare(a.name);
+            if (sort === "price_asc") return a.price_val - b.price_val;
+            if (sort === "price_desc") return b.price_val - a.price_val;
+            return 0;
+          });
+        }
 
-  renderTable();
-}
+        renderTable();
+      }
 
-function renderTable() {
-  const tbody = document.getElementById('tableBody');
-  const empty = document.getElementById('emptyState');
-  const countEl = document.getElementById('resultCount');
+      function renderTable() {
+        const tbody = document.getElementById("tableBody");
+        const empty = document.getElementById("emptyState");
+        const countEl = document.getElementById("resultCount");
 
-  countEl.className = currentTab === 'ruo' ? 'ruo' : '';
-  countEl.textContent = filtered.length.toLocaleString();
+        countEl.className = currentTab === "ruo" ? "ruo" : "";
+        countEl.textContent = filtered.length.toLocaleString();
 
-  if (filtered.length === 0) {
-    tbody.innerHTML = '';
-    empty.style.display = 'block';
-    return;
-  }
-  empty.style.display = 'none';
+        if (filtered.length === 0) {
+          tbody.innerHTML = "";
+          empty.style.display = "block";
+          return;
+        }
+        empty.style.display = "none";
 
-  const CHUNK = 100;
-  tbody.innerHTML = '';
+        const CHUNK = 100;
+        tbody.innerHTML = "";
 
-  function renderChunk(start) {
-    const frag = document.createDocumentFragment();
-    const end = Math.min(start + CHUNK, filtered.length);
-    for (let i = start; i < end; i++) {
-      const p = filtered[i];
-      const tr = document.createElement('tr');
-      if (currentTab === 'pharmacy') {
-        tr.innerHTML = `
+        function renderChunk(start) {
+          const frag = document.createDocumentFragment();
+          const end = Math.min(start + CHUNK, filtered.length);
+          for (let i = start; i < end; i++) {
+            const p = filtered[i];
+            const tr = document.createElement("tr");
+            if (currentTab === "pharmacy") {
+              tr.innerHTML = `
           <td><span class="cat-badge">${esc(p.category)}</span></td>
           <td class="desc-cell">${esc(p.description)}</td>
           <td class="price">${esc(p.price)}</td>
-          <td><span class="supplier-badge">${esc(p.supplier || '\u2014')}</span></td>
+          <td><span class="supplier-badge">${esc(p.supplier || "\u2014")}</span></td>
         `;
-      } else {
-        tr.innerHTML = `
+            } else {
+              tr.innerHTML = `
           <td class="desc-cell"><strong>${esc(p.name)}</strong></td>
           <td class="fill-cell">${esc(p.fill)}</td>
           <td class="price ruo">${esc(p.price)}</td>
           <td><span class="ruo-badge">RUO</span></td>
         `;
+            }
+            frag.appendChild(tr);
+          }
+          tbody.appendChild(frag);
+          if (end < filtered.length)
+            requestAnimationFrame(() => renderChunk(end));
+        }
+        renderChunk(0);
       }
-      frag.appendChild(tr);
-    }
-    tbody.appendChild(frag);
-    if (end < filtered.length) requestAnimationFrame(() => renderChunk(end));
-  }
-  renderChunk(0);
-}
 
-function esc(str) {
-  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+      function esc(str) {
+        return String(str || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
 
-async function logout() {
-  const token = localStorage.getItem('moh_token');
-  try { await fetch(`${API}/logout`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } }); } catch(e) {}
-  localStorage.removeItem('moh_token');
-  localStorage.removeItem('moh_name');
-  localStorage.removeItem('moh_role');
-  window.location.href = '/price-list';
-}
+      async function logout() {
+        const token = localStorage.getItem("moh_token");
+        try {
+          await fetch(`${API}/logout`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        } catch (e) {}
+        localStorage.removeItem("moh_token");
+        localStorage.removeItem("moh_name");
+        localStorage.removeItem("moh_role");
+        window.location.href = "/price-list";
+      }
 
-// Init
-buildFilters();
-applyFilters();
-</script>
-</body>
+      // Init
+      buildFilters();
+      applyFilters();
+    </script>
+  </body>
 </html>

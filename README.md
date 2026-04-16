@@ -28,12 +28,14 @@ Healthie Webhook (Rx approved) → Worker → Stripe (capture + subscription)
 ## Setup
 
 ### Prerequisites
+
 - Cloudflare account with Workers
 - Healthie API key
 - Stripe account with Connect enabled
 - Resend account for transactional email
 
 ### Environment Secrets (set via `wrangler secret put`)
+
 ```
 HEALTHIE_API_KEY
 STRIPE_SECRET_KEY
@@ -42,12 +44,15 @@ RESEND_API_KEY
 ```
 
 ### KV Namespace
+
 Create a KV namespace and update the ID in `wrangler.toml`:
+
 ```bash
 wrangler kv namespace create PARTNERS
 ```
 
 ### Deploy
+
 ```bash
 npm install
 npm run deploy
@@ -55,13 +60,13 @@ npm run deploy
 
 ## API Routes
 
-| Route | Method | Description |
-|---|---|---|
-| `/onboard` | GET | Influencer onboarding form |
-| `/onboard` | POST | Process onboarding |
-| `/form/:slug/:serviceType` | GET | Branded patient intake form |
-| `/form/:slug/:serviceType/submit` | POST | Submit intake + authorize payment |
-| `/webhooks/healthie` | POST | Healthie prescription webhook |
-| `/webhooks/stripe` | POST | Stripe subscription webhook |
-| `/admin/partners` | GET | List all partners |
-| `/admin/partners/:slug` | GET | Get partner config |
+| Route                             | Method | Description                       |
+| --------------------------------- | ------ | --------------------------------- |
+| `/onboard`                        | GET    | Influencer onboarding form        |
+| `/onboard`                        | POST   | Process onboarding                |
+| `/form/:slug/:serviceType`        | GET    | Branded patient intake form       |
+| `/form/:slug/:serviceType/submit` | POST   | Submit intake + authorize payment |
+| `/webhooks/healthie`              | POST   | Healthie prescription webhook     |
+| `/webhooks/stripe`                | POST   | Stripe subscription webhook       |
+| `/admin/partners`                 | GET    | List all partners                 |
+| `/admin/partners/:slug`           | GET    | Get partner config                |
