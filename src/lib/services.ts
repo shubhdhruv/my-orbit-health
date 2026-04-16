@@ -1,7 +1,16 @@
 // Complete service catalog with intake question definitions
 // Each service has steps, and each step has one question (one-question-per-screen pattern)
 
-export type QuestionType = "radio" | "checkbox" | "number" | "text" | "textarea" | "date" | "bmi" | "select" | "file-upload";
+export type QuestionType =
+  | "radio"
+  | "checkbox"
+  | "number"
+  | "text"
+  | "textarea"
+  | "date"
+  | "bmi"
+  | "select"
+  | "file-upload";
 
 export interface QuestionOption {
   label: string;
@@ -18,13 +27,25 @@ export interface FormStep {
   placeholder?: string;
   required?: boolean;
   conditionalOn?: { stepId: string; value: string }; // Only show if previous step has this value
-  fields?: Array<{ id: string; label: string; placeholder: string; type: string }>; // For composite fields like BMI
+  fields?: Array<{
+    id: string;
+    label: string;
+    placeholder: string;
+    type: string;
+  }>; // For composite fields like BMI
 }
 
 export interface ServiceDefinition {
   id: string;
   label: string;
-  category: "weight-loss" | "ed" | "hrt-male" | "hrt-female" | "peptide" | "blend";
+  category:
+    | "weight-loss"
+    | "ed"
+    | "hrt-male"
+    | "hrt-female"
+    | "peptide"
+    | "blend"
+    | "hair-loss";
   description: string;
   requiresBloodwork: boolean;
   bloodworkPanels?: string[];
@@ -106,7 +127,12 @@ const GLP1_STEPS: FormStep[] = [
     subtitle: "We'll calculate your BMI to check your eligibility",
     type: "bmi",
     fields: [
-      { id: "weight", label: "Weight (pounds)", placeholder: "Enter your weight", type: "number" },
+      {
+        id: "weight",
+        label: "Weight (pounds)",
+        placeholder: "Enter your weight",
+        type: "number",
+      },
       { id: "feet", label: "Feet", placeholder: "Feet", type: "number" },
       { id: "inches", label: "Inches", placeholder: "Inches", type: "number" },
     ],
@@ -126,7 +152,8 @@ const GLP1_STEPS: FormStep[] = [
   {
     id: "bariatric-surgery",
     question: "Have you undergone bariatric or gastric bypass surgery?",
-    subtitle: "This helps us ensure your safety and determine the best treatment option",
+    subtitle:
+      "This helps us ensure your safety and determine the best treatment option",
     type: "radio",
     options: [
       { label: "No", value: "no" },
@@ -175,15 +202,48 @@ const GLP1_STEPS: FormStep[] = [
     type: "checkbox",
     options: [
       { label: "None of the below", value: "none" },
-      { label: "Gastroparesis (Paralysis of your intestines)", value: "gastroparesis", disqualifying: true },
-      { label: "Triglycerides over 600 at any point", value: "triglycerides-600", disqualifying: true },
-      { label: "Pancreatic cancer", value: "pancreatic-cancer", disqualifying: true },
+      {
+        label: "Gastroparesis (Paralysis of your intestines)",
+        value: "gastroparesis",
+        disqualifying: true,
+      },
+      {
+        label: "Triglycerides over 600 at any point",
+        value: "triglycerides-600",
+        disqualifying: true,
+      },
+      {
+        label: "Pancreatic cancer",
+        value: "pancreatic-cancer",
+        disqualifying: true,
+      },
       { label: "Pancreatitis", value: "pancreatitis", disqualifying: true },
-      { label: "Type 1 Diabetes", value: "type-1-diabetes", disqualifying: true },
-      { label: "Hypoglycemia (low blood sugar)", value: "hypoglycemia", disqualifying: true },
-      { label: "Insulin-dependent diabetes", value: "insulin-dependent", disqualifying: true },
-      { label: "Family history of thyroid cancer", value: "thyroid-cancer-family", disqualifying: true },
-      { label: "Personal or family history of Multiple Endocrine Neoplasia (MEN-2) syndrome", value: "men-2", disqualifying: true },
+      {
+        label: "Type 1 Diabetes",
+        value: "type-1-diabetes",
+        disqualifying: true,
+      },
+      {
+        label: "Hypoglycemia (low blood sugar)",
+        value: "hypoglycemia",
+        disqualifying: true,
+      },
+      {
+        label: "Insulin-dependent diabetes",
+        value: "insulin-dependent",
+        disqualifying: true,
+      },
+      {
+        label: "Family history of thyroid cancer",
+        value: "thyroid-cancer-family",
+        disqualifying: true,
+      },
+      {
+        label:
+          "Personal or family history of Multiple Endocrine Neoplasia (MEN-2) syndrome",
+        value: "men-2",
+        disqualifying: true,
+      },
     ],
   },
   {
@@ -194,8 +254,16 @@ const GLP1_STEPS: FormStep[] = [
     options: [
       { label: "None", value: "none" },
       { label: "Insulin", value: "insulin", disqualifying: true },
-      { label: "Glimepiride (Amaryl)", value: "glimepiride", disqualifying: true },
-      { label: "Meglitinides (e.g., repaglinide, nateglinide)", value: "meglitinides", disqualifying: true },
+      {
+        label: "Glimepiride (Amaryl)",
+        value: "glimepiride",
+        disqualifying: true,
+      },
+      {
+        label: "Meglitinides (e.g., repaglinide, nateglinide)",
+        value: "meglitinides",
+        disqualifying: true,
+      },
       { label: "Glipizide", value: "glipizide", disqualifying: true },
       { label: "Glyburide", value: "glyburide", disqualifying: true },
       { label: "Sitagliptin", value: "sitagliptin", disqualifying: true },
@@ -207,7 +275,8 @@ const GLP1_STEPS: FormStep[] = [
   {
     id: "prior-glp1",
     question: "Have you taken a GLP-1 medication before?",
-    subtitle: "This helps us personalize your starting dose so you don't have to re-titrate from scratch.",
+    subtitle:
+      "This helps us personalize your starting dose so you don't have to re-titrate from scratch.",
     type: "radio",
     options: [
       { label: "No, this is my first time", value: "no" },
@@ -229,7 +298,8 @@ const GLP1_STEPS: FormStep[] = [
   {
     id: "prior-glp1-dose-semaglutide",
     question: "What was your most recent dose?",
-    subtitle: "Pick the highest dose you were stable on (tolerating well for at least 2 weeks).",
+    subtitle:
+      "Pick the highest dose you were stable on (tolerating well for at least 2 weeks).",
     type: "radio",
     options: [
       { label: "0.25 mg/week", value: "0.25" },
@@ -243,7 +313,8 @@ const GLP1_STEPS: FormStep[] = [
   {
     id: "prior-glp1-dose-tirzepatide",
     question: "What was your most recent dose?",
-    subtitle: "Pick the highest dose you were stable on (tolerating well for at least 2 weeks).",
+    subtitle:
+      "Pick the highest dose you were stable on (tolerating well for at least 2 weeks).",
     type: "radio",
     options: [
       { label: "2.5 mg/week", value: "2.5" },
@@ -258,7 +329,8 @@ const GLP1_STEPS: FormStep[] = [
   {
     id: "prior-glp1-dose-retatrutide",
     question: "What was your most recent dose?",
-    subtitle: "Pick the highest dose you were stable on (tolerating well for at least 2 weeks).",
+    subtitle:
+      "Pick the highest dose you were stable on (tolerating well for at least 2 weeks).",
     type: "radio",
     options: [
       { label: "2 mg/week", value: "2" },
@@ -271,7 +343,8 @@ const GLP1_STEPS: FormStep[] = [
   {
     id: "prior-glp1-timing",
     question: "When did you last take it?",
-    subtitle: "GI tolerance can reset after a gap, so this affects where we can safely start you.",
+    subtitle:
+      "GI tolerance can reset after a gap, so this affects where we can safely start you.",
     type: "radio",
     options: [
       { label: "I'm currently taking it", value: "current" },
@@ -317,20 +390,30 @@ const GLP1_STEPS: FormStep[] = [
   },
   {
     id: "pregnancy",
-    question: "Are you pregnant, breastfeeding, or planning to become pregnant?",
+    question:
+      "Are you pregnant, breastfeeding, or planning to become pregnant?",
     type: "radio",
     options: [
       { label: "No", value: "no" },
       { label: "Yes, I am pregnant", value: "pregnant", disqualifying: true },
-      { label: "Yes, I am breastfeeding", value: "breastfeeding", disqualifying: true },
-      { label: "Yes, I am planning to become pregnant", value: "planning", disqualifying: true },
+      {
+        label: "Yes, I am breastfeeding",
+        value: "breastfeeding",
+        disqualifying: true,
+      },
+      {
+        label: "Yes, I am planning to become pregnant",
+        value: "planning",
+        disqualifying: true,
+      },
       { label: "Not applicable", value: "na" },
     ],
   },
   {
     id: "patient-notes",
     question: "Anything else you'd like your doctor to know?",
-    subtitle: "Share any additional information, questions, or concerns that may be helpful for your consultation.",
+    subtitle:
+      "Share any additional information, questions, or concerns that may be helpful for your consultation.",
     type: "textarea",
     placeholder: "Type your notes here... (optional)",
     required: false,
@@ -349,7 +432,10 @@ const ED_STEPS: FormStep[] = [
     type: "radio",
     options: [
       { label: "I can never get an erection", value: "severe" },
-      { label: "I can get an erection but can't maintain it", value: "moderate" },
+      {
+        label: "I can get an erection but can't maintain it",
+        value: "moderate",
+      },
       { label: "I occasionally have difficulty", value: "mild" },
       { label: "I want to improve my performance", value: "enhancement" },
     ],
@@ -379,32 +465,73 @@ const ED_STEPS: FormStep[] = [
     type: "checkbox",
     options: [
       { label: "None of the below", value: "none" },
-      { label: "Heart attack in the last 90 days", value: "recent-mi", disqualifying: true },
-      { label: "Stroke in the last 6 months", value: "recent-stroke", disqualifying: true },
-      { label: "Unstable angina or chest pain during sexual activity", value: "unstable-angina", disqualifying: true },
+      {
+        label: "Heart attack in the last 90 days",
+        value: "recent-mi",
+        disqualifying: true,
+      },
+      {
+        label: "Stroke in the last 6 months",
+        value: "recent-stroke",
+        disqualifying: true,
+      },
+      {
+        label: "Unstable angina or chest pain during sexual activity",
+        value: "unstable-angina",
+        disqualifying: true,
+      },
       { label: "Heart failure", value: "heart-failure" },
-      { label: "Uncontrolled high blood pressure", value: "uncontrolled-bp", disqualifying: true },
-      { label: "Low blood pressure (below 90/50)", value: "low-bp", disqualifying: true },
+      {
+        label: "Uncontrolled high blood pressure",
+        value: "uncontrolled-bp",
+        disqualifying: true,
+      },
+      {
+        label: "Low blood pressure (below 90/50)",
+        value: "low-bp",
+        disqualifying: true,
+      },
       { label: "Heart arrhythmia", value: "arrhythmia" },
-      { label: "History of heart surgery, stenting, or bypass", value: "heart-surgery" },
+      {
+        label: "History of heart surgery, stenting, or bypass",
+        value: "heart-surgery",
+      },
     ],
   },
   {
     id: "nitrate-medications",
     question: "Do you take any nitrate medications?",
-    subtitle: "This is critically important — nitrates combined with ED medication can cause a dangerous drop in blood pressure",
+    subtitle:
+      "This is critically important — nitrates combined with ED medication can cause a dangerous drop in blood pressure",
     type: "checkbox",
     options: [
       { label: "None of the below", value: "none" },
-      { label: "Nitroglycerin (tablets, patches, or spray)", value: "nitroglycerin", disqualifying: true },
-      { label: "Isosorbide mononitrate (Imdur)", value: "isosorbide-mono", disqualifying: true },
-      { label: "Isosorbide dinitrate (Isordil)", value: "isosorbide-di", disqualifying: true },
-      { label: 'Amyl nitrite or "poppers" (recreational)', value: "poppers", disqualifying: true },
+      {
+        label: "Nitroglycerin (tablets, patches, or spray)",
+        value: "nitroglycerin",
+        disqualifying: true,
+      },
+      {
+        label: "Isosorbide mononitrate (Imdur)",
+        value: "isosorbide-mono",
+        disqualifying: true,
+      },
+      {
+        label: "Isosorbide dinitrate (Isordil)",
+        value: "isosorbide-di",
+        disqualifying: true,
+      },
+      {
+        label: 'Amyl nitrite or "poppers" (recreational)',
+        value: "poppers",
+        disqualifying: true,
+      },
     ],
   },
   {
     id: "alpha-blockers",
-    question: "Do you take any of these prostate or blood pressure medications?",
+    question:
+      "Do you take any of these prostate or blood pressure medications?",
     subtitle: "These may require a lower starting dose",
     type: "checkbox",
     options: [
@@ -419,15 +546,28 @@ const ED_STEPS: FormStep[] = [
   {
     id: "priapism-risk",
     question: "Do any of these apply to you?",
-    subtitle: "These conditions increase the risk of priapism (prolonged erection)",
+    subtitle:
+      "These conditions increase the risk of priapism (prolonged erection)",
     type: "checkbox",
     options: [
       { label: "None of the below", value: "none" },
-      { label: "Sickle cell disease", value: "sickle-cell", disqualifying: true },
-      { label: "Multiple myeloma", value: "multiple-myeloma", disqualifying: true },
+      {
+        label: "Sickle cell disease",
+        value: "sickle-cell",
+        disqualifying: true,
+      },
+      {
+        label: "Multiple myeloma",
+        value: "multiple-myeloma",
+        disqualifying: true,
+      },
       { label: "Leukemia", value: "leukemia", disqualifying: true },
       { label: "Peyronie's disease (penile deformity)", value: "peyronies" },
-      { label: "History of priapism (erection lasting over 4 hours)", value: "priapism-history", disqualifying: true },
+      {
+        label: "History of priapism (erection lasting over 4 hours)",
+        value: "priapism-history",
+        disqualifying: true,
+      },
     ],
   },
   {
@@ -437,10 +577,26 @@ const ED_STEPS: FormStep[] = [
     type: "checkbox",
     options: [
       { label: "None of the below", value: "none" },
-      { label: "Sudden loss of vision in one or both eyes", value: "vision-loss", disqualifying: true },
-      { label: "Non-arteritic anterior ischemic optic neuropathy (NAION)", value: "naion", disqualifying: true },
-      { label: "Retinitis pigmentosa", value: "retinitis-pigmentosa", disqualifying: true },
-      { label: "Sudden decrease or loss of hearing", value: "hearing-loss", disqualifying: true },
+      {
+        label: "Sudden loss of vision in one or both eyes",
+        value: "vision-loss",
+        disqualifying: true,
+      },
+      {
+        label: "Non-arteritic anterior ischemic optic neuropathy (NAION)",
+        value: "naion",
+        disqualifying: true,
+      },
+      {
+        label: "Retinitis pigmentosa",
+        value: "retinitis-pigmentosa",
+        disqualifying: true,
+      },
+      {
+        label: "Sudden decrease or loss of hearing",
+        value: "hearing-loss",
+        disqualifying: true,
+      },
     ],
   },
   {
@@ -450,13 +606,18 @@ const ED_STEPS: FormStep[] = [
     options: [
       { label: "No", value: "no" },
       { label: "Mild liver or kidney issues", value: "mild" },
-      { label: "Severe liver or kidney disease", value: "severe", disqualifying: true },
+      {
+        label: "Severe liver or kidney disease",
+        value: "severe",
+        disqualifying: true,
+      },
     ],
   },
   {
     id: "ed-current-medications",
     question: "Are you currently taking any medications?",
-    subtitle: "Include prescriptions, supplements, and over-the-counter medications",
+    subtitle:
+      "Include prescriptions, supplements, and over-the-counter medications",
     type: "radio",
     options: [
       { label: "No, I don't take any medications", value: "no" },
@@ -466,7 +627,8 @@ const ED_STEPS: FormStep[] = [
   {
     id: "ed-current-medications-detail",
     question: "Please list all current medications",
-    subtitle: "Include HIV medications, antifungals, blood thinners, and any supplements",
+    subtitle:
+      "Include HIV medications, antifungals, blood thinners, and any supplements",
     type: "textarea",
     placeholder: "List medication name, dosage, and frequency...",
     conditionalOn: { stepId: "ed-current-medications", value: "yes" },
@@ -528,7 +690,8 @@ const ED_STEPS: FormStep[] = [
   },
   {
     id: "sexual-activity-safety",
-    question: "Has a doctor ever told you that sexual activity is unsafe for you?",
+    question:
+      "Has a doctor ever told you that sexual activity is unsafe for you?",
     type: "radio",
     options: [
       { label: "No", value: "no" },
@@ -582,40 +745,79 @@ const TESTOSTERONE_STEPS: FormStep[] = [
   {
     id: "bloodwork-status",
     question: "Do you have recent bloodwork results?",
-    subtitle: "Testosterone therapy requires blood work within the last 6 months",
+    subtitle:
+      "Bloodwork is required before a physician can prescribe hormone replacement therapy. This ensures your treatment is safe and tailored to your body's needs.",
     type: "radio",
     options: [
-      { label: "Yes, I'll upload my labs (within last 6 months)", value: "have-labs" },
-      { label: "No — purchase the HRT Clearance Kit ($5, charged today and shipped to you)", value: "buy-kit" },
+      {
+        label: "Yes, I'll upload my labs (within last 6 months)",
+        value: "have-labs",
+      },
+      {
+        label:
+          "No — purchase the HRT Clearance Kit ({{KIT_PRICE}}, an at-home blood test shipped to your door so our doctors can evaluate and approve your hormone therapy)",
+        value: "buy-kit",
+      },
     ],
   },
   {
     id: "bloodwork-upload",
     question: "Upload your recent lab results",
-    subtitle: "We need: total testosterone, free testosterone, CBC, CMP, lipid panel, and PSA (if 40+)",
+    subtitle:
+      "We need: total testosterone, free testosterone, CBC, CMP, lipid panel, and PSA (if 40+)",
     type: "file-upload",
     conditionalOn: { stepId: "bloodwork-status", value: "have-labs" },
   },
   {
     id: "testosterone-contraindications",
     question: "Do any of these apply to you?",
-    subtitle: "These conditions may affect your eligibility for testosterone therapy",
+    subtitle:
+      "These conditions may affect your eligibility for testosterone therapy",
     type: "checkbox",
     options: [
       { label: "None of the below", value: "none" },
-      { label: "Prostate cancer (current or history)", value: "prostate-cancer", disqualifying: true },
-      { label: "Male breast cancer", value: "breast-cancer", disqualifying: true },
-      { label: "Hematocrit above 54%", value: "high-hematocrit", disqualifying: true },
-      { label: "Untreated severe sleep apnea", value: "severe-sleep-apnea", disqualifying: true },
-      { label: "Uncontrolled heart failure", value: "heart-failure", disqualifying: true },
-      { label: "Blood clots (DVT or PE)", value: "blood-clots", disqualifying: true },
-      { label: "Polycythemia (too many red blood cells)", value: "polycythemia", disqualifying: true },
+      {
+        label: "Prostate cancer (current or history)",
+        value: "prostate-cancer",
+        disqualifying: true,
+      },
+      {
+        label: "Male breast cancer",
+        value: "breast-cancer",
+        disqualifying: true,
+      },
+      {
+        label: "Hematocrit above 54%",
+        value: "high-hematocrit",
+        disqualifying: true,
+      },
+      {
+        label: "Untreated severe sleep apnea",
+        value: "severe-sleep-apnea",
+        disqualifying: true,
+      },
+      {
+        label: "Uncontrolled heart failure",
+        value: "heart-failure",
+        disqualifying: true,
+      },
+      {
+        label: "Blood clots (DVT or PE)",
+        value: "blood-clots",
+        disqualifying: true,
+      },
+      {
+        label: "Polycythemia (too many red blood cells)",
+        value: "polycythemia",
+        disqualifying: true,
+      },
     ],
   },
   {
     id: "fertility-goals",
     question: "Do you plan to father children in the near future?",
-    subtitle: "Important: Testosterone therapy significantly reduces sperm production",
+    subtitle:
+      "Important: Testosterone therapy significantly reduces sperm production",
     type: "radio",
     options: [
       { label: "No, I do not plan to have children", value: "no" },
@@ -693,14 +895,22 @@ const ENCLOMIPHENE_STEPS: FormStep[] = [
   {
     id: "bloodwork-status",
     question: "Do you have recent bloodwork results?",
-    subtitle: "Enclomiphene therapy requires labs within the last 3 months including: total testosterone, free testosterone, LH, FSH, estradiol",
+    subtitle:
+      "Bloodwork is required before a physician can prescribe hormone replacement therapy. This ensures your treatment is safe and tailored to your body's needs.",
     type: "radio",
     options: [
-      { label: "Yes, I'll upload my labs (within last 3 months)", value: "have-labs" },
-      { label: "No — purchase the HRT Clearance Kit ($5, charged today and shipped to you)", value: "buy-kit" },
+      {
+        label: "Yes, I'll upload my labs (within last 3 months)",
+        value: "have-labs",
+      },
+      {
+        label:
+          "No — purchase the HRT Clearance Kit ({{KIT_PRICE}}, an at-home blood test shipped to your door so our doctors can evaluate and approve your hormone therapy)",
+        value: "buy-kit",
+      },
     ],
   },
-  TESTOSTERONE_STEPS.find(s => s.id === "bloodwork-upload")!,
+  TESTOSTERONE_STEPS.find((s) => s.id === "bloodwork-upload")!,
   {
     id: "enclomiphene-contraindications",
     question: "Do any of these apply to you?",
@@ -709,17 +919,28 @@ const ENCLOMIPHENE_STEPS: FormStep[] = [
     options: [
       { label: "None of the below", value: "none" },
       { label: "Liver disease", value: "liver-disease", disqualifying: true },
-      { label: "Uncontrolled thyroid disorder", value: "thyroid", disqualifying: true },
-      { label: "Uncontrolled adrenal disorder", value: "adrenal", disqualifying: true },
-      { label: "History of blood clots (DVT, PE, stroke)", value: "blood-clots" },
+      {
+        label: "Uncontrolled thyroid disorder",
+        value: "thyroid",
+        disqualifying: true,
+      },
+      {
+        label: "Uncontrolled adrenal disorder",
+        value: "adrenal",
+        disqualifying: true,
+      },
+      {
+        label: "History of blood clots (DVT, PE, stroke)",
+        value: "blood-clots",
+      },
       { label: "Cardiovascular disease", value: "cardiovascular" },
       { label: "Visual disturbances or vision changes", value: "vision" },
     ],
   },
-  TESTOSTERONE_STEPS.find(s => s.id === "fertility-goals")!,
-  TESTOSTERONE_STEPS.find(s => s.id === "testosterone-medications")!,
-  TESTOSTERONE_STEPS.find(s => s.id === "testosterone-medications-detail")!,
-  TESTOSTERONE_STEPS.find(s => s.id === "testosterone-patient-notes")!,
+  TESTOSTERONE_STEPS.find((s) => s.id === "fertility-goals")!,
+  TESTOSTERONE_STEPS.find((s) => s.id === "testosterone-medications")!,
+  TESTOSTERONE_STEPS.find((s) => s.id === "testosterone-medications-detail")!,
+  TESTOSTERONE_STEPS.find((s) => s.id === "testosterone-patient-notes")!,
 ];
 
 // ============================================================
@@ -752,18 +973,29 @@ const ESTROGEN_STEPS: FormStep[] = [
     options: [
       { label: "I still have regular periods", value: "regular" },
       { label: "My periods are irregular", value: "irregular" },
-      { label: "I haven't had a period in over 12 months", value: "postmenopausal" },
+      {
+        label: "I haven't had a period in over 12 months",
+        value: "postmenopausal",
+      },
       { label: "I've had a hysterectomy", value: "hysterectomy" },
     ],
   },
   {
     id: "bloodwork-status",
     question: "Do you have recent bloodwork results?",
-    subtitle: "We need: FSH, estradiol, CBC, CMP, lipid panel, and thyroid panel",
+    subtitle:
+      "Bloodwork is required before a physician can prescribe hormone replacement therapy. This ensures your treatment is safe and tailored to your body's needs.",
     type: "radio",
     options: [
-      { label: "Yes, I'll upload my labs (within last 6 months)", value: "have-labs" },
-      { label: "No — purchase the HRT Clearance Kit ($5, charged today and shipped to you)", value: "buy-kit" },
+      {
+        label: "Yes, I'll upload my labs (within last 6 months)",
+        value: "have-labs",
+      },
+      {
+        label:
+          "No — purchase the HRT Clearance Kit ({{KIT_PRICE}}, an at-home blood test shipped to your door so our doctors can evaluate and approve your hormone therapy)",
+        value: "buy-kit",
+      },
     ],
   },
   {
@@ -775,17 +1007,46 @@ const ESTROGEN_STEPS: FormStep[] = [
   {
     id: "estrogen-contraindications",
     question: "Do any of these apply to you?",
-    subtitle: "These conditions may affect your eligibility for estrogen therapy",
+    subtitle:
+      "These conditions may affect your eligibility for estrogen therapy",
     type: "checkbox",
     options: [
       { label: "None of the below", value: "none" },
-      { label: "Breast cancer (current or history)", value: "breast-cancer", disqualifying: true },
-      { label: "Endometrial or ovarian cancer", value: "endometrial-cancer", disqualifying: true },
-      { label: "Blood clots (DVT or PE)", value: "blood-clots", disqualifying: true },
-      { label: "Heart attack or stroke", value: "mi-stroke", disqualifying: true },
-      { label: "Active liver disease", value: "liver-disease", disqualifying: true },
-      { label: "Unexplained vaginal bleeding", value: "unexplained-bleeding", disqualifying: true },
-      { label: "Known blood clotting disorder (e.g., Factor V Leiden)", value: "clotting-disorder", disqualifying: true },
+      {
+        label: "Breast cancer (current or history)",
+        value: "breast-cancer",
+        disqualifying: true,
+      },
+      {
+        label: "Endometrial or ovarian cancer",
+        value: "endometrial-cancer",
+        disqualifying: true,
+      },
+      {
+        label: "Blood clots (DVT or PE)",
+        value: "blood-clots",
+        disqualifying: true,
+      },
+      {
+        label: "Heart attack or stroke",
+        value: "mi-stroke",
+        disqualifying: true,
+      },
+      {
+        label: "Active liver disease",
+        value: "liver-disease",
+        disqualifying: true,
+      },
+      {
+        label: "Unexplained vaginal bleeding",
+        value: "unexplained-bleeding",
+        disqualifying: true,
+      },
+      {
+        label: "Known blood clotting disorder (e.g., Factor V Leiden)",
+        value: "clotting-disorder",
+        disqualifying: true,
+      },
     ],
   },
   {
@@ -795,7 +1056,10 @@ const ESTROGEN_STEPS: FormStep[] = [
     options: [
       { label: "Yes", value: "yes" },
       { label: "No", value: "no" },
-      { label: "I'm under 40 and haven't been recommended one", value: "not-applicable" },
+      {
+        label: "I'm under 40 and haven't been recommended one",
+        value: "not-applicable",
+      },
     ],
   },
   {
@@ -830,7 +1094,8 @@ const ESTROGEN_STEPS: FormStep[] = [
   {
     id: "estrogen-medications-detail",
     question: "Please list all current medications",
-    subtitle: "Especially thyroid medications, blood thinners, and seizure medications",
+    subtitle:
+      "Especially thyroid medications, blood thinners, and seizure medications",
     type: "textarea",
     placeholder: "Include name, dosage, and frequency...",
     conditionalOn: { stepId: "estrogen-medications", value: "yes" },
@@ -882,9 +1147,20 @@ const PEPTIDE_BASE_STEPS: FormStep[] = [
     type: "radio",
     options: [
       { label: "No cancer history", value: "none" },
-      { label: "Yes, currently being treated", value: "active", disqualifying: true },
-      { label: "Yes, in remission (within 5 years)", value: "remission-recent", disqualifying: true },
-      { label: "Yes, in remission (over 5 years ago)", value: "remission-long" },
+      {
+        label: "Yes, currently being treated",
+        value: "active",
+        disqualifying: true,
+      },
+      {
+        label: "Yes, in remission (within 5 years)",
+        value: "remission-recent",
+        disqualifying: true,
+      },
+      {
+        label: "Yes, in remission (over 5 years ago)",
+        value: "remission-long",
+      },
     ],
   },
   {
@@ -894,7 +1170,10 @@ const PEPTIDE_BASE_STEPS: FormStep[] = [
     type: "checkbox",
     options: [
       { label: "None of the below", value: "none" },
-      { label: "Autoimmune disease (lupus, RA, MS, Hashimoto's)", value: "autoimmune" },
+      {
+        label: "Autoimmune disease (lupus, RA, MS, Hashimoto's)",
+        value: "autoimmune",
+      },
       { label: "Organ transplant", value: "transplant", disqualifying: true },
       { label: "Currently on immunosuppressants", value: "immunosuppressants" },
       { label: "Active infection", value: "active-infection" },
@@ -927,14 +1206,16 @@ const PEPTIDE_BASE_STEPS: FormStep[] = [
   },
   {
     id: "peptide-previous-detail",
-    question: "Which peptides have you used, and did you have any adverse reactions?",
+    question:
+      "Which peptides have you used, and did you have any adverse reactions?",
     type: "textarea",
     placeholder: "e.g., BPC-157 for 4 weeks, no issues...",
     conditionalOn: { stepId: "peptide-previous", value: "yes" },
   },
   {
     id: "peptide-pregnancy",
-    question: "Are you pregnant, breastfeeding, or planning to become pregnant?",
+    question:
+      "Are you pregnant, breastfeeding, or planning to become pregnant?",
     type: "radio",
     options: [
       { label: "No", value: "no" },
@@ -970,7 +1251,8 @@ const PEPTIDE_BASE_STEPS: FormStep[] = [
   },
   {
     id: "peptide-allergies",
-    question: "Do you have any allergies to injectable medications or peptides?",
+    question:
+      "Do you have any allergies to injectable medications or peptides?",
     type: "radio",
     options: [
       { label: "No known allergies", value: "no" },
@@ -980,7 +1262,8 @@ const PEPTIDE_BASE_STEPS: FormStep[] = [
   {
     id: "peptide-allergies-detail",
     question: "Please describe your allergies",
-    subtitle: "Include any reactions to bacteriostatic water, mannitol, or benzyl alcohol",
+    subtitle:
+      "Include any reactions to bacteriostatic water, mannitol, or benzyl alcohol",
     type: "textarea",
     placeholder: "Describe your allergies...",
     conditionalOn: { stepId: "peptide-allergies", value: "yes" },
@@ -1000,13 +1283,17 @@ const MOTSC_EXTRA_STEPS: FormStep[] = [
   {
     id: "diabetes-screening",
     question: "Do you have diabetes or metabolic conditions?",
-    subtitle: "MOTS-c affects blood sugar — this is important for dosing safety",
+    subtitle:
+      "MOTS-c affects blood sugar — this is important for dosing safety",
     type: "checkbox",
     options: [
       { label: "None", value: "none" },
       { label: "Type 1 Diabetes", value: "type-1", disqualifying: true },
       { label: "Type 2 Diabetes", value: "type-2" },
-      { label: "Insulin resistance / pre-diabetes", value: "insulin-resistance" },
+      {
+        label: "Insulin resistance / pre-diabetes",
+        value: "insulin-resistance",
+      },
       { label: "Currently on metformin", value: "metformin" },
       { label: "Currently on insulin", value: "insulin" },
       { label: "Currently on a GLP-1 medication", value: "glp1" },
@@ -1023,8 +1310,16 @@ const NAD_EXTRA_STEPS: FormStep[] = [
     type: "checkbox",
     options: [
       { label: "None", value: "none" },
-      { label: "Unstable angina or recent heart attack", value: "unstable-angina", disqualifying: true },
-      { label: "Low blood pressure (systolic below 100)", value: "low-bp", disqualifying: true },
+      {
+        label: "Unstable angina or recent heart attack",
+        value: "unstable-angina",
+        disqualifying: true,
+      },
+      {
+        label: "Low blood pressure (systolic below 100)",
+        value: "low-bp",
+        disqualifying: true,
+      },
       { label: "Uncontrolled arrhythmia", value: "arrhythmia" },
       { label: "Currently on blood pressure medication", value: "bp-meds" },
     ],
@@ -1081,7 +1376,8 @@ const KLOW_EXTRA_STEPS: FormStep[] = [
   {
     id: "ibd-status",
     question: "Do you have inflammatory bowel disease?",
-    subtitle: "KPV is often used for gut inflammation — we need to know your current status",
+    subtitle:
+      "KPV is often used for gut inflammation — we need to know your current status",
     type: "radio",
     options: [
       { label: "No", value: "no" },
@@ -1099,7 +1395,10 @@ const TADALAFIL_DOSING_PREFERENCE: FormStep = {
   subtitle: "Your doctor will confirm the best option for you",
   type: "radio",
   options: [
-    { label: "As needed before sexual activity (works up to 36 hours)", value: "prn" },
+    {
+      label: "As needed before sexual activity (works up to 36 hours)",
+      value: "prn",
+    },
     { label: "Daily low dose for spontaneous readiness", value: "daily" },
     { label: "I'm not sure — let my doctor decide", value: "prn" },
   ],
@@ -1109,13 +1408,220 @@ const TADALAFIL_DOSING_PREFERENCE: FormStep = {
 const OFF_LABEL_CONSENT_STEP: FormStep = {
   id: "off_label_informed_consent_signed",
   question: "Off-Label / Investigational Compound Consent",
-  subtitle: "This therapy uses a compounded peptide that is not FDA-approved for any indication. It is prescribed off-label based on your doctor's clinical judgment. By proceeding, you acknowledge that you understand this is not an FDA-approved treatment, that long-term safety data may be limited, and that you consent to off-label prescribing. Your doctor will review this with you on your video visit.",
+  subtitle:
+    "This therapy uses a compounded peptide that is not FDA-approved for any indication. It is prescribed off-label based on your doctor's clinical judgment. By proceeding, you acknowledge that you understand this is not an FDA-approved treatment, that long-term safety data may be limited, and that you consent to off-label prescribing. Your doctor will review this with you on your video visit.",
   type: "radio",
   options: [
     { label: "I understand and consent to proceed", value: "yes" },
     { label: "I do not consent", value: "no", disqualifying: true },
   ],
 };
+
+// ============================================================
+// HAIR LOSS STEPS
+// ============================================================
+
+const HAIR_LOSS_STEPS: FormStep[] = [
+  {
+    id: "hair-pattern",
+    question: "How would you describe your hair loss?",
+    subtitle: "This helps us determine the right treatment approach",
+    type: "radio",
+    options: [
+      { label: "Receding hairline", value: "receding-hairline" },
+      { label: "Thinning on the crown/top", value: "crown-thinning" },
+      { label: "Overall thinning", value: "overall-thinning" },
+      { label: "Patchy hair loss", value: "patchy" },
+      { label: "Just starting to notice thinning", value: "early-stage" },
+    ],
+  },
+  {
+    id: "hair-duration",
+    question: "How long have you been experiencing hair loss?",
+    type: "radio",
+    options: [
+      { label: "Less than 6 months", value: "less-6-months" },
+      { label: "6-12 months", value: "6-12-months" },
+      { label: "1-3 years", value: "1-3-years" },
+      { label: "More than 3 years", value: "over-3-years" },
+    ],
+  },
+  {
+    id: "hair-family-history",
+    question: "Do you have a family history of hair loss?",
+    type: "radio",
+    options: [
+      { label: "Yes, on my father's side", value: "paternal" },
+      { label: "Yes, on my mother's side", value: "maternal" },
+      { label: "Yes, both sides", value: "both" },
+      { label: "No", value: "no" },
+      { label: "Not sure", value: "unsure" },
+    ],
+  },
+  {
+    id: "hair-previous-treatment",
+    question: "Have you tried any hair loss treatments before?",
+    type: "checkbox",
+    options: [
+      { label: "None", value: "none" },
+      { label: "Minoxidil (Rogaine)", value: "minoxidil" },
+      { label: "Finasteride (Propecia)", value: "finasteride" },
+      { label: "Hair transplant", value: "transplant" },
+      { label: "PRP therapy", value: "prp" },
+      { label: "Over-the-counter supplements", value: "supplements" },
+    ],
+  },
+  {
+    id: "hair-medical-conditions",
+    question: "Do any of these apply to you?",
+    subtitle: "These conditions may affect your treatment options",
+    type: "checkbox",
+    options: [
+      { label: "None of the below", value: "none" },
+      { label: "Thyroid disorder", value: "thyroid" },
+      {
+        label: "Autoimmune condition (e.g., alopecia areata)",
+        value: "autoimmune",
+      },
+      {
+        label: "Scalp condition (psoriasis, dermatitis)",
+        value: "scalp-condition",
+      },
+      { label: "Iron deficiency or anemia", value: "anemia" },
+      { label: "Recent major surgery or illness", value: "recent-surgery" },
+      { label: "Significant recent weight loss", value: "weight-loss" },
+    ],
+  },
+  {
+    id: "hair-current-medications",
+    question: "Are you currently taking any medications?",
+    subtitle:
+      "Include prescriptions, supplements, and over-the-counter medications",
+    type: "radio",
+    options: [
+      { label: "No, I don't take any medications", value: "no" },
+      { label: "Yes, I take medications", value: "yes" },
+    ],
+  },
+  {
+    id: "hair-medication-list",
+    question: "Please list all medications you currently take",
+    subtitle: "Include the name, dose, and how often you take each one",
+    type: "textarea",
+    placeholder: "e.g., Lisinopril 10mg once daily, Vitamin D 2000 IU daily",
+    conditionalOn: { stepId: "hair-current-medications", value: "yes" },
+  },
+  {
+    id: "hair-allergies",
+    question: "Do you have any drug allergies?",
+    type: "radio",
+    options: [
+      { label: "No known drug allergies", value: "none" },
+      { label: "Yes", value: "yes" },
+    ],
+  },
+  {
+    id: "hair-allergy-list",
+    question: "Please list your drug allergies and reactions",
+    type: "textarea",
+    placeholder: "e.g., Penicillin — hives",
+    conditionalOn: { stepId: "hair-allergies", value: "yes" },
+  },
+  {
+    id: "hair-goals",
+    question: "What are your hair restoration goals?",
+    type: "radio",
+    options: [
+      { label: "Stop further hair loss", value: "stop-loss" },
+      { label: "Regrow hair in thinning areas", value: "regrow" },
+      { label: "Both — stop loss and regrow", value: "both" },
+    ],
+  },
+];
+
+const HAIR_LOSS_MALE_EXTRA: FormStep[] = [
+  {
+    id: "hair-finasteride-awareness",
+    question: "Are you aware of finasteride's potential side effects?",
+    subtitle:
+      "Finasteride is effective for male pattern hair loss but has known side effects you should understand",
+    type: "radio",
+    options: [
+      {
+        label: "Yes, I understand the risks and want to proceed",
+        value: "aware-proceed",
+      },
+      {
+        label: "I'd like to learn more during my consultation",
+        value: "want-info",
+      },
+      {
+        label: "I prefer to avoid finasteride and try other options",
+        value: "avoid-finasteride",
+      },
+    ],
+  },
+  {
+    id: "hair-prostate",
+    question: "Have you been diagnosed with any prostate conditions?",
+    type: "radio",
+    options: [
+      { label: "No", value: "no" },
+      { label: "Benign prostatic hyperplasia (BPH)", value: "bph" },
+      {
+        label: "Prostate cancer (current or history)",
+        value: "prostate-cancer",
+        disqualifying: true,
+      },
+      { label: "Other prostate condition", value: "other" },
+    ],
+  },
+];
+
+const HAIR_LOSS_FEMALE_EXTRA: FormStep[] = [
+  {
+    id: "hair-hormonal-status",
+    question: "What is your current hormonal status?",
+    type: "radio",
+    options: [
+      { label: "Pre-menopausal (regular periods)", value: "pre-menopausal" },
+      {
+        label: "Peri-menopausal (irregular periods)",
+        value: "peri-menopausal",
+      },
+      { label: "Post-menopausal", value: "post-menopausal" },
+      { label: "Not sure", value: "unsure" },
+    ],
+  },
+  {
+    id: "hair-pregnancy",
+    question:
+      "Are you pregnant, breastfeeding, or planning to become pregnant?",
+    subtitle: "Some hair loss treatments are not safe during pregnancy",
+    type: "radio",
+    options: [
+      { label: "No", value: "no" },
+      { label: "Yes, I am pregnant", value: "pregnant", disqualifying: true },
+      {
+        label: "Yes, I am breastfeeding",
+        value: "breastfeeding",
+        disqualifying: true,
+      },
+      { label: "Yes, I am planning to become pregnant", value: "planning" },
+    ],
+  },
+  {
+    id: "hair-birth-control",
+    question: "Are you currently using hormonal birth control?",
+    type: "radio",
+    options: [
+      { label: "No", value: "no" },
+      { label: "Yes — oral contraceptive pill", value: "pill" },
+      { label: "Yes — IUD", value: "iud" },
+      { label: "Yes — other hormonal method", value: "other" },
+    ],
+  },
+];
 
 // ============================================================
 // SERVICE CATALOG
@@ -1173,7 +1679,20 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "hrt-male",
     description: "Testosterone cypionate/enanthate injection therapy",
     requiresBloodwork: true,
-    bloodworkPanels: ["Total Testosterone", "Free Testosterone", "SHBG", "LH", "FSH", "Estradiol", "Prolactin", "CBC", "CMP", "Lipid Panel", "PSA (40+)", "TSH"],
+    bloodworkPanels: [
+      "Total Testosterone",
+      "Free Testosterone",
+      "SHBG",
+      "LH",
+      "FSH",
+      "Estradiol",
+      "Prolactin",
+      "CBC",
+      "CMP",
+      "Lipid Panel",
+      "PSA (40+)",
+      "TSH",
+    ],
     intakeSteps: [STATE_STEP, ...TESTOSTERONE_STEPS],
   },
   {
@@ -1182,7 +1701,20 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "hrt-male",
     description: "Oral testosterone undecanoate therapy",
     requiresBloodwork: true,
-    bloodworkPanels: ["Total Testosterone", "Free Testosterone", "SHBG", "LH", "FSH", "Estradiol", "Prolactin", "CBC", "CMP", "Lipid Panel", "PSA (40+)", "TSH"],
+    bloodworkPanels: [
+      "Total Testosterone",
+      "Free Testosterone",
+      "SHBG",
+      "LH",
+      "FSH",
+      "Estradiol",
+      "Prolactin",
+      "CBC",
+      "CMP",
+      "Lipid Panel",
+      "PSA (40+)",
+      "TSH",
+    ],
     intakeSteps: [STATE_STEP, ...TESTOSTERONE_STEPS],
   },
   {
@@ -1191,7 +1723,18 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "hrt-male",
     description: "Fertility-preserving male hormone optimization",
     requiresBloodwork: true,
-    bloodworkPanels: ["Total Testosterone", "Free Testosterone", "LH", "FSH", "Estradiol", "SHBG", "CBC", "CMP", "Lipid Panel", "Prolactin"],
+    bloodworkPanels: [
+      "Total Testosterone",
+      "Free Testosterone",
+      "LH",
+      "FSH",
+      "Estradiol",
+      "SHBG",
+      "CBC",
+      "CMP",
+      "Lipid Panel",
+      "Prolactin",
+    ],
     intakeSteps: [STATE_STEP, ...ENCLOMIPHENE_STEPS],
   },
 
@@ -1200,7 +1743,8 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     id: "estrogen-cream-vaginal",
     label: "Estrogen Cream (Vaginal/GSM)",
     category: "hrt-female",
-    description: "Vaginal estradiol cream for genitourinary syndrome of menopause",
+    description:
+      "Vaginal estradiol cream for genitourinary syndrome of menopause",
     requiresBloodwork: false,
     intakeSteps: [STATE_STEP, ...ESTROGEN_STEPS],
   },
@@ -1208,9 +1752,19 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     id: "estrogen-cream-systemic",
     label: "Estrogen Cream (Systemic/Topical)",
     category: "hrt-female",
-    description: "Topical estradiol cream for systemic menopause symptom relief",
+    description:
+      "Topical estradiol cream for systemic menopause symptom relief",
     requiresBloodwork: true,
-    bloodworkPanels: ["FSH", "Estradiol", "TSH", "Free T4", "CBC", "CMP", "Lipid Panel", "Fasting Glucose"],
+    bloodworkPanels: [
+      "FSH",
+      "Estradiol",
+      "TSH",
+      "Free T4",
+      "CBC",
+      "CMP",
+      "Lipid Panel",
+      "Fasting Glucose",
+    ],
     intakeSteps: [STATE_STEP, ...ESTROGEN_STEPS],
   },
   {
@@ -1219,7 +1773,16 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "hrt-female",
     description: "Transdermal estradiol patches for menopause symptom relief",
     requiresBloodwork: true,
-    bloodworkPanels: ["FSH", "Estradiol", "TSH", "Free T4", "CBC", "CMP", "Lipid Panel", "Fasting Glucose"],
+    bloodworkPanels: [
+      "FSH",
+      "Estradiol",
+      "TSH",
+      "Free T4",
+      "CBC",
+      "CMP",
+      "Lipid Panel",
+      "Fasting Glucose",
+    ],
     intakeSteps: [STATE_STEP, ...ESTROGEN_STEPS],
   },
 
@@ -1230,7 +1793,12 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "peptide",
     description: "Mitochondrial peptide for metabolic optimization",
     requiresBloodwork: false,
-    intakeSteps: [STATE_STEP, ...MOTSC_EXTRA_STEPS, ...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
+    intakeSteps: [
+      STATE_STEP,
+      ...MOTSC_EXTRA_STEPS,
+      ...PEPTIDE_BASE_STEPS,
+      OFF_LABEL_CONSENT_STEP,
+    ],
   },
   {
     id: "nad",
@@ -1238,7 +1806,12 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "peptide",
     description: "Cellular energy and DNA repair coenzyme therapy",
     requiresBloodwork: false,
-    intakeSteps: [STATE_STEP, ...NAD_EXTRA_STEPS, ...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
+    intakeSteps: [
+      STATE_STEP,
+      ...NAD_EXTRA_STEPS,
+      ...PEPTIDE_BASE_STEPS,
+      OFF_LABEL_CONSENT_STEP,
+    ],
   },
   {
     id: "bpc-157",
@@ -1253,6 +1826,15 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     label: "TB-500",
     category: "peptide",
     description: "Thymosin beta-4 for injury recovery and flexibility",
+    requiresBloodwork: false,
+    intakeSteps: [STATE_STEP, ...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
+  },
+  {
+    id: "sermorelin",
+    label: "Sermorelin",
+    category: "peptide",
+    description:
+      "Growth hormone-releasing peptide for recovery, sleep, and body composition",
     requiresBloodwork: false,
     intakeSteps: [STATE_STEP, ...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
   },
@@ -1272,15 +1854,67 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     category: "blend",
     description: "GHK-Cu + BPC-157 + TB-500 for skin and tissue regeneration",
     requiresBloodwork: false,
-    intakeSteps: [STATE_STEP, ...GLO_EXTRA_STEPS, ...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
+    intakeSteps: [
+      STATE_STEP,
+      ...GLO_EXTRA_STEPS,
+      ...PEPTIDE_BASE_STEPS,
+      OFF_LABEL_CONSENT_STEP,
+    ],
   },
   {
     id: "klow",
     label: "KLOW Blend",
     category: "blend",
-    description: "GHK-Cu + BPC-157 + TB-500 + KPV for regeneration and inflammation",
+    description:
+      "GHK-Cu + BPC-157 + TB-500 + KPV for regeneration and inflammation",
     requiresBloodwork: false,
-    intakeSteps: [STATE_STEP, ...KLOW_EXTRA_STEPS, ...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
+    intakeSteps: [
+      STATE_STEP,
+      ...KLOW_EXTRA_STEPS,
+      ...PEPTIDE_BASE_STEPS,
+      OFF_LABEL_CONSENT_STEP,
+    ],
+  },
+
+  // Progesterone
+  {
+    id: "progesterone",
+    label: "Progesterone",
+    category: "hrt-female",
+    description:
+      "Oral progesterone capsules (200mg) for hormone balance and menopause support",
+    requiresBloodwork: true,
+    bloodworkPanels: [
+      "FSH",
+      "Estradiol",
+      "Progesterone",
+      "TSH",
+      "Free T4",
+      "CBC",
+      "CMP",
+      "Lipid Panel",
+    ],
+    intakeSteps: [STATE_STEP, ...ESTROGEN_STEPS],
+  },
+
+  // Hair Loss
+  {
+    id: "hair-loss",
+    label: "Hair Loss Treatment (Men)",
+    category: "hair-loss",
+    description:
+      "Finasteride, minoxidil, or combination therapy for male pattern hair loss",
+    requiresBloodwork: false,
+    intakeSteps: [STATE_STEP, ...HAIR_LOSS_STEPS, ...HAIR_LOSS_MALE_EXTRA],
+  },
+  {
+    id: "hair-loss-women",
+    label: "Hair Loss Treatment (Women)",
+    category: "hair-loss",
+    description:
+      "Minoxidil, spironolactone, or combination therapy for women's hair thinning",
+    requiresBloodwork: false,
+    intakeSteps: [STATE_STEP, ...HAIR_LOSS_STEPS, ...HAIR_LOSS_FEMALE_EXTRA],
   },
 ];
 
@@ -1288,6 +1922,45 @@ export function getServiceById(id: string): ServiceDefinition | undefined {
   return SERVICE_CATALOG.find((s) => s.id === id);
 }
 
-export function getServicesByCategory(category: ServiceDefinition["category"]): ServiceDefinition[] {
+export function getServicesByCategory(
+  category: ServiceDefinition["category"],
+): ServiceDefinition[] {
   return SERVICE_CATALOG.filter((s) => s.category === category);
+}
+
+// ============================================================
+// STARTUP VALIDATION — catch missing routing/dosing entries at
+// deploy time, not when a customer hits checkout.
+//
+// If a service exists in SERVICE_CATALOG but is missing from
+// the routing schedule_map or dosing protocols, log a loud error.
+// This is the exact bug that caused hair-loss / progesterone
+// customers to get charged then told "not available."
+// ============================================================
+import routingRules from "./routing_rules.json";
+import dosingRules from "./dosing_rules.json";
+
+const _scheduleMap = (routingRules as any).schedule_map as Record<
+  string,
+  string
+>;
+const _protocols = (dosingRules as any).protocols as Record<string, unknown>;
+
+for (const svc of SERVICE_CATALOG) {
+  const normalized = svc.id.replace(/_/g, "-").toLowerCase();
+  // Check routing schedule_map
+  if (_scheduleMap[normalized] === undefined) {
+    console.error(
+      `[STARTUP] SERVICE MISSING FROM ROUTING: "${normalized}" is in SERVICE_CATALOG but not in routing_rules.json schedule_map. ` +
+        `Customers ordering this service will be BLOCKED. Add it to schedule_map as "none" (non-controlled) or the correct schedule.`,
+    );
+  }
+  // Check dosing protocols (nad maps to nad-plus)
+  const dosingKey = normalized === "nad" ? "nad-plus" : normalized;
+  if (!_protocols[dosingKey]) {
+    console.error(
+      `[STARTUP] SERVICE MISSING FROM DOSING: "${normalized}" is in SERVICE_CATALOG but has no protocol in dosing_rules.json. ` +
+        `Customers ordering this service will be HARD BLOCKED. Add a protocol entry with status "active".`,
+    );
+  }
 }

@@ -39,7 +39,11 @@ export type ServiceId =
   | "tb-500"
   | "wolverine"
   | "glo"
-  | "klow";
+  | "klow"
+  | "sermorelin"
+  | "hair-loss"
+  | "hair-loss-women"
+  | "progesterone";
 
 export interface ServiceConfig {
   type: ServiceId;
@@ -80,17 +84,48 @@ export interface PartnerConfig {
   medplumOrgId?: string;
   medplumQuestionnaireIds?: Record<string, string>; // serviceId → Questionnaire ID
   platformFees?: Record<string, number>; // serviceId → flat dollar amount MOH keeps
+  // HRT Clearance Kit — per-partner pricing + split
+  bloodworkKitPrice?: number; // Patient pays this (default $124.99)
+  bloodworkKitFee?: number; // MOH keeps this from the kit charge (default = full amount)
   // Branded email sending — domain verified on MOH's Resend account
-  senderEmail?: string;    // e.g. "noreply@beverlyhillsdrip.com"
-  senderName?: string;     // e.g. "Beverly Hills Drip" — defaults to businessName
-  resendApiKey?: string;   // Partner's own Resend API key — falls back to MOH key
+  senderEmail?: string; // e.g. "noreply@beverlyhillsdrip.com"
+  senderName?: string; // e.g. "Beverly Hills Drip" — defaults to businessName
+  resendApiKey?: string; // Partner's own Resend API key — falls back to MOH key
   resendDomainId?: string; // Resend domain ID for verification tracking
   resendDomainStatus?: "not_started" | "pending" | "verified" | "failed";
-  resendDnsRecords?: Array<{ record: string; name: string; type: string; value: string; ttl: number; status: string; priority?: number | null }>;
+  resendDnsRecords?: Array<{
+    record: string;
+    name: string;
+    type: string;
+    value: string;
+    ttl: number;
+    status: string;
+    priority?: number | null;
+  }>;
   // Patient portal custom subdomain (e.g. "portal.kingdomlongevitylabs.com")
   // Used for Host-based tenant routing on the portal worker routes.
   portalDomain?: string;
   enabled: boolean;
+  createdAt: string;
+}
+
+// ─── Coupon / Promo Code ─────────────────────────────────────
+
+export interface Coupon {
+  code: string;
+  type: "percent" | "fixed" | "at-cost";
+  // percent → value = percentage off (e.g. 20 = 20%)
+  // fixed   → value = dollar amount off
+  // at-cost → ignored (uses atCostPrices instead)
+  value?: number;
+  // For at-cost coupons: per-service pharmacy cost. Final price = cost + $5 MOH fee.
+  atCostPrices?: Record<string, number>;
+  maxUses?: number; // undefined = unlimited
+  onePerEmail?: boolean; // true = one redemption per email address
+  usedCount: number;
+  usedEmails: string[];
+  partnerSlug?: string; // lock coupon to a specific partner
+  active: boolean;
   createdAt: string;
 }
 
@@ -125,6 +160,7 @@ export interface PendingCase {
   // Payment
   chargeAmount: number;
   subscriptionPrice: number;
+  planMonths?: number; // 1 = monthly, 3 = 3-month prepaid, 6 = 6-month prepaid
   paymentMethodId: string;
 
   // Clinical
@@ -135,15 +171,15 @@ export interface PendingCase {
 
   // Bloodwork
   bloodworkStatus?: "have-labs" | "buy-kit" | "not-required";
-  bloodworkBinaryId?: string;   // Medplum Binary ID for uploaded lab file
-  bloodworkDocRefId?: string;   // Medplum DocumentReference linking file to patient
-  bloodworkKitPurchased?: boolean;   // Patient paid $124.99 for HRT clearance kit
-  bloodworkKitPaymentId?: string;    // Stripe PaymentIntent ID for the kit charge
-  bloodworkKitShipped?: boolean;     // Admin marks when the kit is physically shipped
+  bloodworkBinaryId?: string; // Medplum Binary ID for uploaded lab file
+  bloodworkDocRefId?: string; // Medplum DocumentReference linking file to patient
+  bloodworkKitPurchased?: boolean; // Patient paid $124.99 for HRT clearance kit
+  bloodworkKitPaymentId?: string; // Stripe PaymentIntent ID for the kit charge
+  bloodworkKitShipped?: boolean; // Admin marks when the kit is physically shipped
   // Bloodwork lifecycle timestamps (drives portal timeline)
-  bloodworkKitShippedAt?: string;    // ISO: kit shipped to patient
-  bloodworkReceivedAt?: string;      // ISO: lab has patient's sample
-  bloodworkReviewedAt?: string;      // ISO: provider has reviewed results
+  bloodworkKitShippedAt?: string; // ISO: kit shipped to patient
+  bloodworkReceivedAt?: string; // ISO: lab has patient's sample
+  bloodworkReviewedAt?: string; // ISO: provider has reviewed results
 
   // SOAP Note
   soapNoteId?: string;
@@ -162,10 +198,14 @@ export interface PendingCase {
 
   // Legal: Patient Enrollment Disclosure acknowledgment (proof of consent)
   disclosureAcknowledged?: boolean;
-  disclosureAcknowledgedAt?: string;   // ISO timestamp
-  disclosureVersion?: string;          // Which revision of the disclosure text
-  disclosureIp?: string;               // Client IP at time of acknowledgment
-  disclosureUserAgent?: string;        // Client UA at time of acknowledgment
+  disclosureAcknowledgedAt?: string; // ISO timestamp
+  disclosureVersion?: string; // Which revision of the disclosure text
+  disclosureIp?: string; // Client IP at time of acknowledgment
+  disclosureUserAgent?: string; // Client UA at time of acknowledgment
+
+  // Coupon
+  couponCode?: string;
+  couponDiscount?: number; // dollar amount saved
 
   // Timestamps
   createdAt: string;

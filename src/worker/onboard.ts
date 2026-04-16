@@ -5,6 +5,7 @@ import { SERVICE_CATALOG, getServiceById } from "../lib/services";
 import { createStripeClient, createConnectAccount } from "./stripe";
 import { createOrganization, buildIntakeQuestionnaire } from "./medplum";
 import { sendEmail, buildOnboardingCompleteEmail } from "./email";
+import { generatePartnerPricingForm } from "../templates/partner-pricing";
 
 const onboard = new Hono<{ Bindings: Env }>();
 
@@ -12,6 +13,581 @@ const onboard = new Hono<{ Bindings: Env }>();
 onboard.get("/", (c) => {
   return c.html(ONBOARDING_FORM_HTML);
 });
+
+// Return page after Stripe Connect onboarding
+onboard.get("/complete", (c) => {
+  return c.html(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>You're All Set — My Orbit Health</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #f8f9fa; color: #1a1a2e; }
+    .container { max-width: 600px; margin: 0 auto; padding: 80px 24px; text-align: center; }
+    .check { width: 64px; height: 64px; background: #22c55e; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; }
+    .check::after { content: ''; width: 24px; height: 14px; border-left: 3px solid #fff; border-bottom: 3px solid #fff; transform: rotate(-45deg); margin-bottom: 4px; }
+    h1 { font-size: 28px; font-weight: 700; margin-bottom: 12px; }
+    p { font-size: 16px; color: #555; line-height: 1.6; margin-bottom: 16px; }
+    .card { background: #fff; border-radius: 12px; padding: 24px; margin: 32px 0; border: 1px solid #e0e0e0; text-align: left; }
+    .card h2 { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
+    .step-item { display: flex; gap: 12px; margin-bottom: 16px; }
+    .step-num { width: 28px; height: 28px; min-width: 28px; background: #4F46E5; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
+    .step-text { font-size: 14px; color: #333; line-height: 1.5; }
+    .step-text strong { color: #1a1a2e; }
+    a.btn { display: inline-block; padding: 14px 32px; background: #4F46E5; color: #fff; border-radius: 8px; font-size: 15px; font-weight: 600; text-decoration: none; margin-top: 16px; }
+    a.btn:hover { background: #4338CA; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="check"></div>
+    <h1>You're All Set!</h1>
+    <p>Your bank account has been connected and your branded telehealth forms are live.</p>
+    <div class="card">
+      <h2>What happens next?</h2>
+      <div class="step-item">
+        <div class="step-num">1</div>
+        <div class="step-text"><strong>Check your email</strong> — we sent you a 2-step integration guide: a proxy file for your site and the embed code for each service. Share it with your developer.</div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">2</div>
+        <div class="step-text"><strong>Patients fill out your forms</strong> — they'll see your branding, your colors, and your prices. Everything is white-labeled to your business.</div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">3</div>
+        <div class="step-text"><strong>We handle the rest</strong> — physician review, prescriptions, pharmacy fulfillment, and patient follow-ups. Earnings are deposited directly to your bank account.</div>
+      </div>
+    </div>
+    <p style="font-size:14px;color:#888;">Questions? Email us at <a href="mailto:support@myorbithealth.com" style="color:#4F46E5;">support@myorbithealth.com</a></p>
+  </div>
+</body>
+</html>`);
+});
+
+// ─── Dynamic Stripe Connect onboarding link ─────────────────
+// Generates a fresh Account Link every time the URL is hit, so it never expires.
+// Reset a partner's Stripe Connect account and redirect to fresh onboarding.
+// Use when the old account is stuck or broken.
+onboard.get("/connect/:slug/reset", async (c) => {
+  const slug = c.req.param("slug");
+  const raw = await c.env.PARTNERS.get(slug);
+  if (!raw) return c.text("Partner not found", 404);
+  const partner = JSON.parse(raw);
+
+  const stripe = createStripeClient(c.env.STRIPE_SECRET_KEY);
+  const connect = await createConnectAccount(
+    stripe,
+    partner.contactEmail,
+    partner.businessName,
+  );
+  partner.stripeConnectAccountId = connect.accountId;
+  await c.env.PARTNERS.put(slug, JSON.stringify(partner));
+  return c.redirect(connect.onboardingUrl);
+});
+
+// Usage: /onboard/connect/<partner-slug>
+// Generates a fresh Stripe Express onboarding/update link. Stripe will show
+// whatever steps remain — banking, identity verification, etc.
+onboard.get("/connect/:slug", async (c) => {
+  const slug = c.req.param("slug");
+  const raw = await c.env.PARTNERS.get(slug);
+  if (!raw) return c.text("Partner not found", 404);
+  const partner = JSON.parse(raw);
+  if (!partner.stripeConnectAccountId)
+    return c.text("No Stripe Connect account for this partner", 400);
+
+  const stripe = createStripeClient(c.env.STRIPE_SECRET_KEY);
+
+  // Check if the account has already completed initial onboarding.
+  // If so, send them to the Express Dashboard (login link) where they
+  // can add/update banking. Otherwise use account_onboarding.
+  const account = await stripe.accounts.retrieve(
+    partner.stripeConnectAccountId,
+  );
+  if (account.details_submitted) {
+    // Account already onboarded — send to Express Dashboard to manage banking
+    const loginLink = await stripe.accounts.createLoginLink(
+      partner.stripeConnectAccountId,
+    );
+    return c.redirect(loginLink.url);
+  }
+
+  // Still needs initial onboarding — use account_update type which lets them
+  // fill in any missing info including banking, even if they already started.
+  let link;
+  try {
+    link = await stripe.accountLinks.create({
+      account: partner.stripeConnectAccountId,
+      refresh_url: new URL("/onboard/connect/" + slug, c.req.url).toString(),
+      return_url: new URL("/onboard/complete", c.req.url).toString(),
+      type: "account_onboarding",
+    });
+  } catch {
+    // Fall back to account_update if onboarding link fails
+    link = await stripe.accountLinks.create({
+      account: partner.stripeConnectAccountId,
+      refresh_url: new URL("/onboard/connect/" + slug, c.req.url).toString(),
+      return_url: new URL("/onboard/complete", c.req.url).toString(),
+      type: "account_update",
+    });
+  }
+  return c.redirect(link.url);
+});
+
+// ─── MOH Internal Pricing Form ───────────────────────────────
+// Shubh fills this out with pharmacy costs per service.
+// On submit, saves to KV key "moh-pricing-submission" so we can read it later.
+
+onboard.get("/pricing", (c) => {
+  return c.html(PRICING_FORM_HTML);
+});
+
+onboard.post("/pricing", async (c) => {
+  const body = await c.req.json();
+  await c.env.PARTNERS.put(
+    "moh-pricing-submission",
+    JSON.stringify({
+      submittedAt: new Date().toISOString(),
+      submittedBy: body.submittedBy || "unknown",
+      services: body.services,
+    }),
+  );
+
+  // Auto-apply platform fees to ALL active partners
+  const { listPartners, getPartner, savePartner } = await import("../lib/kv");
+  const fees: Record<string, number> = {};
+  for (const s of body.services) {
+    if (s.serviceId && s.mohMonthlyPrice) {
+      fees[s.serviceId] = s.mohMonthlyPrice;
+    }
+  }
+  const slugs = await listPartners(c.env.PARTNERS);
+  let updated = 0;
+  for (const slug of slugs) {
+    const partner = await getPartner(c.env.PARTNERS, slug);
+    if (!partner) continue;
+    partner.platformFees = { ...(partner.platformFees || {}), ...fees };
+    await savePartner(c.env.PARTNERS, partner);
+    updated++;
+  }
+
+  return c.json({
+    success: true,
+    feesApplied: Object.keys(fees).length,
+    partnersUpdated: updated,
+  });
+});
+
+// Partner-specific pricing form (pre-filled with pharmacy costs)
+onboard.get("/pricing/:slug", (c) => {
+  const slug = c.req.param("slug");
+  return c.html(generatePartnerPricingForm(slug));
+});
+
+onboard.post("/pricing/:slug", async (c) => {
+  const slug = c.req.param("slug");
+  const body = await c.req.json();
+  await c.env.PARTNERS.put(
+    `pricing-submission:${slug}`,
+    JSON.stringify({
+      submittedAt: new Date().toISOString(),
+      slug,
+      services: body.services,
+    }),
+  );
+  return c.json({ success: true });
+});
+
+const PRICING_FORM_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MOH Pricing Setup</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #f8f9fa; color: #1a1a2e; }
+    .container { max-width: 700px; margin: 0 auto; padding: 48px 24px; }
+    h1 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+    .subtitle { color: #666; font-size: 14px; margin-bottom: 32px; line-height: 1.5; }
+    .info-box { background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 10px; padding: 16px; margin-bottom: 32px; font-size: 13px; color: #4338CA; line-height: 1.5; }
+    label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+    .name-field { margin-bottom: 24px; }
+    .name-field input { width: 100%; padding: 12px 16px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 15px; font-family: inherit; }
+    .category { margin-bottom: 28px; }
+    .category-title { font-size: 13px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid #e5e7eb; }
+    .service-row { background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; padding: 16px; margin-bottom: 10px; }
+    .service-name { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+    .service-desc { font-size: 12px; color: #888; margin-bottom: 12px; }
+    .fields { display: flex; gap: 12px; flex-wrap: wrap; }
+    .field { flex: 1; min-width: 140px; }
+    .field label { font-size: 12px; font-weight: 500; color: #666; margin-bottom: 4px; }
+    .field input, .field select { width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; font-family: inherit; }
+    .field input:focus, .field select:focus { outline: none; border-color: #4F46E5; box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
+    .calculated { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px 12px; font-size: 14px; font-weight: 600; color: #16a34a; text-align: center; min-width: 140px; }
+    .calc-label { font-size: 12px; font-weight: 500; color: #666; margin-bottom: 4px; display: block; }
+    .btn { display: block; width: 100%; padding: 16px; background: #4F46E5; color: #fff; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; font-family: inherit; margin-top: 32px; }
+    .btn:hover { background: #4338CA; }
+    .btn:disabled { background: #a5a5a5; cursor: not-allowed; }
+    .success { display: none; text-align: center; padding: 60px 20px; }
+    .success h2 { font-size: 24px; color: #22c55e; margin-bottom: 12px; }
+    .success p { color: #666; font-size: 16px; }
+    @media (max-width: 480px) { .fields { flex-direction: column; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="formSection">
+      <h1>MOH Service Pricing Setup</h1>
+      <p class="subtitle">For each service, enter the pharmacy product name and the total monthly pharmacy cost. The MOH price (what the patient pays) is automatically calculated as pharmacy cost + $5.</p>
+
+      <div class="info-box">
+        <strong>Instructions:</strong> Look up each product in the PNP pricing PDF. Enter the product name/description exactly as it appears, and the total cost for one month's supply (if the PDF shows per-unit pricing, multiply by the monthly quantity).
+      </div>
+
+      <div class="name-field">
+        <label for="submittedBy">Your Name</label>
+        <input type="text" id="submittedBy" placeholder="e.g. Shubh">
+      </div>
+
+      <div class="category">
+        <div class="category-title">Weight Loss</div>
+        <div class="service-row" data-service="semaglutide">
+          <div class="service-name">Semaglutide</div>
+          <div class="service-desc">GLP-1 weight management program</div>
+          <div class="fields">
+            <div class="field"><label>Pharmacy Product</label><input type="text" class="product-name" placeholder="e.g. Semaglutide Injectable 5mg/2ml"></div>
+            <div class="field"><label>Monthly Qty</label><input type="number" class="qty" placeholder="e.g. 1" min="1" value="1"></div>
+            <div class="field"><label>Pharmacy Cost (per unit)</label><input type="number" class="pharmacy-cost" placeholder="e.g. 150.00" step="0.01" min="0"></div>
+            <div><span class="calc-label">MOH Monthly Price</span><div class="calculated" data-calc>—</div></div>
+          </div>
+        </div>
+        <div class="service-row" data-service="tirzepatide">
+          <div class="service-name">Tirzepatide</div>
+          <div class="service-desc">Dual GIP/GLP-1 weight management</div>
+          <div class="fields">
+            <div class="field"><label>Pharmacy Product</label><input type="text" class="product-name" placeholder="e.g. Tirzepatide Injectable 16.6mg/ml"></div>
+            <div class="field"><label>Monthly Qty</label><input type="number" class="qty" placeholder="e.g. 1" min="1" value="1"></div>
+            <div class="field"><label>Pharmacy Cost (per unit)</label><input type="number" class="pharmacy-cost" placeholder="e.g. 200.00" step="0.01" min="0"></div>
+            <div><span class="calc-label">MOH Monthly Price</span><div class="calculated" data-calc>—</div></div>
+          </div>
+        </div>
+        <div class="service-row" data-service="retatrutide">
+          <div class="service-name">Retatrutide</div>
+          <div class="service-desc">Triple agonist weight management</div>
+          <div class="fields">
+            <div class="field"><label>Pharmacy Product</label><input type="text" class="product-name" placeholder="e.g. Retatrutide 8mg/ml 2ml"></div>
+            <div class="field"><label>Monthly Qty</label><input type="number" class="qty" placeholder="e.g. 1" min="1" value="1"></div>
+            <div class="field"><label>Pharmacy Cost (per unit)</label><input type="number" class="pharmacy-cost" placeholder="e.g. 180.00" step="0.01" min="0"></div>
+            <div><span class="calc-label">MOH Monthly Price</span><div class="calculated" data-calc>—</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="category">
+        <div class="category-title">Erectile Dysfunction</div>
+        <div class="service-row" data-service="sildenafil">
+          <div class="service-name">Sildenafil</div>
+          <div class="service-desc">On-demand ED treatment</div>
+          <div class="fields">
+            <div class="field"><label>Pharmacy Product</label><input type="text" class="product-name" placeholder="e.g. Sildenafil Capsule 100mg"></div>
+            <div class="field"><label>Monthly Qty</label><input type="number" class="qty" placeholder="e.g. 30" min="1" value="1"></div>
+            <div class="field"><label>Pharmacy Cost (per unit)</label><input type="number" class="pharmacy-cost" placeholder="e.g. 2.00" step="0.01" min="0"></div>
+            <div><span class="calc-label">MOH Monthly Price</span><div class="calculated" data-calc>—</div></div>
+          </div>
+        </div>
+        <div class="service-row" data-service="tadalafil">
+          <div class="service-name">Tadalafil</div>
+          <div class="service-desc">Daily or on-demand ED treatment</div>
+          <div class="fields">
+            <div class="field"><label>Pharmacy Product</label><input type="text" class="product-name" placeholder="e.g. Tadalafil Tablet 20mg"></div>
+            <div class="field"><label>Monthly Qty</label><input type="number" class="qty" placeholder="e.g. 30" min="1" value="1"></div>
+            <div class="field"><label>Pharmacy Cost (per unit)</label><input type="number" class="pharmacy-cost" placeholder="e.g. 1.50" step="0.01" min="0"></div>
+            <div><span class="calc-label">MOH Monthly Price</span><div class="calculated" data-calc>—</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="category">
+        <div class="category-title">Men's Hormone Therapy</div>
+        <div class="service-row" data-service="testosterone-injectable">
+          <div class="service-name">Testosterone Injectable</div>
+          <div class="service-desc">Testosterone cypionate/enanthate</div>
+          <div class="fields">
+            <div class="field"><label>Pharmacy Product</label><input type="text" class="product-name" placeholder="e.g. Testosterone Cypionate 200mg/ml 10ml"></div>
+            <div class="field"><label>Monthly Qty</label><input type="number" class="qty" placeholder="e.g. 1" min="1" value="1"></div>
+            <div class="field"><label>Pharmacy Cost (per unit)</label><input type="number" class="pharmacy-cost" placeholder="e.g. 45.00" step="0.01" min="0"></div>
+            <div><span class="calc-label">MOH Monthly Price</span><div class="calculated" data-calc>—</div></div>
+          </div>
+        </div>
+        <div class="service-row" data-service="testosterone-oral">
+          <div class="service-name">Testosterone Oral</div>
+          <div class="service-desc">Oral testosterone undecanoate</div>
+          <div class="fields">
+            <div class="field"><label>Pharmacy Product</label><input type="text" class="product-name" placeholder="e.g. Testosterone Oral Capsule"></div>
+            <div class="field"><label>Monthly Qty</label><input type="number" class="qty" placeholder="e.g. 30" min="1" value="1"></div>
+            <div class="field"><label>Pharmacy Cost (per unit)</label><input type="number" class="pharmacy-cost" placeholder="e.g. 3.00" step="0.01" min="0"></div>
+            <div><span class="calc-label">MOH Monthly Price</span><div class="calculated" data-calc>—</div></div>
+          </div>
+        </div>
+        <div class="service-row" data-service="enclomiphene">
+          <div class="service-name">Enclomiphene</div>
+          <div class="service-desc">Fertility-preserving hormone optimization</div>
+          <div class="fields">
+            <div class="field"><label>Pharmacy Product</label><input type="text" class="product-name" placeholder="e.g. Enclomiphene 25mg Capsule"></div>
+            <div class="field"><label>Monthly Qty</label><input type="number" class="qty" placeholder="e.g. 30" min="1" value="1"></div>
+            <div class="field"><label>Pharmacy Cost (per unit)</label><input type="number" class="pharmacy-cost" placeholder="e.g. 1.50" step="0.01" min="0"></div>
+            <div><span class="calc-label">MOH Monthly Price</span><div class="calculated" data-calc>—</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="category">
+        <div class="category-title">Women's Hormone Therapy</div>
+        <div class="service-row" data-service="estrogen-cream-vaginal">
+          <div class="service-name">Estrogen Cream (Vaginal/GSM)</div>
+          <div class="service-desc">Vaginal estradiol for genitourinary syndrome of menopause</div>
+          <div class="fields">
+            <div class="field"><label>Pharmacy Product</label><input type="text" class="product-name" placeholder="e.g. Estriol Vaginal Cream 0.5mg/gm 30gm"></div>
+            <div class="field"><label>Monthly Qty</label><input type="number" class="qty" placeholder="e.g. 1" min="1" value="1"></div>
+            <div class="field"><label>Pharmacy Cost (per unit)</label><input type="number" class="pharmacy-cost" placeholder="e.g. 70.00" step="0.01" min="0"></div>
+            <div><span class="calc-label">MOH Monthly Price</span><div class="calculated" data-calc>—</div></div>
+          </div>
+        </div>
+        <div class="service-row" data-service="estrogen-cream-systemic">
+          <div class="service-name">Estrogen Cream (Systemic)</div>
+          <div class="service-desc">Topical estradiol cream for systemic menopause relief</div>
+          <div class="fields">
+            <div class="field"><label>Pharmacy Product</label><input type="text" class="product-name" placeholder="e.g. BiEst Cream 1mg/gm 60gm"></div>
+            <div class="field"><label>Monthly Qty</label><input type="number" class="qty" placeholder="e.g. 1" min="1" value="1"></div>
+            <div class="field"><label>Pharmacy Cost (per unit)</label><input type="number" class="pharmacy-cost" placeholder="e.g. 106.00" step="0.01" min="0"></div>
+            <div><span class="calc-label">MOH Monthly Price</span><div class="calculated" data-calc>—</div></div>
+          </div>
+        </div>
+        <div class="service-row" data-service="estrogen-patches">
+          <div class="service-name">Estrogen Patches</div>
+          <div class="service-desc">Transdermal estradiol patches</div>
+          <div class="fields">
+            <div class="field"><label>Pharmacy Product</label><input type="text" class="product-name" placeholder="e.g. Estradiol Patch"></div>
+            <div class="field"><label>Monthly Qty</label><input type="number" class="qty" placeholder="e.g. 4" min="1" value="1"></div>
+            <div class="field"><label>Pharmacy Cost (per unit)</label><input type="number" class="pharmacy-cost" placeholder="e.g. 25.00" step="0.01" min="0"></div>
+            <div><span class="calc-label">MOH Monthly Price</span><div class="calculated" data-calc>—</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="category">
+        <div class="category-title">Peptides</div>
+        <div class="service-row" data-service="mots-c">
+          <div class="service-name">MOTS-c</div>
+          <div class="service-desc">Mitochondrial peptide for metabolic optimization</div>
+          <div class="fields">
+            <div class="field"><label>Pharmacy Product</label><input type="text" class="product-name" placeholder="e.g. MOTS-c Injectable"></div>
+            <div class="field"><label>Monthly Qty</label><input type="number" class="qty" placeholder="e.g. 1" min="1" value="1"></div>
+            <div class="field"><label>Pharmacy Cost (per unit)</label><input type="number" class="pharmacy-cost" placeholder="e.g. 130.00" step="0.01" min="0"></div>
+            <div><span class="calc-label">MOH Monthly Price</span><div class="calculated" data-calc>—</div></div>
+          </div>
+        </div>
+        <div class="service-row" data-service="nad">
+          <div class="service-name">NAD+</div>
+          <div class="service-desc">Cellular energy and DNA repair</div>
+          <div class="fields">
+            <div class="field"><label>Pharmacy Product</label><input type="text" class="product-name" placeholder="e.g. NAD+ 200mg/ml 10ml"></div>
+            <div class="field"><label>Monthly Qty</label><input type="number" class="qty" placeholder="e.g. 1" min="1" value="1"></div>
+            <div class="field"><label>Pharmacy Cost (per unit)</label><input type="number" class="pharmacy-cost" placeholder="e.g. 120.00" step="0.01" min="0"></div>
+            <div><span class="calc-label">MOH Monthly Price</span><div class="calculated" data-calc>—</div></div>
+          </div>
+        </div>
+        <div class="service-row" data-service="bpc-157">
+          <div class="service-name">BPC-157</div>
+          <div class="service-desc">Body protection compound for tissue repair</div>
+          <div class="fields">
+            <div class="field"><label>Pharmacy Product</label><input type="text" class="product-name" placeholder="e.g. BPC-157 5mg/ml 2ml"></div>
+            <div class="field"><label>Monthly Qty</label><input type="number" class="qty" placeholder="e.g. 1" min="1" value="1"></div>
+            <div class="field"><label>Pharmacy Cost (per unit)</label><input type="number" class="pharmacy-cost" placeholder="e.g. 85.00" step="0.01" min="0"></div>
+            <div><span class="calc-label">MOH Monthly Price</span><div class="calculated" data-calc>—</div></div>
+          </div>
+        </div>
+        <div class="service-row" data-service="tb-500">
+          <div class="service-name">TB-500</div>
+          <div class="service-desc">Thymosin beta-4 for injury recovery</div>
+          <div class="fields">
+            <div class="field"><label>Pharmacy Product</label><input type="text" class="product-name" placeholder="e.g. TB-500 2mg/ml 5ml"></div>
+            <div class="field"><label>Monthly Qty</label><input type="number" class="qty" placeholder="e.g. 1" min="1" value="1"></div>
+            <div class="field"><label>Pharmacy Cost (per unit)</label><input type="number" class="pharmacy-cost" placeholder="e.g. 90.00" step="0.01" min="0"></div>
+            <div><span class="calc-label">MOH Monthly Price</span><div class="calculated" data-calc>—</div></div>
+          </div>
+        </div>
+        <div class="service-row" data-service="sermorelin">
+          <div class="service-name">Sermorelin</div>
+          <div class="service-desc">Growth hormone-releasing peptide for recovery and sleep</div>
+          <div class="fields">
+            <div class="field"><label>Pharmacy Product</label><input type="text" class="product-name" placeholder="e.g. Sermorelin 3mg/ml 3ml"></div>
+            <div class="field"><label>Monthly Qty</label><input type="number" class="qty" placeholder="e.g. 1" min="1" value="1"></div>
+            <div class="field"><label>Pharmacy Cost (per unit)</label><input type="number" class="pharmacy-cost" placeholder="e.g. 100.00" step="0.01" min="0"></div>
+            <div><span class="calc-label">MOH Monthly Price</span><div class="calculated" data-calc>—</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="category">
+        <div class="category-title">Blends</div>
+        <div class="service-row" data-service="wolverine">
+          <div class="service-name">Wolverine Blend</div>
+          <div class="service-desc">BPC-157 + TB-500 regenerative combo</div>
+          <div class="fields">
+            <div class="field"><label>Pharmacy Product</label><input type="text" class="product-name" placeholder="e.g. Valkyr BPC-157/TB-500 Blend"></div>
+            <div class="field"><label>Monthly Qty</label><input type="number" class="qty" placeholder="e.g. 1" min="1" value="1"></div>
+            <div class="field"><label>Pharmacy Cost (per unit)</label><input type="number" class="pharmacy-cost" placeholder="e.g. 140.00" step="0.01" min="0"></div>
+            <div><span class="calc-label">MOH Monthly Price</span><div class="calculated" data-calc>—</div></div>
+          </div>
+        </div>
+        <div class="service-row" data-service="glo">
+          <div class="service-name">GLO Blend</div>
+          <div class="service-desc">GHK-Cu + BPC-157 + TB-500 for skin &amp; tissue</div>
+          <div class="fields">
+            <div class="field"><label>Pharmacy Product</label><input type="text" class="product-name" placeholder="e.g. GHK-Cu/BPC-157/TB-500 Blend"></div>
+            <div class="field"><label>Monthly Qty</label><input type="number" class="qty" placeholder="e.g. 1" min="1" value="1"></div>
+            <div class="field"><label>Pharmacy Cost (per unit)</label><input type="number" class="pharmacy-cost" placeholder="e.g. 160.00" step="0.01" min="0"></div>
+            <div><span class="calc-label">MOH Monthly Price</span><div class="calculated" data-calc>—</div></div>
+          </div>
+        </div>
+        <div class="service-row" data-service="klow">
+          <div class="service-name">KLOW Blend</div>
+          <div class="service-desc">GHK-Cu + BPC-157 + TB-500 + KPV anti-inflammatory</div>
+          <div class="fields">
+            <div class="field"><label>Pharmacy Product</label><input type="text" class="product-name" placeholder="e.g. GHK-Cu/BPC-157/TB-500/KPV Blend"></div>
+            <div class="field"><label>Monthly Qty</label><input type="number" class="qty" placeholder="e.g. 1" min="1" value="1"></div>
+            <div class="field"><label>Pharmacy Cost (per unit)</label><input type="number" class="pharmacy-cost" placeholder="e.g. 180.00" step="0.01" min="0"></div>
+            <div><span class="calc-label">MOH Monthly Price</span><div class="calculated" data-calc>—</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="category">
+        <div class="category-title">Hair Loss</div>
+        <div class="service-row" data-service="hair-loss">
+          <div class="service-name">Hair Loss (Men)</div>
+          <div class="service-desc">Finasteride/Minoxidil compounded formula</div>
+          <div class="fields">
+            <div class="field"><label>Pharmacy Product</label><input type="text" class="product-name" placeholder="e.g. Finasteride/Minoxidil Topical"></div>
+            <div class="field"><label>Monthly Qty</label><input type="number" class="qty" placeholder="e.g. 1" min="1" value="1"></div>
+            <div class="field"><label>Pharmacy Cost (per unit)</label><input type="number" class="pharmacy-cost" placeholder="e.g. 35.00" step="0.01" min="0"></div>
+            <div><span class="calc-label">MOH Monthly Price</span><div class="calculated" data-calc>—</div></div>
+          </div>
+        </div>
+        <div class="service-row" data-service="hair-loss-women">
+          <div class="service-name">Hair Loss (Women)</div>
+          <div class="service-desc">Minoxidil/Spironolactone compounded formula</div>
+          <div class="fields">
+            <div class="field"><label>Pharmacy Product</label><input type="text" class="product-name" placeholder="e.g. Minoxidil/Spironolactone Topical"></div>
+            <div class="field"><label>Monthly Qty</label><input type="number" class="qty" placeholder="e.g. 1" min="1" value="1"></div>
+            <div class="field"><label>Pharmacy Cost (per unit)</label><input type="number" class="pharmacy-cost" placeholder="e.g. 40.00" step="0.01" min="0"></div>
+            <div><span class="calc-label">MOH Monthly Price</span><div class="calculated" data-calc>—</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="category">
+        <div class="category-title">Women's Hormone Therapy (continued)</div>
+        <div class="service-row" data-service="progesterone">
+          <div class="service-name">Progesterone</div>
+          <div class="service-desc">Micronized progesterone capsule</div>
+          <div class="fields">
+            <div class="field"><label>Pharmacy Product</label><input type="text" class="product-name" placeholder="e.g. Progesterone 200mg Capsule"></div>
+            <div class="field"><label>Monthly Qty</label><input type="number" class="qty" placeholder="e.g. 30" min="1" value="1"></div>
+            <div class="field"><label>Pharmacy Cost (per unit)</label><input type="number" class="pharmacy-cost" placeholder="e.g. 1.50" step="0.01" min="0"></div>
+            <div><span class="calc-label">MOH Monthly Price</span><div class="calculated" data-calc>—</div></div>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn" onclick="submitPricing()">Submit Pricing</button>
+    </div>
+
+    <div class="success" id="successSection">
+      <h2>Pricing Submitted!</h2>
+      <p>Bryan and the team will apply these prices to the system. You're all set.</p>
+    </div>
+  </div>
+
+  <script>
+    // Auto-calculate MOH price as user types
+    document.querySelectorAll('.service-row').forEach(row => {
+      const costInput = row.querySelector('.pharmacy-cost');
+      const qtyInput = row.querySelector('.qty');
+      const calcEl = row.querySelector('[data-calc]');
+
+      function update() {
+        const cost = parseFloat(costInput.value) || 0;
+        const qty = parseInt(qtyInput.value) || 1;
+        if (cost > 0) {
+          const mohPrice = (cost * qty + 5).toFixed(2);
+          calcEl.textContent = '$' + mohPrice + '/mo';
+        } else {
+          calcEl.textContent = '—';
+        }
+      }
+      costInput.addEventListener('input', update);
+      qtyInput.addEventListener('input', update);
+    });
+
+    async function submitPricing() {
+      const services = [];
+      document.querySelectorAll('.service-row').forEach(row => {
+        const cost = parseFloat(row.querySelector('.pharmacy-cost').value) || 0;
+        const qty = parseInt(row.querySelector('.qty').value) || 1;
+        if (cost > 0) {
+          services.push({
+            serviceId: row.dataset.service,
+            productName: row.querySelector('.product-name').value,
+            monthlyQty: qty,
+            pharmacyCostPerUnit: cost,
+            totalPharmacyCost: +(cost * qty).toFixed(2),
+            mohMonthlyPrice: +(cost * qty + 5).toFixed(2),
+          });
+        }
+      });
+
+      if (services.length === 0) {
+        alert('Please fill in at least one service.');
+        return;
+      }
+
+      const btn = document.querySelector('.btn');
+      btn.textContent = 'Submitting...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/onboard/pricing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            submittedBy: document.getElementById('submittedBy').value,
+            services,
+          }),
+        });
+        if (res.ok) {
+          document.getElementById('formSection').style.display = 'none';
+          document.getElementById('successSection').style.display = 'block';
+        } else {
+          alert('Something went wrong. Please try again.');
+          btn.textContent = 'Submit Pricing';
+          btn.disabled = false;
+        }
+      } catch (err) {
+        alert('Something went wrong. Please try again.');
+        btn.textContent = 'Submit Pricing';
+        btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>`;
 
 // Process influencer onboarding submission
 onboard.post("/", async (c) => {
@@ -21,6 +597,18 @@ onboard.post("/", async (c) => {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
+
+  // ── Guard: prevent overwriting an existing partner ──
+  const existing = await c.env.PARTNERS.get(slug);
+  if (existing) {
+    return c.json(
+      {
+        error: `A partner with the name "${body.businessName}" (slug: ${slug}) already exists. Contact support if this is your business.`,
+        slug,
+      },
+      409,
+    );
+  }
 
   // Build partner config
   const partner: PartnerConfig = {
@@ -34,12 +622,18 @@ onboard.post("/", async (c) => {
       secondary: body.secondaryColor,
     },
     font: body.font || "Inter",
-    services: body.services.map((s: { type: ServiceId; initialPrice: number; subscriptionPrice: number }) => ({
-      type: s.type,
-      initialPrice: s.initialPrice,
-      subscriptionPrice: s.subscriptionPrice,
-      subscriptionInterval: "monthly" as const,
-    })),
+    services: body.services.map(
+      (s: {
+        type: ServiceId;
+        initialPrice: number;
+        subscriptionPrice: number;
+      }) => ({
+        type: s.type,
+        initialPrice: s.initialPrice,
+        subscriptionPrice: s.subscriptionPrice,
+        subscriptionInterval: "monthly" as const,
+      }),
+    ),
     paymentMode: body.paymentMode,
     healthieFormIds: {},
     platformFees: {},
@@ -47,7 +641,7 @@ onboard.post("/", async (c) => {
     senderEmail: body.senderEmail || undefined,
     senderName: body.senderName || undefined,
     resendApiKey: body.resendApiKey || undefined,
-    enabled: true,
+    enabled: false, // New partners require admin approval before going live
     createdAt: new Date().toISOString(),
   };
 
@@ -61,10 +655,17 @@ onboard.post("/", async (c) => {
       const serviceDef = getServiceById(service.type);
       if (serviceDef) {
         try {
-          const q = await buildIntakeQuestionnaire(c.env, serviceDef, partner.businessName);
+          const q = await buildIntakeQuestionnaire(
+            c.env,
+            serviceDef,
+            partner.businessName,
+          );
           questionnaireIds[service.type] = q.id;
         } catch (err) {
-          console.error(`Medplum questionnaire for ${service.type} failed:`, err);
+          console.error(
+            `Medplum questionnaire for ${service.type} failed:`,
+            err,
+          );
         }
       }
     }
@@ -79,7 +680,11 @@ onboard.post("/", async (c) => {
 
   if (partner.paymentMode === "platform") {
     try {
-      const connect = await createConnectAccount(stripe, partner.contactEmail, partner.businessName);
+      const connect = await createConnectAccount(
+        stripe,
+        partner.contactEmail,
+        partner.businessName,
+      );
       partner.stripeConnectAccountId = connect.accountId;
       stripeOnboardingUrl = connect.onboardingUrl;
     } catch (err) {
@@ -92,36 +697,113 @@ onboard.post("/", async (c) => {
   // 5. Save partner config to KV
   await savePartner(c.env.PARTNERS, partner);
 
-  // 6. Generate embed code — labeled per service so developers know where each goes
+  // 6. Generate integration kit — proxy function + iframe overlay embed code
   const baseUrl = new URL(c.req.url).origin;
   const serviceLabelsMap: Record<string, string> = {
-    'semaglutide': 'Semaglutide (GLP-1 Weight Loss)',
-    'tirzepatide': 'Tirzepatide (GLP-1 Weight Loss)',
-    'retatrutide': 'Retatrutide (Weight Loss)',
-    'sildenafil': 'Sildenafil (Erectile Dysfunction)',
-    'tadalafil': 'Tadalafil (Erectile Dysfunction)',
-    'testosterone-injectable': 'Testosterone Injectable',
-    'testosterone-oral': 'Testosterone Oral',
-    'enclomiphene': 'Enclomiphene (Male Hormone Optimization)',
-    'estrogen-cream-vaginal': 'Estrogen Cream (Vaginal/GSM)',
-    'estrogen-cream-systemic': 'Estrogen Cream (Systemic/Topical)',
-    'estrogen-patches': 'Estrogen Patches',
-    'mots-c': 'MOTS-c (Metabolic Peptide)',
-    'nad': 'NAD+ (Cellular Energy)',
-    'bpc-157': 'BPC-157 (Tissue Repair)',
-    'tb-500': 'TB-500 (Injury Recovery)',
-    'wolverine': 'Wolverine Blend (BPC-157 + TB-500)',
-    'glo': 'GLO Blend (Skin & Tissue)',
-    'klow': 'KLOW Blend (Anti-Inflammatory)',
+    semaglutide: "Semaglutide (GLP-1 Weight Loss)",
+    tirzepatide: "Tirzepatide (GLP-1 Weight Loss)",
+    retatrutide: "Retatrutide (Weight Loss)",
+    sildenafil: "Sildenafil (Erectile Dysfunction)",
+    tadalafil: "Tadalafil (Erectile Dysfunction)",
+    "testosterone-injectable": "Testosterone Injectable",
+    "testosterone-oral": "Testosterone Oral",
+    enclomiphene: "Enclomiphene (Male Hormone Optimization)",
+    "estrogen-cream-vaginal": "Estrogen Cream (Vaginal/GSM)",
+    "estrogen-cream-systemic": "Estrogen Cream (Systemic/Topical)",
+    "estrogen-patches": "Estrogen Patches",
+    "mots-c": "MOTS-c (Metabolic Peptide)",
+    nad: "NAD+ (Cellular Energy)",
+    "bpc-157": "BPC-157 (Tissue Repair)",
+    "tb-500": "TB-500 (Injury Recovery)",
+    sermorelin: "Sermorelin (GH-Releasing Peptide)",
+    wolverine: "Wolverine Blend (BPC-157 + TB-500)",
+    glo: "GLO Blend (Skin & Tissue)",
+    klow: "KLOW Blend (Anti-Inflammatory)",
   };
-  const embedCode = partner.services
+
+  // Part 1: Proxy function — partner must create this file in their repo
+  // Use array join to avoid template-literal-inside-template-literal escaping issues
+  const proxyCode = [
+    "// File: functions/intake/[[path]].ts",
+    "// This Cloudflare Pages Function proxies intake forms so they load same-origin.",
+    "// Create this file at the root of your Cloudflare Pages project.",
+    "",
+    "export const onRequest: PagesFunction = async ({ request, params }) => {",
+    '  const path = (params.path as string[]).join("/");',
+    "  const url = new URL(request.url);",
+    "  const target = `https://onboard.myorbithealth.com/form/${path}${url.search}`;",
+    "",
+    "  const headers = new Headers(request.headers);",
+    '  headers.set("Host", "onboard.myorbithealth.com");',
+    '  headers.set("X-Forwarded-Host", url.hostname);',
+    "",
+    "  const resp = await fetch(target, {",
+    "    method: request.method,",
+    "    headers,",
+    '    body: request.method !== "GET" && request.method !== "HEAD" ? request.body : undefined,',
+    "  });",
+    "",
+    '  const contentType = resp.headers.get("content-type") || "";',
+    '  if (contentType.includes("text/html")) {',
+    "    let html = await resp.text();",
+    '    html = html.replace(/https:\\/\\/onboard\\.myorbithealth\\.com\\/form\\//g, "/intake/");',
+    "    html = html.replace(",
+    '      /baseUrl:\\s*"https:\\/\\/onboard\\.myorbithealth\\.com"/g,',
+    '      `baseUrl: "${url.origin}"`',
+    "    );",
+    "    return new Response(html, {",
+    "      status: resp.status,",
+    '      headers: { "content-type": "text/html; charset=UTF-8", "cache-control": "no-cache" },',
+    "    });",
+    "  }",
+    "  return new Response(resp.body, { status: resp.status, headers: resp.headers });",
+    "};",
+  ].join("\n");
+
+  // Part 2: HTML embed snippet — iframe overlay + trigger function
+  const serviceButtons = partner.services
     .map(
       (s) =>
-        `<!-- ${serviceLabelsMap[s.type] || s.type} Intake Form -->\n` +
-        `<!-- Place this where you want the ${serviceLabelsMap[s.type] || s.type} form to appear -->\n` +
-        `<iframe src="${baseUrl}/form/${slug}/${s.type}" style="width:100%;min-height:800px;border:none;" title="${partner.businessName} - ${serviceLabelsMap[s.type] || s.type}"></iframe>`
+        `<!-- ${serviceLabelsMap[s.type] || s.type} -->\n` +
+        `<a href="#" onclick="openIntakeEmbed('https://onboard.myorbithealth.com/form/${slug}/${s.type}');return false;">\n` +
+        `  Start ${serviceLabelsMap[s.type] || s.type}\n</a>`,
     )
     .join("\n\n");
+
+  const htmlSnippet = `<!-- ========== MOH Intake Embed — add this to any page ========== -->
+<style>
+  #intakeWrapper { display:none; position:fixed; top:0; left:0; right:0; bottom:0; z-index:9999; background:#fff; }
+  #intakeWrapper.active { display:block; animation: fadeIn 0.3s ease; }
+  #intakeWrapper iframe { width:100%; height:100%; border:none; }
+  @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+</style>
+<div id="intakeWrapper">
+  <iframe id="intakeFrame" src="about:blank"></iframe>
+</div>
+<script>
+function openIntakeEmbed(url) {
+  // Rewrite to same-origin proxy path
+  url = url.replace('https://onboard.myorbithealth.com/form/', '/intake/');
+  document.getElementById('intakeFrame').src = url;
+  document.getElementById('intakeWrapper').classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+</script>
+
+<!-- ========== Trigger buttons (one per service) ========== -->
+${serviceButtons}`;
+
+  const embedCode = `=== STEP 1: CREATE PROXY FILE ===
+Your site needs a proxy so intake forms load on your domain (required for Safari/Chrome).
+Create this file in your project: functions/intake/[[path]].ts
+
+${proxyCode}
+
+=== STEP 2: ADD EMBED CODE ===
+Paste this HTML wherever you want the intake forms to appear.
+Call openIntakeEmbed() from any button or link to open the form.
+
+${htmlSnippet}`;
 
   const previewUrl = `${baseUrl}/form/${slug}/${partner.services[0].type}`;
 
@@ -134,11 +816,35 @@ onboard.post("/", async (c) => {
         partner.businessName,
         embedCode,
         previewUrl,
-        stripeOnboardingUrl
+        stripeOnboardingUrl,
       ),
     });
   } catch (err) {
     console.error("Email send failed:", err);
+  }
+
+  // 8. Notify admin that a new partner signed up (requires manual review + enable)
+  try {
+    const serviceList = partner.services.map((s) => s.type).join(", ");
+    await sendEmail(c.env.RESEND_API_KEY, {
+      to: c.env.ADMIN_EMAIL,
+      subject: `[MOH] New partner onboarded: ${partner.businessName}`,
+      html: `<div style="font-family:system-ui;max-width:600px;margin:0 auto;padding:24px">
+        <h2 style="margin:0 0 16px">New Partner Signup</h2>
+        <table style="font-size:14px;border-collapse:collapse">
+          <tr><td style="padding:6px 16px 6px 0;color:#888">Business</td><td style="padding:6px 0;font-weight:600">${partner.businessName}</td></tr>
+          <tr><td style="padding:6px 16px 6px 0;color:#888">Slug</td><td style="padding:6px 0"><code>${slug}</code></td></tr>
+          <tr><td style="padding:6px 16px 6px 0;color:#888">Email</td><td style="padding:6px 0">${partner.contactEmail}</td></tr>
+          <tr><td style="padding:6px 16px 6px 0;color:#888">Website</td><td style="padding:6px 0">${partner.websiteUrl}</td></tr>
+          <tr><td style="padding:6px 16px 6px 0;color:#888">Services</td><td style="padding:6px 0">${serviceList}</td></tr>
+          <tr><td style="padding:6px 16px 6px 0;color:#888">Payment</td><td style="padding:6px 0">${partner.paymentMode}</td></tr>
+          <tr><td style="padding:6px 16px 6px 0;color:#888">Status</td><td style="padding:6px 0;color:#dc2626;font-weight:600">DISABLED — requires admin approval</td></tr>
+        </table>
+        <p style="margin:20px 0 0;font-size:13px;color:#888">Go to <a href="${baseUrl}/admin/partner/${slug}">Admin → ${partner.businessName}</a> to review and enable.</p>
+      </div>`,
+    });
+  } catch (err) {
+    console.error("Admin notification email failed:", err);
   }
 
   return c.json({
@@ -154,6 +860,11 @@ onboard.post("/", async (c) => {
 
 // ============================================================
 // Onboarding Form HTML — all 17 services grouped by category
+// ============================================================
+
+// Moved to separate file to avoid template literal nesting issues
+// See src/templates/partner-pricing.ts
+
 // ============================================================
 
 const ONBOARDING_FORM_HTML = `<!DOCTYPE html>
@@ -375,6 +1086,10 @@ const ONBOARDING_FORM_HTML = `<!DOCTYPE html>
           <div class="service-checkbox"></div>
           <div class="service-info"><h3>TB-500</h3><p>Thymosin beta-4 for injury recovery</p></div>
         </div>
+        <div class="service-card" data-service="sermorelin" onclick="toggleService(this)">
+          <div class="service-checkbox"></div>
+          <div class="service-info"><h3>Sermorelin</h3><p>Growth hormone-releasing peptide for recovery and sleep</p></div>
+        </div>
       </div>
 
       <div class="category">
@@ -390,6 +1105,26 @@ const ONBOARDING_FORM_HTML = `<!DOCTYPE html>
         <div class="service-card" data-service="klow" onclick="toggleService(this)">
           <div class="service-checkbox"></div>
           <div class="service-info"><h3>KLOW Blend</h3><p>GHK-Cu + BPC-157 + TB-500 + KPV anti-inflammatory</p></div>
+        </div>
+      </div>
+
+      <div class="category">
+        <div class="category-title">Hair Loss</div>
+        <div class="service-card" data-service="hair-loss" onclick="toggleService(this)">
+          <div class="service-checkbox"></div>
+          <div class="service-info"><h3>Hair Loss (Men)</h3><p>Finasteride/Minoxidil compounded formula</p></div>
+        </div>
+        <div class="service-card" data-service="hair-loss-women" onclick="toggleService(this)">
+          <div class="service-checkbox"></div>
+          <div class="service-info"><h3>Hair Loss (Women)</h3><p>Minoxidil/Spironolactone compounded formula</p></div>
+        </div>
+      </div>
+
+      <div class="category">
+        <div class="category-title">Women's Hormone Therapy (continued)</div>
+        <div class="service-card" data-service="progesterone" onclick="toggleService(this)">
+          <div class="service-checkbox"></div>
+          <div class="service-info"><h3>Progesterone</h3><p>Micronized progesterone capsule</p></div>
         </div>
       </div>
 
@@ -450,6 +1185,11 @@ const ONBOARDING_FORM_HTML = `<!DOCTYPE html>
         <h2>You're Live!</h2>
         <p>Your branded telehealth forms are ready. Check your email for the embed code.</p>
         <div id="embedCodeDisplay" class="embed-code"></div>
+        <div id="stripeOnboardingSection" style="display:none;margin-top:24px;padding:20px;background:#fff;border-radius:12px;border:2px solid #4F46E5;">
+          <h3 style="font-size:16px;margin-bottom:8px;">Set Up Your Bank Deposits</h3>
+          <p style="font-size:14px;color:#666;margin-bottom:16px;">Complete your Stripe setup to receive deposits directly to your bank account.</p>
+          <a id="stripeOnboardingLink" class="btn btn-primary" href="#" target="_blank" style="text-decoration:none;display:inline-block;">Connect Your Bank Account</a>
+        </div>
         <a id="previewLink" class="btn btn-primary" href="#" target="_blank" style="text-decoration:none;margin-top:16px">Preview Your Forms</a>
       </div>
     </div>
@@ -465,8 +1205,9 @@ const ONBOARDING_FORM_HTML = `<!DOCTYPE html>
       'sildenafil': 'Sildenafil', 'tadalafil': 'Tadalafil',
       'testosterone-injectable': 'Testosterone Injectable', 'testosterone-oral': 'Testosterone Oral',
       'enclomiphene': 'Enclomiphene', 'estrogen-cream-vaginal': 'Estrogen Cream (Vaginal)', 'estrogen-cream-systemic': 'Estrogen Cream (Systemic)', 'estrogen-patches': 'Estrogen Patches',
-      'mots-c': 'MOTS-c', 'nad': 'NAD+', 'bpc-157': 'BPC-157', 'tb-500': 'TB-500',
-      'wolverine': 'Wolverine Blend', 'glo': 'GLO Blend', 'klow': 'KLOW Blend'
+      'mots-c': 'MOTS-c', 'nad': 'NAD+', 'bpc-157': 'BPC-157', 'tb-500': 'TB-500', 'sermorelin': 'Sermorelin',
+      'wolverine': 'Wolverine Blend', 'glo': 'GLO Blend', 'klow': 'KLOW Blend',
+      'hair-loss': 'Hair Loss (Men)', 'hair-loss-women': 'Hair Loss (Women)', 'progesterone': 'Progesterone'
     };
 
     function nextStep() {
@@ -579,6 +1320,10 @@ const ONBOARDING_FORM_HTML = `<!DOCTYPE html>
           document.getElementById('embedCodeDisplay').textContent = data.embedCode;
           document.getElementById('previewLink').href = data.previewUrl;
           document.querySelector('.step-indicator').style.display = 'none';
+          if (data.stripeOnboardingUrl) {
+            document.getElementById('stripeOnboardingLink').href = data.stripeOnboardingUrl;
+            document.getElementById('stripeOnboardingSection').style.display = 'block';
+          }
         } else {
           alert('Something went wrong. Please try again.');
           btn.textContent = 'Launch My Forms';

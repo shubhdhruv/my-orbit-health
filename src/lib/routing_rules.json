@@ -32,9 +32,13 @@
     "nad": "none",
     "bpc-157": "none",
     "tb-500": "none",
+    "sermorelin": "none",
     "wolverine": "none",
     "glo": "none",
-    "klow": "none"
+    "klow": "none",
+    "hair-loss": "none",
+    "hair-loss-women": "none",
+    "progesterone": "none"
   },
   "states": {
     "AL": {
@@ -223,8 +227,12 @@
       "schedule_II": {
         "first_visit": "blocked",
         "follow_up": "blocked",
-        "first_visit_constraints": ["telehealth_prohibited_except_hospice_nursing_home"],
-        "follow_up_constraints": ["telehealth_prohibited_except_hospice_nursing_home"]
+        "first_visit_constraints": [
+          "telehealth_prohibited_except_hospice_nursing_home"
+        ],
+        "follow_up_constraints": [
+          "telehealth_prohibited_except_hospice_nursing_home"
+        ]
       },
       "license_note": "FL DOH registration required for controlled substance prescribing via telehealth.",
       "routing_note": "Sch III-V OK via telehealth. Sch II BLOCKED (except hospice/nursing home per FL § 456.44). Confirm DOH registration in provider credentialing before any FL controlled substance prescription."
@@ -406,14 +414,22 @@
       "schedule_III_V": {
         "first_visit": "sync",
         "follow_up": "sync",
-        "first_visit_constraints": ["sync_av_required_audio_only_if_av_unavailable_documented"],
-        "follow_up_constraints": ["sync_av_required_audio_only_if_av_unavailable_documented"]
+        "first_visit_constraints": [
+          "sync_av_required_audio_only_if_av_unavailable_documented"
+        ],
+        "follow_up_constraints": [
+          "sync_av_required_audio_only_if_av_unavailable_documented"
+        ]
       },
       "schedule_II": {
         "first_visit": "sync",
         "follow_up": "sync",
-        "first_visit_constraints": ["sync_av_required_audio_only_if_av_unavailable_documented"],
-        "follow_up_constraints": ["sync_av_required_audio_only_if_av_unavailable_documented"]
+        "first_visit_constraints": [
+          "sync_av_required_audio_only_if_av_unavailable_documented"
+        ],
+        "follow_up_constraints": [
+          "sync_av_required_audio_only_if_av_unavailable_documented"
+        ]
       },
       "license_note": "LA license required. HIPAA-compliant platform mandatory.",
       "routing_note": "Louisiana Board of Medical Examiners requires synchronous AV for ALL controlled substance encounters — first visit AND follow-ups. Audio-only is a documented-exception-only fallback when AV is technically unavailable, not a routine option. Async is never permitted for controlled substance prescribing.",
@@ -666,8 +682,14 @@
       "schedule_II": {
         "first_visit": "in_person_required",
         "follow_up": "in_person_required",
-        "first_visit_constraints": ["in_person_first", "parental_consent_minors_stimulants"],
-        "follow_up_constraints": ["quarterly_in_person_frequency", "parental_consent_minors_stimulants"]
+        "first_visit_constraints": [
+          "in_person_first",
+          "parental_consent_minors_stimulants"
+        ],
+        "follow_up_constraints": [
+          "quarterly_in_person_frequency",
+          "parental_consent_minors_stimulants"
+        ]
       },
       "license_note": "NJ license required",
       "routing_note": "Sch III-V telehealth OK including testosterone. Sch II requires in-person first visit plus in-person every 3 months for follow-ups.",
@@ -703,13 +725,19 @@
       "schedule_III_V": {
         "first_visit": "in_person_required",
         "follow_up": "async",
-        "first_visit_constraints": ["in_person_first_or_referral_within_12_months", "emergency_exception"],
+        "first_visit_constraints": [
+          "in_person_first_or_referral_within_12_months",
+          "emergency_exception"
+        ],
         "follow_up_constraints": []
       },
       "schedule_II": {
         "first_visit": "in_person_required",
         "follow_up": "async",
-        "first_visit_constraints": ["in_person_first_or_referral_within_12_months", "emergency_exception"],
+        "first_visit_constraints": [
+          "in_person_first_or_referral_within_12_months",
+          "emergency_exception"
+        ],
         "follow_up_constraints": []
       },
       "license_note": "NY license required",
@@ -1026,14 +1054,26 @@
       "schedule_III_V": {
         "first_visit": "sync",
         "follow_up": "sync",
-        "first_visit_constraints": ["in_person_within_12_months", "sync_audio_or_av"],
-        "follow_up_constraints": ["in_person_within_12_months", "sync_audio_or_av"]
+        "first_visit_constraints": [
+          "in_person_within_12_months",
+          "sync_audio_or_av"
+        ],
+        "follow_up_constraints": [
+          "in_person_within_12_months",
+          "sync_audio_or_av"
+        ]
       },
       "schedule_II": {
         "first_visit": "sync",
         "follow_up": "sync",
-        "first_visit_constraints": ["in_person_within_12_months", "sync_audio_or_av"],
-        "follow_up_constraints": ["in_person_within_12_months", "sync_audio_or_av"]
+        "first_visit_constraints": [
+          "in_person_within_12_months",
+          "sync_audio_or_av"
+        ],
+        "follow_up_constraints": [
+          "in_person_within_12_months",
+          "sync_audio_or_av"
+        ]
       },
       "license_note": "WA license required",
       "routing_note": "Controlled substances: in-person within 12 months required plus sync for all visits per WAC 246-919-863. Permanently-sync follow-ups are conservative but defensible — WA MQAC has not provided an explicit relaxation for established patients. Non-controlled: flexible."
