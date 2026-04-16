@@ -1,8 +1,8 @@
-import { PartnerConfig, PendingCase } from "./types";
+import { PartnerConfig, PendingCase, Coupon } from "./types";
 
 export async function getPartner(
   kv: KVNamespace,
-  slug: string
+  slug: string,
 ): Promise<PartnerConfig | null> {
   const data = await kv.get(slug, "json");
   return data as PartnerConfig | null;
@@ -10,7 +10,7 @@ export async function getPartner(
 
 export async function savePartner(
   kv: KVNamespace,
-  partner: PartnerConfig
+  partner: PartnerConfig,
 ): Promise<void> {
   await kv.put(partner.slug, JSON.stringify(partner));
 }
@@ -32,11 +32,14 @@ const NON_PARTNER_KEY_PREFIXES = [
   "portal_host:",
   "patient_cases:",
   "patient_email:",
+  "partner_cases:",
+  "partner_password_hash:",
   "magic:",
   "pl_user:",
   "pl_session:",
   "pl_log:",
   "vendor:",
+  "coupon:",
 ];
 const NON_PARTNER_KEY_EXACT = new Set([
   "soap-template",
@@ -46,15 +49,14 @@ const NON_PARTNER_KEY_EXACT = new Set([
   "pl_setup_done",
 ]);
 
-export async function listPartners(
-  kv: KVNamespace
-): Promise<string[]> {
+export async function listPartners(kv: KVNamespace): Promise<string[]> {
   const list = await kv.list();
   const candidates = list.keys
     .map((k) => k.name)
-    .filter((name) =>
-      !NON_PARTNER_KEY_EXACT.has(name) &&
-      !NON_PARTNER_KEY_PREFIXES.some((p) => name.startsWith(p))
+    .filter(
+      (name) =>
+        !NON_PARTNER_KEY_EXACT.has(name) &&
+        !NON_PARTNER_KEY_PREFIXES.some((p) => name.startsWith(p)),
     );
 
   // Shape-validate every candidate: must be a JSON object whose `slug`
@@ -69,7 +71,7 @@ export async function listPartners(
         // raw-string value or invalid JSON — not a partner
       }
       return null;
-    })
+    }),
   );
   return validated.filter((n): n is string => n !== null);
 }
@@ -78,44 +80,130 @@ export async function listPartners(
 
 export async function savePendingCase(
   kv: KVNamespace,
-  pendingCase: PendingCase
+  pendingCase: PendingCase,
 ): Promise<void> {
-  await kv.put(`case:${pendingCase.paymentIntentId}`, JSON.stringify(pendingCase));
+  await kv.put(
+    `case:${pendingCase.paymentIntentId}`,
+    JSON.stringify(pendingCase),
+  );
 }
 
 export async function getPendingCase(
   kv: KVNamespace,
-  paymentIntentId: string
+  paymentIntentId: string,
 ): Promise<PendingCase | null> {
   const data = await kv.get(`case:${paymentIntentId}`, "json");
   return data as PendingCase | null;
 }
 
 export async function listPendingCases(
-  kv: KVNamespace
+  kv: KVNamespace,
 ): Promise<PendingCase[]> {
   const list = await kv.list({ prefix: "case:" });
   const cases: PendingCase[] = [];
   for (const key of list.keys) {
-    const data = await kv.get(key.name, "json") as PendingCase | null;
+    const data = (await kv.get(key.name, "json")) as PendingCase | null;
     if (data && data.status === "pending") {
       cases.push(data);
     }
   }
-  cases.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  cases.sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  );
   return cases;
 }
 
-export async function listAllCases(
-  kv: KVNamespace
-): Promise<PendingCase[]> {
+export async function listAllCases(kv: KVNamespace): Promise<PendingCase[]> {
   const list = await kv.list({ prefix: "case:" });
   const cases: PendingCase[] = [];
   for (const key of list.keys) {
-    const data = await kv.get(key.name, "json") as PendingCase | null;
+    const data = (await kv.get(key.name, "json")) as PendingCase | null;
     if (data) cases.push(data);
   }
-  cases.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  cases.sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+  return cases;
+}
+
+// ─── Coupon helpers ──────────────────────────────────────────
+
+export async function getCoupon(
+  kv: KVNamespace,
+  code: string,
+): Promise<Coupon | null> {
+  return (await kv.get(
+    `coupon:${code.toUpperCase()}`,
+    "json",
+  )) as Coupon | null;
+}
+
+export async function saveCoupon(
+  kv: KVNamespace,
+  coupon: Coupon,
+): Promise<void> {
+  await kv.put(`coupon:${coupon.code.toUpperCase()}`, JSON.stringify(coupon));
+}
+
+export async function recordCouponUsage(
+  kv: KVNamespace,
+  code: string,
+  email: string,
+): Promise<void> {
+  const coupon = await getCoupon(kv, code);
+  if (!coupon) return;
+  coupon.usedCount += 1;
+  const lower = email.toLowerCase();
+  if (!coupon.usedEmails.includes(lower)) {
+    coupon.usedEmails.push(lower);
+  }
+  await saveCoupon(kv, coupon);
+}
+
+// ─── Partner Dashboard: Partner → Cases index ─────────────────
+//
+// Same pattern as patient_cases, but keyed by partner slug so the
+// partner dashboard can list all orders without scanning every case.
+//
+// Index key format: `partner_cases:${partnerSlug}` → `string[]` (paymentIntentIds)
+
+export async function addCaseToPartnerIndex(
+  kv: KVNamespace,
+  partnerSlug: string,
+  paymentIntentId: string,
+): Promise<void> {
+  const key = `partner_cases:${partnerSlug}`;
+  const existing = (await kv.get(key, "json")) as string[] | null;
+  const list = existing || [];
+  if (!list.includes(paymentIntentId)) {
+    list.push(paymentIntentId);
+    await kv.put(key, JSON.stringify(list));
+  }
+}
+
+export async function getPartnerCaseIds(
+  kv: KVNamespace,
+  partnerSlug: string,
+): Promise<string[]> {
+  const data = (await kv.get(`partner_cases:${partnerSlug}`, "json")) as
+    | string[]
+    | null;
+  return data || [];
+}
+
+export async function getPartnerCases(
+  kv: KVNamespace,
+  partnerSlug: string,
+): Promise<PendingCase[]> {
+  const ids = await getPartnerCaseIds(kv, partnerSlug);
+  const cases: PendingCase[] = [];
+  for (const id of ids) {
+    const c = await getPendingCase(kv, id);
+    if (c) cases.push(c);
+  }
+  cases.sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
   return cases;
 }
 
@@ -187,7 +275,9 @@ export async function getPatientCaseIds(
   kv: KVNamespace,
   medplumPatientId: string,
 ): Promise<string[]> {
-  const data = (await kv.get(`patient_cases:${medplumPatientId}`, "json")) as string[] | null;
+  const data = (await kv.get(`patient_cases:${medplumPatientId}`, "json")) as
+    | string[]
+    | null;
   return data || [];
 }
 
@@ -201,7 +291,9 @@ export async function getPatientCases(
     const c = await getPendingCase(kv, id);
     if (c) cases.push(c);
   }
-  cases.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  cases.sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
   return cases;
 }
 
@@ -261,7 +353,10 @@ export async function consumeMagicToken(
   kv: KVNamespace,
   token: string,
 ): Promise<MagicLinkPayload | null> {
-  const data = (await kv.get(`magic:${token}`, "json")) as MagicLinkPayload | null;
+  const data = (await kv.get(
+    `magic:${token}`,
+    "json",
+  )) as MagicLinkPayload | null;
   if (!data) return null;
   // Delete to ensure single-use
   await kv.delete(`magic:${token}`);

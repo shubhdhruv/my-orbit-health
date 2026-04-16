@@ -8,10 +8,17 @@ export function generateIntakeFormHTML(
   service: ServiceDefinition,
   partner: PartnerConfig,
   stripePublishableKey: string,
-  baseUrl: string
+  baseUrl: string,
 ): string {
   // Filter out conditional steps that will be shown/hidden by JS
-  const allSteps = service.intakeSteps;
+  const kitPrice = partner.bloodworkKitPrice ?? 124.99;
+  // Deep-clone steps so we can inject partner-specific kit price into labels
+  const allSteps: typeof service.intakeSteps = JSON.parse(
+    JSON.stringify(service.intakeSteps).replace(
+      /\{\{KIT_PRICE\}\}/g,
+      `$${kitPrice}`,
+    ),
+  );
   const totalVisibleSteps = allSteps.filter((s) => !s.conditionalOn).length;
 
   return `<!DOCTYPE html>
@@ -625,7 +632,16 @@ export function generateIntakeFormHTML(
       sessionStorage.setItem('intakeConfig', JSON.stringify(CONFIG));
       sessionStorage.setItem('disqualified', JSON.stringify(disqualified));
       sessionStorage.setItem('disqualifyReasons', JSON.stringify(disqualifyReasons));
-      window.location.href = CONFIG.baseUrl + '/form/' + CONFIG.partnerSlug + '/' + CONFIG.serviceType + '/recommend';
+      // Preserve URL params from quiz (addons, contact info) through the flow
+      var existingParams = new URLSearchParams(window.location.search);
+      var fwd = [];
+      ['addons', 'fn', 'ln', 'em'].forEach(function(k) {
+        var v = existingParams.get(k);
+        if (v) fwd.push(k + '=' + encodeURIComponent(v));
+      });
+      var recommendUrl = CONFIG.baseUrl + '/form/' + CONFIG.partnerSlug + '/' + CONFIG.serviceType + '/recommend';
+      if (fwd.length) recommendUrl += '?' + fwd.join('&');
+      window.location.href = recommendUrl;
     }
 
     // Init
@@ -688,7 +704,7 @@ function renderRadioStep(step: FormStep): string {
         `<div class="option-card" data-type="radio" data-value="${opt.value}" data-disqualifying="${opt.disqualifying || false}" data-label="${escapeAttr(opt.label)}" onclick="selectRadio(this)">
           <div class="option-indicator"></div>
           <span>${opt.label}</span>
-        </div>`
+        </div>`,
     )
     .join("");
 }
@@ -700,7 +716,7 @@ function renderCheckboxStep(step: FormStep): string {
         `<div class="option-card" data-type="checkbox" data-value="${opt.value}" data-disqualifying="${opt.disqualifying || false}" data-label="${escapeAttr(opt.label)}" onclick="toggleCheckbox(this)">
           <div class="option-indicator"></div>
           <span>${opt.label}</span>
-        </div>`
+        </div>`,
     )
     .join("");
 }

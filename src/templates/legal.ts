@@ -1,10 +1,18 @@
 import { PartnerConfig } from "../lib/types";
 
 function escapeHtml(str: string): string {
-  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
-function legalShell(partner: PartnerConfig, title: string, body: string): string {
+function legalShell(
+  partner: PartnerConfig,
+  title: string,
+  body: string,
+): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -45,7 +53,10 @@ function legalShell(partner: PartnerConfig, title: string, body: string): string
 
 export function generateTermsOfService(partner: PartnerConfig): string {
   const name = escapeHtml(partner.businessName);
-  return legalShell(partner, "Terms of Service", `
+  return legalShell(
+    partner,
+    "Terms of Service",
+    `
     <h2>1. Overview</h2>
     <p>${name} partners with My Orbit Health, a licensed telehealth platform, to connect you with independent, licensed healthcare providers. ${name} does not provide medical services, diagnose conditions, or prescribe medications. All clinical decisions are made solely by licensed physicians and healthcare providers.</p>
 
@@ -75,12 +86,16 @@ export function generateTermsOfService(partner: PartnerConfig): string {
 
     <h2>10. Contact</h2>
     <p>Questions about these terms? Contact us at ${escapeHtml(partner.contactEmail)}.</p>
-  `);
+  `,
+  );
 }
 
 export function generatePrivacyPolicy(partner: PartnerConfig): string {
   const name = escapeHtml(partner.businessName);
-  return legalShell(partner, "Privacy Policy", `
+  return legalShell(
+    partner,
+    "Privacy Policy",
+    `
     <h2>1. Information We Collect</h2>
     <p>We collect the following information when you use our services:</p>
     <ul>
@@ -119,7 +134,8 @@ export function generatePrivacyPolicy(partner: PartnerConfig): string {
 
     <h2>7. Contact</h2>
     <p>Privacy questions? Contact us at ${escapeHtml(partner.contactEmail)}.</p>
-  `);
+  `,
+  );
 }
 
 // ─── Legal consent pages (four-part) ──────────────────────────
@@ -134,7 +150,10 @@ export const DISCLOSURE_VERSION = "2026-04-11-v2";
 // 1 of 4 — Telehealth Informed Consent
 export function generateTelehealthConsent(partner: PartnerConfig): string {
   const name = escapeHtml(partner.businessName);
-  return legalShell(partner, "Telehealth Informed Consent", `
+  return legalShell(
+    partner,
+    "Telehealth Informed Consent",
+    `
     <p style="font-size:14px;color:#666;margin-bottom:24px"><em>Required by law before any telehealth service. Clinical services are provided by My Orbit Health, a licensed telehealth medical practice, in partnership with ${name}.</em></p>
 
     <h2>1. What Telehealth Is</h2>
@@ -172,13 +191,19 @@ export function generateTelehealthConsent(partner: PartnerConfig): string {
     </ul>
 
     <p style="font-size:13px;color:#666;margin-top:24px"><em>By checking the acknowledgment box at checkout, you consent to receive healthcare services via telehealth and confirm you understand the difference between synchronous and asynchronous visits, the benefits and risks of telehealth, your right to in-person care, and your right to know your provider's identity and credentials.</em></p>
-  `);
+  `,
+  );
 }
 
 // 2 of 4 — Electronic Communications Consent
-export function generateElectronicCommunicationsConsent(partner: PartnerConfig): string {
+export function generateElectronicCommunicationsConsent(
+  partner: PartnerConfig,
+): string {
   const name = escapeHtml(partner.businessName);
-  return legalShell(partner, "Electronic Communications Consent", `
+  return legalShell(
+    partner,
+    "Electronic Communications Consent",
+    `
     <p style="font-size:14px;color:#666;margin-bottom:24px"><em>Email, SMS, portal messaging &amp; E-SIGN. Clinical services are provided by My Orbit Health in partnership with ${name}.</em></p>
 
     <h2>1. How We Communicate With You</h2>
@@ -197,13 +222,19 @@ export function generateElectronicCommunicationsConsent(partner: PartnerConfig):
     <p>You are responsible for maintaining a compatible device, reliable internet connectivity, a private location for health discussions, and updated browser or app software required by the patient platform.</p>
 
     <p style="font-size:13px;color:#666;margin-top:24px"><em>By checking the acknowledgment box at checkout, you consent to receive communications electronically including email and SMS, understand the security limitations, and understand your electronic acknowledgment is legally binding under the E-SIGN Act.</em></p>
-  `);
+  `,
+  );
 }
 
 // 3 of 4 — Compounded Medication Consent
-export function generateCompoundedMedicationConsent(partner: PartnerConfig): string {
+export function generateCompoundedMedicationConsent(
+  partner: PartnerConfig,
+): string {
   const name = escapeHtml(partner.businessName);
-  return legalShell(partner, "Compounded Medication Consent", `
+  return legalShell(
+    partner,
+    "Compounded Medication Consent",
+    `
     <p style="font-size:14px;color:#666;margin-bottom:24px"><em>FDA status, risks, and your pharmacy rights. Clinical services are provided by My Orbit Health in partnership with ${name}.</em></p>
 
     <h2>1. What Compounded Medications Are</h2>
@@ -227,13 +258,17 @@ export function generateCompoundedMedicationConsent(partner: PartnerConfig): str
     <p>My Orbit Health collects your payment for the pharmaceutical component of your program as <strong>authorized billing agent for the dispensing pharmacy</strong>. The pharmacy is solely responsible for all pharmaceutical services.</p>
 
     <p style="font-size:13px;color:#666;margin-top:24px"><em>By checking the acknowledgment box at checkout, you understand that medications prescribed may be compounded and are not FDA-approved, understand the associated risks, and understand your right to transfer your prescription to any licensed pharmacy of your choice.</em></p>
-  `);
+  `,
+  );
 }
 
 // 4 of 4 — Program Enrollment Terms
 export function generateProgramEnrollmentTerms(partner: PartnerConfig): string {
   const name = escapeHtml(partner.businessName);
-  return legalShell(partner, "Program Enrollment Terms", `
+  return legalShell(
+    partner,
+    "Program Enrollment Terms",
+    `
     <p style="font-size:14px;color:#666;margin-bottom:24px"><em>Provider structure, fees, privacy, and patient rights. Clinical services are provided by My Orbit Health in partnership with ${name}.</em></p>
 
     <h2>1. Your Clinical Provider</h2>
@@ -269,5 +304,6 @@ export function generateProgramEnrollmentTerms(partner: PartnerConfig): string {
     <p>If you have a clinical emergency, contact 911 or go to your nearest emergency room. Telehealth services are not appropriate for emergencies.</p>
 
     <p style="font-size:13px;color:#666;margin-top:24px"><em>By checking the acknowledgment box at checkout, you understand your clinical services are provided by My Orbit Health's licensed physicians, understand enrollment does not guarantee a prescription, understand your health information is protected by HIPAA, and have been informed of your full patient rights.</em></p>
-  `);
+  `,
+  );
 }

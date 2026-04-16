@@ -33,15 +33,20 @@ const LAPSE_RULES: Record<string, [string, number]> = {
 
 function getSchedule(serviceId: string): string {
   const normalized = serviceId.replace(/_/g, "-").toLowerCase().trim();
-  const result = (routingRules.schedule_map as Record<string, string>)[normalized];
+  const result = (routingRules.schedule_map as Record<string, string>)[
+    normalized
+  ];
   if (result === undefined) {
-    throw new Error(`Unknown service_id: '${serviceId}' (normalized: '${normalized}'). Add to schedule_map.`);
+    throw new Error(
+      `Unknown service_id: '${serviceId}' (normalized: '${normalized}'). Add to schedule_map.`,
+    );
   }
   return result;
 }
 
 function getScheduleKey(schedule: string): ScheduleKey {
-  if (schedule === "III" || schedule === "IV" || schedule === "V") return "schedule_III_V";
+  if (schedule === "III" || schedule === "IV" || schedule === "V")
+    return "schedule_III_V";
   if (schedule === "II") return "schedule_II";
   return "non_controlled";
 }
@@ -61,7 +66,9 @@ export function routePatient(
   }
 
   const visitKey = isFirstVisit ? "first_visit" : "follow_up";
-  const constraintKey = isFirstVisit ? "first_visit_constraints" : "follow_up_constraints";
+  const constraintKey = isFirstVisit
+    ? "first_visit_constraints"
+    : "follow_up_constraints";
   const scheduleKey = getScheduleKey(schedule);
   const ruleBlock = stateRules[scheduleKey];
 
@@ -76,7 +83,10 @@ export function routePatient(
     stateUpper in LAPSE_RULES
   ) {
     const [lapseConstraint, thresholdDays] = LAPSE_RULES[stateUpper];
-    if (constraints.includes(lapseConstraint) && daysSinceLastVisit > thresholdDays) {
+    if (
+      constraints.includes(lapseConstraint) &&
+      daysSinceLastVisit > thresholdDays
+    ) {
       visitType = ruleBlock["first_visit"] as VisitType;
       constraints = ruleBlock["first_visit_constraints"] || [];
       lapseOverride = true;
@@ -103,7 +113,10 @@ export function requiresSync(
   isFirstVisit: boolean = true,
   daysSinceLastVisit?: number,
 ): boolean {
-  return routePatient(state, serviceId, isFirstVisit, daysSinceLastVisit).visitType === "sync";
+  return (
+    routePatient(state, serviceId, isFirstVisit, daysSinceLastVisit)
+      .visitType === "sync"
+  );
 }
 
 export function isBlocked(
@@ -112,6 +125,11 @@ export function isBlocked(
   isFirstVisit: boolean = true,
   daysSinceLastVisit?: number,
 ): boolean {
-  const vt = routePatient(state, serviceId, isFirstVisit, daysSinceLastVisit).visitType;
+  const vt = routePatient(
+    state,
+    serviceId,
+    isFirstVisit,
+    daysSinceLastVisit,
+  ).visitType;
   return vt === "blocked" || vt === "in_person_required";
 }

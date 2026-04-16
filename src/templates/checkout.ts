@@ -10,15 +10,12 @@ export function generateCheckoutHTML(
   serviceConfig: ServiceConfig,
   stripePublishableKey: string,
   baseUrl: string,
-  stripeBypass?: boolean
+  stripeBypass?: boolean,
 ): string {
+  const kitPrice = partner.bloodworkKitPrice ?? 124.99;
   const monthlyPrice = serviceConfig.subscriptionPrice;
-  const threeMonthPrice = Math.round(monthlyPrice * 3 * 0.95);
-  const sixMonthPrice = Math.round(monthlyPrice * 6 * 0.8);
-  const threeMonthPerMonth = Math.round(threeMonthPrice / 3);
-  const sixMonthPerMonth = Math.round(sixMonthPrice / 6);
-  const threeMonthSavings = (monthlyPrice * 3) - threeMonthPrice;
-  const sixMonthSavings = (monthlyPrice * 6) - sixMonthPrice;
+  const threeMonthPerMonth = Math.round(monthlyPrice * 0.95);
+  const sixMonthPerMonth = Math.round(monthlyPrice * 0.8);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -309,8 +306,8 @@ export function generateCheckoutHTML(
           <div class="plan-left">
             <div class="plan-radio"></div>
             <div>
-              <div class="plan-name">Monthly Supply</div>
-              <div class="plan-details">$${monthlyPrice}/mo</div>
+              <div class="plan-name">Monthly</div>
+              <div class="plan-details">Cancel anytime</div>
             </div>
           </div>
           <div>
@@ -319,34 +316,34 @@ export function generateCheckoutHTML(
         </div>
       </div>
 
-      <div class="plan-card" data-plan="3-month" data-price="${threeMonthPrice}" data-months="3" >
+      <div class="plan-card" data-plan="3-month" data-price="${threeMonthPerMonth}" data-months="3">
         <div class="plan-header">
           <div class="plan-left">
             <div class="plan-radio"></div>
             <div>
-              <div class="plan-name">3-Month Supply</div>
-              <div class="plan-details">$${threeMonthPerMonth}/mo for 3 months</div>
+              <div class="plan-name">3-Month Plan</div>
+              <div class="plan-details">Billed monthly for 3 months</div>
             </div>
           </div>
           <div>
             <div class="plan-price">$${threeMonthPerMonth}<span class="plan-price-sub">/mo</span></div>
-            <div class="plan-per-month" style="color:#22c55e;font-weight:600">Save $${monthlyPrice - threeMonthPerMonth}/mo</div>
+            <div class="plan-per-month" style="color:#22c55e;font-weight:600">Save $${(monthlyPrice - threeMonthPerMonth).toFixed(2)}/mo</div>
           </div>
         </div>
       </div>
 
-      <div class="plan-card" data-plan="6-month" data-price="${sixMonthPrice}" data-months="6" >
+      <div class="plan-card" data-plan="6-month" data-price="${sixMonthPerMonth}" data-months="6">
         <div class="plan-header">
           <div class="plan-left">
             <div class="plan-radio"></div>
             <div>
-              <div class="plan-name">6-Month Supply</div>
-              <div class="plan-details">$${sixMonthPerMonth}/mo for 6 months</div>
+              <div class="plan-name">6-Month Plan</div>
+              <div class="plan-details">Billed monthly for 6 months</div>
             </div>
           </div>
           <div>
             <div class="plan-price">$${sixMonthPerMonth}<span class="plan-price-sub">/mo</span></div>
-            <div class="plan-per-month" style="color:#22c55e;font-weight:600">Save $${monthlyPrice - sixMonthPerMonth}/mo</div>
+            <div class="plan-per-month" style="color:#22c55e;font-weight:600">Save $${(monthlyPrice - sixMonthPerMonth).toFixed(2)}/mo</div>
           </div>
         </div>
         <div class="savings-badge">BEST VALUE</div>
@@ -543,9 +540,32 @@ export function generateCheckoutHTML(
           <span class="value" id="planPrice">$${monthlyPrice}/mo <span style="font-weight:400;font-size:12px;color:#888">billed on approval</span></span>
         </div>
 
+        <div id="addonLines"></div>
+
         <div id="kitLine" class="order-line" style="display:none">
           <span class="label">HRT Clearance Kit</span>
-          <span class="value">$5 <span style="font-weight:400;font-size:12px;color:#888">charged today</span></span>
+          <span class="value">$${kitPrice} <span style="font-weight:400;font-size:12px;color:#888">charged today</span></span>
+        </div>
+
+        <div id="discountLine" class="order-line" style="display:none">
+          <span class="label" style="color:#16a34a">Promo Discount</span>
+          <span class="value" style="color:#16a34a" id="discountAmount">-$0</span>
+        </div>
+
+        <!-- Promo Code -->
+        <div style="padding:12px 0;border-top:1px solid #f0f0f0;margin-top:8px">
+          <div id="promoToggle" style="cursor:pointer;font-size:13px;color:var(--primary);font-weight:600" onclick="document.getElementById('promoToggle').style.display='none';document.getElementById('promoInput').style.display='flex'">
+            + Add promo code
+          </div>
+          <div id="promoInput" style="display:none;gap:8px;align-items:center">
+            <input type="text" id="promoCode" placeholder="Enter code" style="flex:1;padding:10px 12px;border:1.5px solid #d9d9d9;border-radius:8px;font-size:14px;font-family:var(--font);text-transform:uppercase">
+            <button type="button" onclick="applyPromo()" id="promoBtn" style="padding:10px 16px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font);white-space:nowrap">Apply</button>
+          </div>
+          <div id="promoMsg" style="font-size:12px;margin-top:6px;min-height:16px"></div>
+          <div id="promoApplied" style="display:none;margin-top:6px;padding:8px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:13px;color:#166534;font-weight:500;display:none;align-items:center;justify-content:space-between">
+            <span id="promoAppliedText"></span>
+            <span onclick="removePromo()" style="cursor:pointer;font-size:11px;color:#888;text-decoration:underline">Remove</span>
+          </div>
         </div>
 
         <div class="due-today-note">
@@ -566,23 +586,47 @@ export function generateCheckoutHTML(
     </div>
   </div>
 
-  ${stripeBypass ? '' : '<script src="https://js.stripe.com/v3/"></script>'}
+  ${stripeBypass ? "" : '<script src="https://js.stripe.com/v3/"></script>'}
   <script>
     const CONFIG = {
       partnerSlug: "${partner.slug}",
       serviceType: "${service.id}",
       baseUrl: "${baseUrl}",
       stripeKey: "${stripePublishableKey}",
-      stripeBypass: ${stripeBypass ? 'true' : 'false'},
+      stripeBypass: ${stripeBypass ? "true" : "false"},
       monthlyPrice: ${monthlyPrice},
       logoUrl: "${partner.logoUrl}",
       businessName: "${partner.businessName.replace(/"/g, '\\"')}",
       primaryColor: "${partner.brandColors.primary}",
       serviceName: "${service.label.replace(/"/g, '\\"')}",
+      kitPrice: ${kitPrice},
     };
 
     let selectedPlan = { id: 'monthly', months: 1, price: ${monthlyPrice} };
+    let appliedCoupon = null; // { code, discount, discountedPrice, type }
     let stripe, cardElement;
+
+    // Cart state from recommendation page
+    const selectedAddons = JSON.parse(sessionStorage.getItem('selectedAddons') || '[]');
+    const includePrimary = JSON.parse(sessionStorage.getItem('includePrimary') || 'true');
+
+    // If primary was excluded, hide the primary product section
+    (function renderCart() {
+      if (!includePrimary) {
+        document.getElementById('planLabel').parentElement.style.display = 'none';
+        document.querySelector('.order-product').style.display = 'none';
+      }
+      const container = document.getElementById('addonLines');
+      if (!selectedAddons.length) return;
+      let html = '';
+      selectedAddons.forEach(function(a) {
+        html += '<div class="order-line addon-line" data-type="' + a.type + '">' +
+          '<span class="label">' + a.label + '</span>' +
+          '<span class="value addon-price-display" data-base="' + a.subscriptionPrice + '">$' + a.subscriptionPrice + '/mo</span>' +
+          '</div>';
+      });
+      container.innerHTML = html;
+    })();
 
     // Init Stripe (or bypass)
     if (!CONFIG.stripeBypass) {
@@ -616,13 +660,12 @@ export function generateCheckoutHTML(
         price: parseInt(el.dataset.price),
       };
 
-      // Update sidebar
-      var perMonth = Math.round(selectedPlan.price / selectedPlan.months);
-      var billingNote = selectedPlan.months === 1 ? 'billed monthly on approval' : 'billed monthly for ' + selectedPlan.months + ' months';
-      const labels = { 'monthly': 'Monthly Supply', '3-month': '3-Month Supply', '6-month': '6-Month Supply' };
-      document.getElementById('planTag').textContent = labels[selectedPlan.id] + ' Plan';
-      document.getElementById('planLabel').textContent = labels[selectedPlan.id];
-      document.getElementById('planPrice').innerHTML = '$' + perMonth + '/mo <span style="font-weight:400;font-size:12px;color:#888">' + billingNote + '</span>';
+      // If a coupon is applied, re-validate it against the new plan price
+      if (appliedCoupon) {
+        removePromo();
+      }
+
+      updateSummary();
     }
 
     // Event delegation for plan clicks
@@ -637,13 +680,116 @@ export function generateCheckoutHTML(
         const intakeAnswers = JSON.parse(sessionStorage.getItem('intakeAnswers') || '{}');
         if (intakeAnswers['bloodwork-status'] === 'buy-kit') {
           document.getElementById('kitLine').style.display = 'flex';
-          document.getElementById('dueTodayAmount').textContent = '$5';
+          document.getElementById('dueTodayAmount').textContent = '$' + CONFIG.kitPrice;
           document.getElementById('dueTodayExplain').innerHTML =
-            '<strong>$5 charged today for your HRT Clearance Kit.</strong><br>' +
+            '<strong>$' + CONFIG.kitPrice + ' charged today for your HRT Clearance Kit.</strong><br>' +
             'Your treatment cost is still only billed if a licensed physician prescribes your medication.';
         }
       } catch (e) {}
     })();
+
+    // ── Promo code logic ──
+    async function applyPromo() {
+      var code = document.getElementById('promoCode').value.trim();
+      if (!code) return;
+      var msg = document.getElementById('promoMsg');
+      var btn = document.getElementById('promoBtn');
+      btn.disabled = true;
+      btn.textContent = '...';
+      msg.textContent = '';
+      msg.style.color = '#888';
+
+      try {
+        var res = await fetch(CONFIG.baseUrl + '/form/' + CONFIG.partnerSlug + '/validate-coupon', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: code,
+            serviceType: CONFIG.serviceType,
+            email: document.getElementById('email').value || '',
+            planPrice: selectedPlan.price,
+          }),
+        });
+        var data = await res.json();
+        if (data.valid) {
+          appliedCoupon = { code: code.toUpperCase(), discount: data.discount, discountedPrice: data.discountedPrice, type: data.type };
+          document.getElementById('promoInput').style.display = 'none';
+          document.getElementById('promoToggle').style.display = 'none';
+          document.getElementById('promoApplied').style.display = 'flex';
+          document.getElementById('promoAppliedText').textContent = code.toUpperCase() + ' applied — you save $' + data.discount;
+          document.getElementById('discountLine').style.display = 'flex';
+          document.getElementById('discountAmount').textContent = '-$' + data.discount;
+          updateSummary();
+        } else {
+          msg.textContent = data.error || 'Invalid code';
+          msg.style.color = '#dc2626';
+        }
+      } catch (e) {
+        msg.textContent = 'Could not validate code';
+        msg.style.color = '#dc2626';
+      }
+      btn.disabled = false;
+      btn.textContent = 'Apply';
+    }
+
+    function removePromo() {
+      appliedCoupon = null;
+      document.getElementById('promoApplied').style.display = 'none';
+      document.getElementById('promoToggle').style.display = 'block';
+      document.getElementById('promoInput').style.display = 'none';
+      document.getElementById('promoCode').value = '';
+      document.getElementById('promoMsg').textContent = '';
+      document.getElementById('discountLine').style.display = 'none';
+      updateSummary();
+    }
+
+    // Calculate add-on per-month price for the selected plan
+    function addonPlanPrice(baseMonthly, months) {
+      if (months === 3) return Math.round(baseMonthly * 0.95);
+      if (months === 6) return Math.round(baseMonthly * 0.8);
+      return baseMonthly;
+    }
+
+    function updateSummary() {
+      var perMonth = Math.round(selectedPlan.price / selectedPlan.months);
+      var billingNote = selectedPlan.months === 1 ? 'billed monthly on approval' : 'billed monthly for ' + selectedPlan.months + ' months';
+      var labels = { 'monthly': 'Monthly Supply', '3-month': '3-Month Supply', '6-month': '6-Month Supply' };
+      document.getElementById('planTag').textContent = labels[selectedPlan.id] + ' Plan';
+      document.getElementById('planLabel').textContent = labels[selectedPlan.id];
+
+      if (includePrimary) {
+        if (appliedCoupon) {
+          var discountedPerMonth = Math.round(appliedCoupon.discountedPrice / selectedPlan.months);
+          document.getElementById('planPrice').innerHTML =
+            '<span style="text-decoration:line-through;color:#999;font-weight:400">$' + perMonth + '/mo</span> ' +
+            '$' + discountedPerMonth + '/mo <span style="font-weight:400;font-size:12px;color:#888">' + billingNote + '</span>';
+        } else {
+          document.getElementById('planPrice').innerHTML = '$' + perMonth + '/mo <span style="font-weight:400;font-size:12px;color:#888">' + billingNote + '</span>';
+        }
+      }
+
+      // Update add-on price displays to match selected plan duration + coupon
+      var totalDiscount = appliedCoupon && includePrimary ? appliedCoupon.discount : 0;
+      document.querySelectorAll('.addon-price-display').forEach(function(el) {
+        var base = parseInt(el.dataset.base);
+        var total = addonPlanPrice(base, selectedPlan.months);
+        var addonPerMonth = Math.round(total / selectedPlan.months);
+        if (appliedCoupon && appliedCoupon.type === 'percent') {
+          var pct = Math.round(appliedCoupon.discount / (selectedPlan.price || 1) * 100) || 20;
+          var addonDiscount = Math.round(total * pct / 100);
+          var discAddonPerMonth = Math.round((total - addonDiscount) / selectedPlan.months);
+          totalDiscount += addonDiscount;
+          el.innerHTML = '<span style="text-decoration:line-through;color:#999;font-weight:400">$' + addonPerMonth + '/mo</span> $' + discAddonPerMonth + '/mo <span style="font-weight:400;font-size:12px;color:#888">' + billingNote + '</span>';
+        } else {
+          el.innerHTML = '$' + addonPerMonth + '/mo <span style="font-weight:400;font-size:12px;color:#888">' + billingNote + '</span>';
+        }
+      });
+      // Update total discount display
+      if (appliedCoupon && totalDiscount > 0) {
+        document.getElementById('discountLine').style.display = 'flex';
+        document.getElementById('discountAmount').textContent = '-$' + totalDiscount;
+      }
+    }
 
     // Enable submit when all required fields filled AND disclosure acknowledged
     function checkForm() {
@@ -680,10 +826,17 @@ export function generateCheckoutHTML(
     });
     document.getElementById('disclosureAck').addEventListener('change', checkForm);
 
+    var orderSubmitted = false;
+
     async function submitOrder() {
+      // Prevent double-submission — once submitted, never allow again
+      if (orderSubmitted) return;
+      orderSubmitted = true;
+
       const btn = document.getElementById('submitBtn');
       const btnText = document.getElementById('btnText');
       btn.disabled = true;
+      btn.style.pointerEvents = 'none';
       btnText.textContent = 'Processing...';
 
       try {
@@ -733,6 +886,7 @@ export function generateCheckoutHTML(
           disqualified,
           disqualifyReasons,
           selectedPlan,
+          couponCode: appliedCoupon ? appliedCoupon.code : undefined,
           disclosureAcknowledged: document.getElementById('disclosureAck').checked,
           shipping: {
             street: document.getElementById('street').value,
@@ -744,13 +898,44 @@ export function generateCheckoutHTML(
           },
         };
 
-        const res = await fetch(CONFIG.baseUrl + '/form/' + CONFIG.partnerSlug + '/' + CONFIG.serviceType + '/submit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+        // Build list of all items to submit
+        const itemsToSubmit = [];
+        if (includePrimary) {
+          itemsToSubmit.push({ type: CONFIG.serviceType, plan: selectedPlan, coupon: appliedCoupon ? appliedCoupon.code : undefined });
+        }
+        selectedAddons.forEach(function(addon) {
+          var addonPrice = addonPlanPrice(addon.subscriptionPrice, selectedPlan.months);
+          itemsToSubmit.push({
+            type: addon.type,
+            plan: { id: selectedPlan.id, months: selectedPlan.months, price: addonPrice },
+            coupon: appliedCoupon ? appliedCoupon.code : undefined,
+          });
         });
 
-        const data = await res.json();
+        let data = { success: false };
+        for (let i = 0; i < itemsToSubmit.length; i++) {
+          const item = itemsToSubmit[i];
+          if (i > 0) btnText.textContent = 'Processing (' + (i + 1) + '/' + itemsToSubmit.length + ')...';
+          const itemPayload = Object.assign({}, payload, {
+            selectedPlan: item.plan,
+            couponCode: item.coupon,
+          });
+          try {
+            const res = await fetch(CONFIG.baseUrl + '/form/' + CONFIG.partnerSlug + '/' + item.type + '/submit', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(itemPayload),
+            });
+            const result = await res.json();
+            if (i === 0) data = result; // Use first result for success/error
+            if (!result.success && (result.disqualified || result.blocked)) { data = result; break; }
+          } catch (e) {
+            console.error('Submit failed for ' + item.type, e);
+          }
+        }
+        sessionStorage.removeItem('selectedAddons');
+        sessionStorage.removeItem('includePrimary');
+
         const boughtKit = (JSON.parse(sessionStorage.getItem('intakeAnswers') || '{}'))['bloodwork-status'] === 'buy-kit';
         if (data.success) {
           // Show branded success page
@@ -776,24 +961,48 @@ export function generateCheckoutHTML(
             '</div>' +
             '<div style="background:' + CONFIG.primaryColor + '10;border:1px solid ' + CONFIG.primaryColor + '30;border-radius:10px;padding:16px;margin-bottom:24px">' +
             (boughtKit
-              ? '<p style="font-size:13px;color:#555;margin:0"><strong style="color:#1a1a2e">$5 charged today for your HRT Clearance Kit.</strong> You will only be charged for the prescription upon physician approval.</p>'
+              ? '<p style="font-size:13px;color:#555;margin:0"><strong style="color:#1a1a2e">$' + CONFIG.kitPrice + ' charged today for your HRT Clearance Kit.</strong> You will only be charged for the prescription upon physician approval.</p>'
               : '<p style="font-size:13px;color:#555;margin:0"><strong style="color:#1a1a2e">No charge today.</strong> You will only be billed if a provider approves your prescription.</p>') +
             '</div>' +
             '<p style="font-size:13px;color:#999;margin:0">Check your email for updates. Questions? Reply to any email from us.</p>' +
             '</div>';
+        } else if (data.disqualified) {
+          console.error('Disqualified:', data);
+          document.getElementById('card-errors').textContent = data.message || 'Based on your responses, this service is not available.';
+          orderSubmitted = false; // Allow retry for disqualification (no charge was made)
+          btn.disabled = false;
+          btn.style.pointerEvents = '';
+          btnText.textContent = 'Complete Order';
+        } else if (data.blocked) {
+          // Service not available in patient's state — no charge was made, allow retry
+          document.getElementById('card-errors').textContent = data.message || 'This service is not available in your state.';
+          orderSubmitted = false;
+          btn.disabled = false;
+          btn.style.pointerEvents = '';
+          btnText.textContent = 'Complete Order';
         } else {
           console.error('Submit response:', data);
           document.getElementById('card-errors').textContent = data.error || data.message || ('Error: ' + JSON.stringify(data));
-          btn.disabled = false;
-          btnText.textContent = 'Complete Order';
+          // Don't re-enable — card may already be authorized. Show contact support message.
+          btnText.textContent = 'Error — please contact support';
         }
       } catch (err) {
         console.error('Submit fetch failed:', err);
-        document.getElementById('card-errors').textContent = 'Network error: ' + (err && err.message ? err.message : String(err));
-        btn.disabled = false;
-        btnText.textContent = 'Complete Order';
+        document.getElementById('card-errors').textContent = 'Network error — your order may have been placed. Please check your email before trying again.';
+        btnText.textContent = 'Error — please check email';
       }
     }
+
+    // Auto-populate from quiz contact info (passed via URL params through iframe)
+    (function prefillFromQuiz() {
+      var params = new URLSearchParams(window.location.search);
+      var fn = params.get('fn');
+      var ln = params.get('ln');
+      var em = params.get('em');
+      if (fn) document.getElementById('firstName').value = fn;
+      if (ln) document.getElementById('lastName').value = ln;
+      if (em) document.getElementById('email').value = em;
+    })();
 
     // Init
     checkForm();

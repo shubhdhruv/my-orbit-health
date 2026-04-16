@@ -9,18 +9,25 @@ import mdReview from "./md-review";
 import doctor from "./doctor";
 import priceList from "./price-list";
 import portal from "./portal";
+import partnerDashboard from "./partner-dashboard";
 import { getPendingCase, getPartnerByHost } from "../lib/kv";
 import { getPartner } from "../lib/kv";
 import { processFollowUps } from "./followup";
 
-const app = new Hono<{ Bindings: Env; Variables: { partner: PartnerConfig; patientId: string } }>();
+const app = new Hono<{
+  Bindings: Env;
+  Variables: { partner: PartnerConfig; patientId: string };
+}>();
 
 // CORS for embedded forms
-app.use("*", cors({
-  origin: "*",
-  allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
-  allowHeaders: ["Content-Type", "Authorization"],
-}));
+app.use(
+  "*",
+  cors({
+    origin: "*",
+    allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
+  }),
+);
 
 // ─── Host-based dispatch for patient portal ──────────────────
 //
@@ -66,6 +73,9 @@ app.use("/", async (c, next) => {
 // was resolved above. Routes like /portal/login, /portal/dashboard, etc.
 app.route("/portal", portal);
 
+// Partner dashboard (sales/earnings, same portal subdomain)
+app.route("/partner", partnerDashboard);
+
 // Influencer onboarding
 app.route("/onboard", onboard);
 
@@ -103,9 +113,12 @@ app.get("/status/:id", async (c) => {
   const logoUrl = partner?.logoUrl || "";
   // Strip anything but letters/digits/spaces so a malformed font value
   // can't break out of the CSS string or Google Fonts URL.
-  const font = ((partner?.font || "").replace(/[^A-Za-z0-9 ]/g, "").trim()) || "Inter";
+  const font =
+    (partner?.font || "").replace(/[^A-Za-z0-9 ]/g, "").trim() || "Inter";
 
-  return c.html(renderStatusPage(pendingCase, brandName, primaryColor, logoUrl, font));
+  return c.html(
+    renderStatusPage(pendingCase, brandName, primaryColor, logoUrl, font),
+  );
 });
 
 function renderStatusNotFound(): string {
@@ -132,42 +145,59 @@ function renderStatusPage(
   // Step completion
   const step1Done = true; // Always submitted
   const step2Done = isApproved || isDenied;
-  const step3Done = isApproved && (c.orderStatus === "prescribed" || c.orderStatus === "shipped" || c.orderStatus === "delivered");
-  const step4Done = isApproved && (c.orderStatus === "shipped" || c.orderStatus === "delivered");
+  const step3Done =
+    isApproved &&
+    (c.orderStatus === "prescribed" ||
+      c.orderStatus === "shipped" ||
+      c.orderStatus === "delivered");
+  const step4Done =
+    isApproved &&
+    (c.orderStatus === "shipped" || c.orderStatus === "delivered");
   const step5Done = isApproved && c.orderStatus === "delivered";
 
   // Current status message
   let statusMessage = "";
   let statusColor = "";
   if (isDenied) {
-    statusMessage = "Your provider was unable to approve this prescription at this time.";
+    statusMessage =
+      "Your provider was unable to approve this prescription at this time.";
     statusColor = "#dc2626";
   } else if (isPending) {
-    statusMessage = "Your intake is being reviewed by your provider. This typically takes 1-2 business days.";
+    statusMessage =
+      "Your intake is being reviewed by your provider. This typically takes 1-2 business days.";
     statusColor = "#f59e0b";
   } else if (c.orderStatus === "delivered") {
-    statusMessage = "Your medication has been delivered. Follow the dosing instructions included with your shipment.";
+    statusMessage =
+      "Your medication has been delivered. Follow the dosing instructions included with your shipment.";
     statusColor = "#22c55e";
   } else if (c.orderStatus === "shipped") {
     statusMessage = "Your medication is on the way!";
     statusColor = "#3b82f6";
   } else if (c.orderStatus === "prescribed") {
-    statusMessage = "Your prescription has been approved and is being prepared by the pharmacy.";
+    statusMessage =
+      "Your prescription has been approved and is being prepared by the pharmacy.";
     statusColor = "#6366f1";
   } else {
     statusMessage = "Your prescription has been approved.";
     statusColor = "#22c55e";
   }
 
-  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const esc = (s: string) =>
+    s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
 
   const stepStyle = (done: boolean, active: boolean) => {
     if (done) return `background:${primaryColor};color:#fff;`;
-    if (active) return `background:${primaryColor}20;color:${primaryColor};border:2px solid ${primaryColor};`;
+    if (active)
+      return `background:${primaryColor}20;color:${primaryColor};border:2px solid ${primaryColor};`;
     return `background:#e5e7eb;color:#999;`;
   };
 
-  const labelStyle = (done: boolean) => done ? `color:${primaryColor};font-weight:600` : `color:#999`;
+  const labelStyle = (done: boolean) =>
+    done ? `color:${primaryColor};font-weight:600` : `color:#999`;
 
   // Tracking section
   let trackingHtml = "";
@@ -232,13 +262,20 @@ function renderStatusPage(
         ${statusMessage}
       </div>
 
-      ${isDenied ? `
-        ${c.denyReason ? `<div style="background:#f8f9fa;border-radius:10px;padding:16px 20px;margin-bottom:20px">
+      ${
+        isDenied
+          ? `
+        ${
+          c.denyReason
+            ? `<div style="background:#f8f9fa;border-radius:10px;padding:16px 20px;margin-bottom:20px">
           <p style="font-size:13px;font-weight:600;color:#666;margin:0 0 4px">Provider's Note</p>
           <p style="font-size:14px;color:#333;margin:0">${esc(c.denyReason)}</p>
-        </div>` : ""}
+        </div>`
+            : ""
+        }
         <p style="font-size:14px;color:#666">Your card was <strong>not</strong> charged. If you have questions, reply to any email from ${esc(brandName)}.</p>
-      ` : `
+      `
+          : `
         <div class="timeline">
           <div class="step">
             <div class="step-dot" style="${stepStyle(step1Done, false)}">1</div>
@@ -268,7 +305,8 @@ function renderStatusPage(
 
         ${trackingHtml}
         ${dosingHtml}
-      `}
+      `
+      }
     </div>
 
     <div class="footer">&copy; ${new Date().getFullYear()} ${esc(brandName)}. All rights reserved.</div>
@@ -294,7 +332,7 @@ export default {
     ctx.waitUntil(
       processFollowUps(env).then(({ sent, errors }) => {
         console.log(`Follow-up cron complete: ${sent} sent, ${errors} errors`);
-      })
+      }),
     );
   },
 };

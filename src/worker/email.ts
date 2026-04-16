@@ -17,7 +17,9 @@ function buildDosingSection(dosing?: DosingResult): string {
   if (!dosing) return "";
 
   const flagColor = dosing.softReviewRequired ? "#f59e0b" : "#22c55e";
-  const flagLabel = dosing.softReviewRequired ? "Requires Provider Review" : "Eligible — Decision Support";
+  const flagLabel = dosing.softReviewRequired
+    ? "Requires Provider Review"
+    : "Eligible — Decision Support";
 
   let html = `
     <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 16px; margin: 24px 0;">
@@ -39,15 +41,19 @@ function buildDosingSection(dosing?: DosingResult): string {
   if (dosing.titrationSchedule.length > 0) {
     html += `<p style="font-size: 13px; font-weight: 600; color: #0369a1; margin: 12px 0 6px 0;">Titration Schedule</p><ol style="margin: 0; padding-left: 20px;">`;
     for (const step of dosing.titrationSchedule) {
-      const gate = step.gate ? ' <span style="color: #dc2626; font-weight: 600;">[PROVIDER GATE]</span>' : "";
-      const duration = step.durationWeeks ? ` (${step.durationWeeks} weeks)` : " (maintenance)";
+      const gate = step.gate
+        ? ' <span style="color: #dc2626; font-weight: 600;">[PROVIDER GATE]</span>'
+        : "";
+      const duration = step.durationWeeks
+        ? ` (${step.durationWeeks} weeks)`
+        : " (maintenance)";
       html += `<li style="font-size: 12px; color: #333; margin-bottom: 4px;">${escapeHtml(step.dose)}${duration} — ${escapeHtml(step.label)}${gate}</li>`;
     }
     html += `</ol>`;
   }
 
   // Applied dose adjustments
-  const appliedAdjustments = dosing.doseAdjustments.filter(a => a.applied);
+  const appliedAdjustments = dosing.doseAdjustments.filter((a) => a.applied);
   if (appliedAdjustments.length > 0) {
     html += `<p style="font-size: 13px; font-weight: 600; color: #f59e0b; margin: 12px 0 6px 0;">Active Dose Adjustments</p><ul style="margin: 0; padding-left: 20px;">`;
     for (const adj of appliedAdjustments) {
@@ -57,7 +63,10 @@ function buildDosingSection(dosing?: DosingResult): string {
   }
 
   // Soft review disqualifiers
-  const softFlags = dosing.disqualifiers.filter(d => d.blockType === "soft_review" || d.blockType === "hard_pending_review");
+  const softFlags = dosing.disqualifiers.filter(
+    (d) =>
+      d.blockType === "soft_review" || d.blockType === "hard_pending_review",
+  );
   if (softFlags.length > 0) {
     html += `<p style="font-size: 13px; font-weight: 600; color: #dc2626; margin: 12px 0 6px 0;">Review Flags</p><ul style="margin: 0; padding-left: 20px;">`;
     for (const flag of softFlags) {
@@ -76,7 +85,9 @@ function buildDosingSection(dosing?: DosingResult): string {
   }
 
   // Lab requirements
-  const requiredLabs = dosing.labRequirements.filter(l => l.requiredBeforeStart);
+  const requiredLabs = dosing.labRequirements.filter(
+    (l) => l.requiredBeforeStart,
+  );
   if (requiredLabs.length > 0) {
     html += `<p style="font-size: 13px; font-weight: 600; color: #0369a1; margin: 12px 0 6px 0;">Required Labs</p><ul style="margin: 0; padding-left: 20px;">`;
     for (const lab of requiredLabs) {
@@ -126,12 +137,15 @@ export async function sendEmail(
  * Returns the API key and "from" address for patient-facing emails.
  * Uses partner's own Resend key + sender if configured, otherwise falls back to MOH defaults.
  */
-export function getPartnerEmailConfig(partner: {
-  resendApiKey?: string;
-  senderEmail?: string;
-  senderName?: string;
-  businessName: string;
-}, fallbackApiKey: string): { apiKey: string; from: string } {
+export function getPartnerEmailConfig(
+  partner: {
+    resendApiKey?: string;
+    senderEmail?: string;
+    senderName?: string;
+    businessName: string;
+  },
+  fallbackApiKey: string,
+): { apiKey: string; from: string } {
   const name = partner.senderName || partner.businessName;
   if (partner.resendApiKey && partner.senderEmail) {
     return {
@@ -157,7 +171,7 @@ export function buildOnboardingCompleteEmail(
   businessName: string,
   embedCode: string,
   previewUrl: string,
-  stripeOnboardingUrl?: string
+  stripeOnboardingUrl?: string,
 ): string {
   return `
     <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
@@ -165,9 +179,9 @@ export function buildOnboardingCompleteEmail(
       <p style="color: #666; margin-bottom: 32px;">Your white-label telehealth forms are ready, ${businessName}.</p>
 
       <div style="background: #f8f9fa; border-radius: 8px; padding: 24px; margin-bottom: 24px;">
-        <h2 style="font-size: 16px; margin-bottom: 12px;">Your Embed Codes</h2>
-        <p style="font-size: 14px; color: #666; margin-bottom: 12px;">Each code below is labeled with the service name. Copy and paste each one into the corresponding page on your website.</p>
-        <p style="font-size: 13px; color: #888; margin-bottom: 16px;">The HTML comments above each iframe tell your developer exactly which form it is and where to place it.</p>
+        <h2 style="font-size: 16px; margin-bottom: 12px;">Integration Guide (2 Steps)</h2>
+        <p style="font-size: 14px; color: #666; margin-bottom: 12px;">Your intake forms need a small proxy file so they load properly on your domain (required for Safari and Chrome). The full instructions are below — share them with your developer.</p>
+        <p style="font-size: 13px; color: #888; margin-bottom: 16px;">Step 1 creates a proxy file in your Cloudflare Pages project. Step 2 adds the embed code to your pages. Both steps are required.</p>
         <pre style="background: #1a1a2e; color: #e0e0e0; padding: 16px; border-radius: 6px; overflow-x: auto; font-size: 13px; white-space: pre-wrap; word-break: break-all;">${escapeHtml(embedCode)}</pre>
       </div>
 
@@ -176,13 +190,17 @@ export function buildOnboardingCompleteEmail(
         <a href="${previewUrl}" style="display: inline-block; background: #4F46E5; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-size: 14px;">Preview Forms</a>
       </div>
 
-      ${stripeOnboardingUrl ? `
+      ${
+        stripeOnboardingUrl
+          ? `
       <div style="margin-bottom: 24px;">
         <h2 style="font-size: 16px; margin-bottom: 12px;">Connect Your Bank Account</h2>
         <p style="font-size: 14px; color: #666; margin-bottom: 12px;">Complete this step to start receiving payments:</p>
         <a href="${stripeOnboardingUrl}" style="display: inline-block; background: #635BFF; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-size: 14px;">Connect Bank Account</a>
       </div>
-      ` : ""}
+      `
+          : ""
+      }
 
       <p style="font-size: 13px; color: #999; margin-top: 40px;">Questions? Reply to this email and we'll help you get set up.</p>
     </div>
@@ -216,7 +234,7 @@ export function buildAsyncReviewEmail(params: {
         <tr><td style="padding: 8px 0; color: #666; font-size: 14px;">Service</td><td style="padding: 8px 0; font-size: 14px;">${escapeHtml(params.serviceName)}</td></tr>
         <tr><td style="padding: 8px 0; color: #666; font-size: 14px;">Influencer</td><td style="padding: 8px 0; font-size: 14px;">${escapeHtml(params.partnerName)}</td></tr>
         <tr><td style="padding: 8px 0; color: #666; font-size: 14px;">Visit Type</td><td style="padding: 8px 0; font-size: 14px; font-weight: 600; color: #22c55e;">Async Review</td></tr>
-        ${params.medplumPatientId ? `<tr><td style="padding: 8px 0; color: #666; font-size: 14px;">Medplum Patient</td><td style="padding: 8px 0; font-size: 14px;">${escapeHtml(params.medplumPatientId)}</td></tr>` : ''}
+        ${params.medplumPatientId ? `<tr><td style="padding: 8px 0; color: #666; font-size: 14px;">Medplum Patient</td><td style="padding: 8px 0; font-size: 14px;">${escapeHtml(params.medplumPatientId)}</td></tr>` : ""}
       </table>
 
       ${buildDosingSection(params.dosingResult)}
@@ -293,9 +311,15 @@ export function buildSyncVisitEmail(params: {
   medplumPatientId?: string;
   dosingResult?: DosingResult;
 }): string {
-  const constraintsList = params.constraints.length > 0
-    ? params.constraints.map(c => `<li style="font-size: 13px; color: #92400e; margin-bottom: 4px;">${escapeHtml(c.replace(/_/g, " "))}</li>`).join("")
-    : "<li style=\"font-size: 13px; color: #92400e;\">Standard sync visit required</li>";
+  const constraintsList =
+    params.constraints.length > 0
+      ? params.constraints
+          .map(
+            (c) =>
+              `<li style="font-size: 13px; color: #92400e; margin-bottom: 4px;">${escapeHtml(c.replace(/_/g, " "))}</li>`,
+          )
+          .join("")
+      : '<li style="font-size: 13px; color: #92400e;">Standard sync visit required</li>';
 
   return `
     <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
@@ -312,7 +336,7 @@ export function buildSyncVisitEmail(params: {
         <tr><td style="padding: 8px 0; color: #666; font-size: 14px;">Service</td><td style="padding: 8px 0; font-size: 14px;">${escapeHtml(params.serviceName)}</td></tr>
         <tr><td style="padding: 8px 0; color: #666; font-size: 14px;">Influencer</td><td style="padding: 8px 0; font-size: 14px;">${escapeHtml(params.partnerName)}</td></tr>
         <tr><td style="padding: 8px 0; color: #666; font-size: 14px;">Visit Type</td><td style="padding: 8px 0; font-size: 14px; font-weight: 600; color: #f59e0b;">Sync Video Visit</td></tr>
-        ${params.medplumPatientId ? `<tr><td style="padding: 8px 0; color: #666; font-size: 14px;">Medplum Patient</td><td style="padding: 8px 0; font-size: 14px;">${escapeHtml(params.medplumPatientId)}</td></tr>` : ''}
+        ${params.medplumPatientId ? `<tr><td style="padding: 8px 0; color: #666; font-size: 14px;">Medplum Patient</td><td style="padding: 8px 0; font-size: 14px;">${escapeHtml(params.medplumPatientId)}</td></tr>` : ""}
       </table>
 
       <div style="background: #fffbeb; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
@@ -347,9 +371,21 @@ export function buildBlockedVisitEmail(params: {
   routingFailed?: boolean;
 }): string {
   const isBlocked = params.visitType === "blocked";
-  const headerColor = params.routingFailed ? "#fecaca" : isBlocked ? "#fecaca" : "#fed7aa";
-  const borderColor = params.routingFailed ? "#ef4444" : isBlocked ? "#ef4444" : "#f97316";
-  const textColor = params.routingFailed ? "#991b1b" : isBlocked ? "#991b1b" : "#9a3412";
+  const headerColor = params.routingFailed
+    ? "#fecaca"
+    : isBlocked
+      ? "#fecaca"
+      : "#fed7aa";
+  const borderColor = params.routingFailed
+    ? "#ef4444"
+    : isBlocked
+      ? "#ef4444"
+      : "#f97316";
+  const textColor = params.routingFailed
+    ? "#991b1b"
+    : isBlocked
+      ? "#991b1b"
+      : "#9a3412";
   const label = params.routingFailed
     ? "Routing Error — Manual Review Required"
     : isBlocked
@@ -370,7 +406,7 @@ export function buildBlockedVisitEmail(params: {
         <tr><td style="padding: 8px 0; color: #666; font-size: 14px;">State</td><td style="padding: 8px 0; font-size: 14px; font-weight: 600;">${escapeHtml(params.patientState)}</td></tr>
         <tr><td style="padding: 8px 0; color: #666; font-size: 14px;">Service</td><td style="padding: 8px 0; font-size: 14px;">${escapeHtml(params.serviceName)}</td></tr>
         <tr><td style="padding: 8px 0; color: #666; font-size: 14px;">Influencer</td><td style="padding: 8px 0; font-size: 14px;">${escapeHtml(params.partnerName)}</td></tr>
-        ${params.medplumPatientId ? `<tr><td style="padding: 8px 0; color: #666; font-size: 14px;">Medplum Patient</td><td style="padding: 8px 0; font-size: 14px;">${escapeHtml(params.medplumPatientId)}</td></tr>` : ''}
+        ${params.medplumPatientId ? `<tr><td style="padding: 8px 0; color: #666; font-size: 14px;">Medplum Patient</td><td style="padding: 8px 0; font-size: 14px;">${escapeHtml(params.medplumPatientId)}</td></tr>` : ""}
       </table>
 
       <div style="background: ${headerColor}; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
@@ -381,7 +417,7 @@ export function buildBlockedVisitEmail(params: {
               ? "This service cannot be prescribed via telehealth in this state."
               : "This state requires an in-person evaluation before telehealth prescribing for this service."
         }</p>
-        ${params.constraints.map(c => `<p style="font-size: 13px; color: ${textColor}; margin: 4px 0;">${escapeHtml(c.replace(/_/g, " "))}</p>`).join("")}
+        ${params.constraints.map((c) => `<p style="font-size: 13px; color: ${textColor}; margin: 4px 0;">${escapeHtml(c.replace(/_/g, " "))}</p>`).join("")}
       </div>
 
       <p style="font-size: 14px; color: #666;">Please contact the patient directly to discuss options.</p>
@@ -556,10 +592,14 @@ export function buildPatientDeliveredEmail(params: {
       </div>
       <h1 style="font-size: 20px; margin-bottom: 16px;">Your Medication Has Arrived, ${escapeHtml(params.patientName)}!</h1>
       <p style="font-size: 15px; color: #333; margin-bottom: 16px;">Your ${escapeHtml(params.serviceName)} has been delivered.</p>
-      ${params.startingDose ? `<div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+      ${
+        params.startingDose
+          ? `<div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
         <p style="font-size: 13px; font-weight: 600; color: #0369a1; margin: 0 0 4px 0;">Your Starting Dose</p>
         <p style="font-size: 16px; font-weight: 700; color: #333; margin: 0;">${escapeHtml(params.startingDose)}</p>
-      </div>` : ""}
+      </div>`
+          : ""
+      }
       <p style="font-size: 15px; color: #333; margin-bottom: 8px;">Follow the dosing instructions included with your medication. If you have any questions or experience side effects, contact your provider.</p>
       ${statusButton(params.paymentIntentId)}
       <p style="font-size: 14px; color: #666; margin-top: 32px;">Questions? Reply to this email.</p>

@@ -1,7 +1,11 @@
 import { Hono } from "hono";
 import { Env } from "../lib/types";
 import { getPartner } from "../lib/kv";
-import { createStripeClient, capturePayment, createSubscription } from "./stripe";
+import {
+  createStripeClient,
+  capturePayment,
+  createSubscription,
+} from "./stripe";
 
 const webhooks = new Hono<{ Bindings: Env }>();
 
@@ -12,7 +16,10 @@ webhooks.post("/healthie", async (c) => {
   // Healthie sends different event types
   const eventType = body.event_type;
 
-  if (eventType === "form_answer_group.completed" || eventType === "prescription.approved") {
+  if (
+    eventType === "form_answer_group.completed" ||
+    eventType === "prescription.approved"
+  ) {
     const formData = body.resource_data || {};
     const partnerSlug = formData.partner_slug;
     const paymentIntentId = formData.payment_intent_id;
@@ -21,7 +28,9 @@ webhooks.post("/healthie", async (c) => {
     const subscriptionPrice = parseFloat(formData.subscription_price || "0");
 
     if (!partnerSlug || !paymentIntentId) {
-      console.error("Missing partner_slug or payment_intent_id in webhook data");
+      console.error(
+        "Missing partner_slug or payment_intent_id in webhook data",
+      );
       return c.json({ error: "Missing required fields" }, 400);
     }
 
@@ -36,7 +45,9 @@ webhooks.post("/healthie", async (c) => {
     // 1. Capture the initial payment
     try {
       await capturePayment(stripe, paymentIntentId, partner);
-      console.log(`Payment captured: ${paymentIntentId} for partner ${partnerSlug}`);
+      console.log(
+        `Payment captured: ${paymentIntentId} for partner ${partnerSlug}`,
+      );
     } catch (err) {
       console.error(`Payment capture failed for ${paymentIntentId}:`, err);
       return c.json({ error: "Payment capture failed" }, 500);
@@ -55,9 +66,11 @@ webhooks.post("/healthie", async (c) => {
           patientEmail,
           paymentMethodId,
           subscriptionPrice,
-          serviceType
+          serviceType,
         );
-        console.log(`Subscription created: ${subscriptionId} for ${patientEmail}`);
+        console.log(
+          `Subscription created: ${subscriptionId} for ${patientEmail}`,
+        );
       } catch (err) {
         console.error(`Subscription creation failed for ${patientEmail}:`, err);
         // Don't fail the whole webhook — initial payment was captured successfully
@@ -82,11 +95,16 @@ webhooks.post("/healthie", async (c) => {
           paymentIntentId,
           partner?.paymentMode === "direct" && partner?.stripeDirectAccountId
             ? { stripeAccount: partner.stripeDirectAccountId }
-            : undefined
+            : undefined,
         );
-        console.log(`Payment cancelled: ${paymentIntentId} (prescription denied)`);
+        console.log(
+          `Payment cancelled: ${paymentIntentId} (prescription denied)`,
+        );
       } catch (err) {
-        console.error(`Payment cancellation failed for ${paymentIntentId}:`, err);
+        console.error(
+          `Payment cancellation failed for ${paymentIntentId}:`,
+          err,
+        );
       }
     }
 
@@ -109,7 +127,11 @@ webhooks.post("/stripe", async (c) => {
 
   let event;
   try {
-    event = stripe.webhooks.constructEvent(rawBody, signature, c.env.STRIPE_WEBHOOK_SECRET);
+    event = stripe.webhooks.constructEvent(
+      rawBody,
+      signature,
+      c.env.STRIPE_WEBHOOK_SECRET,
+    );
   } catch (err) {
     console.error("Stripe webhook signature verification failed:", err);
     return c.json({ error: "Invalid signature" }, 400);
@@ -118,7 +140,9 @@ webhooks.post("/stripe", async (c) => {
   switch (event.type) {
     case "invoice.payment_failed": {
       const invoice = event.data.object;
-      console.log(`Subscription payment failed for customer ${invoice.customer}`);
+      console.log(
+        `Subscription payment failed for customer ${invoice.customer}`,
+      );
       // TODO: Send notification email to patient and partner
       break;
     }

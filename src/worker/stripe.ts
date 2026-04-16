@@ -9,7 +9,7 @@ export function createStripeClient(secretKey: string): Stripe {
 export async function createConnectAccount(
   stripe: Stripe,
   email: string,
-  businessName: string
+  businessName: string,
 ): Promise<{ accountId: string; onboardingUrl: string }> {
   const account = await stripe.accounts.create({
     type: "express",
@@ -25,8 +25,8 @@ export async function createConnectAccount(
 
   const link = await stripe.accountLinks.create({
     account: account.id,
-    refresh_url: "https://myorbithealth.com/partner/retry",
-    return_url: "https://myorbithealth.com/partner/success",
+    refresh_url: "https://onboard.myorbithealth.com/onboard",
+    return_url: "https://onboard.myorbithealth.com/onboard/complete",
     type: "account_onboarding",
   });
 
@@ -51,11 +51,24 @@ export async function ensureCustomerWithPaymentMethod(
       : undefined;
 
   // Try to reuse an existing customer for this email
-  const existing = await stripe.customers.list({ email: customerEmail, limit: 1 }, opts);
+  const existing = await stripe.customers.list(
+    { email: customerEmail, limit: 1 },
+    opts,
+  );
   let customer: Stripe.Customer;
   if (existing.data.length > 0) {
     customer = existing.data[0];
-    await stripe.paymentMethods.attach(paymentMethodId, { customer: customer.id }, opts);
+    try {
+      await stripe.paymentMethods.attach(
+        paymentMethodId,
+        { customer: customer.id },
+        opts,
+      );
+    } catch (err: any) {
+      // PM may already be attached from an earlier call in the same multi-service
+      // checkout flow (add-ons). Safe to continue — PM is already on this customer.
+      if (!err?.message?.includes("already been attached")) throw err;
+    }
     await stripe.customers.update(
       customer.id,
       { invoice_settings: { default_payment_method: paymentMethodId } },
@@ -122,7 +135,7 @@ export async function authorizePayment(
     params,
     partner.paymentMode === "direct" && partner.stripeDirectAccountId
       ? { stripeAccount: partner.stripeDirectAccountId }
-      : undefined
+      : undefined,
   );
 
   return intent.id;
@@ -132,14 +145,14 @@ export async function authorizePayment(
 export async function capturePayment(
   stripe: Stripe,
   paymentIntentId: string,
-  partner: PartnerConfig
+  partner: PartnerConfig,
 ): Promise<void> {
   await stripe.paymentIntents.capture(
     paymentIntentId,
     {},
     partner.paymentMode === "direct" && partner.stripeDirectAccountId
       ? { stripeAccount: partner.stripeDirectAccountId }
-      : undefined
+      : undefined,
   );
 }
 
@@ -150,10 +163,14 @@ export async function createSubscription(
   customerEmail: string,
   paymentMethodId: string,
   monthlyAmount: number,
-  serviceType: string
+  serviceType: string,
+  trialDays?: number,
 ): Promise<string> {
   // Create or find customer
-  const customers = await stripe.customers.list({ email: customerEmail, limit: 1 });
+  const customers = await stripe.customers.list({
+    email: customerEmail,
+    limit: 1,
+  });
   let customer: Stripe.Customer;
 
   if (customers.data.length > 0) {
@@ -185,6 +202,7 @@ export async function createSubscription(
       partner_slug: partner.slug,
       service_type: serviceType,
     },
+    ...(trialDays && trialDays > 0 ? { trial_period_days: trialDays } : {}),
   };
 
   if (partner.paymentMode === "platform" && partner.stripeConnectAccountId) {
@@ -197,14 +215,15 @@ export async function createSubscription(
     subParams,
     partner.paymentMode === "direct" && partner.stripeDirectAccountId
       ? { stripeAccount: partner.stripeDirectAccountId }
-      : undefined
+      : undefined,
   );
 
   return subscription.id;
 }
 
-// Immediately charge the HRT Clearance Kit fee ($124.99) — captured at intake
+// Immediately charge the HRT Clearance Kit fee — captured at intake
 // time so we can ship the kit before the doctor reviews the case.
+// Partners can set a custom kit price + MOH fee split via bloodworkKitPrice / bloodworkKitFee.
 export async function chargeKitFee(
   stripe: Stripe,
   partner: PartnerConfig,
@@ -233,6 +252,18 @@ export async function chargeKitFee(
     },
   };
 
+  // Platform mode: split kit revenue with partner via Connect
+  if (
+    partner.paymentMode === "platform" &&
+    partner.stripeConnectAccountId &&
+    partner.bloodworkKitFee !== undefined
+  ) {
+    params.transfer_data = {
+      destination: partner.stripeConnectAccountId,
+    };
+    params.application_fee_amount = Math.round(partner.bloodworkKitFee * 100);
+  }
+
   const intent = await stripe.paymentIntents.create(
     params,
     partner.paymentMode === "direct" && partner.stripeDirectAccountId
@@ -247,7 +278,7 @@ export async function chargeKitFee(
 export async function createSetupIntent(
   stripe: Stripe,
   partner: PartnerConfig,
-  customerEmail: string
+  customerEmail: string,
 ): Promise<{ clientSecret: string }> {
   const intent = await stripe.setupIntents.create(
     {
@@ -259,7 +290,7 @@ export async function createSetupIntent(
     },
     partner.paymentMode === "direct" && partner.stripeDirectAccountId
       ? { stripeAccount: partner.stripeDirectAccountId }
-      : undefined
+      : undefined,
   );
 
   return { clientSecret: intent.client_secret! };

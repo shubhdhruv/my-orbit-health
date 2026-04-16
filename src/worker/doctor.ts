@@ -1,8 +1,25 @@
 import { Hono } from "hono";
 import { Env } from "../lib/types";
-import { getPartner, getPendingCase, listPendingCases, listAllCases, savePendingCase } from "../lib/kv";
-import { createStripeClient, capturePayment, createSubscription } from "./stripe";
-import { sendEmail, getPartnerEmailConfig, buildPatientApprovedEmail, buildPatientDeniedEmail, buildPatientShippedEmail, buildPatientDeliveredEmail } from "./email";
+import {
+  getPartner,
+  getPendingCase,
+  listPendingCases,
+  listAllCases,
+  savePendingCase,
+} from "../lib/kv";
+import {
+  createStripeClient,
+  capturePayment,
+  createSubscription,
+} from "./stripe";
+import {
+  sendEmail,
+  getPartnerEmailConfig,
+  buildPatientApprovedEmail,
+  buildPatientDeniedEmail,
+  buildPatientShippedEmail,
+  buildPatientDeliveredEmail,
+} from "./email";
 import { createComposition, fhirRead, fhirSearch } from "./medplum";
 
 const doctor = new Hono<{ Bindings: Env }>();
@@ -19,9 +36,16 @@ async function hashPassword(password: string): Promise<string> {
 
 doctor.use("*", async (c, next) => {
   const path = c.req.path;
-  if (path === "/doctor/login" || path === "/doctor/auth" || path.startsWith("/doctor/setup")) return next();
+  if (
+    path === "/doctor/login" ||
+    path === "/doctor/auth" ||
+    path.startsWith("/doctor/setup")
+  )
+    return next();
 
-  const sessionCookie = c.req.header("Cookie")?.match(/doctor_session=([^;]+)/)?.[1];
+  const sessionCookie = c.req
+    .header("Cookie")
+    ?.match(/doctor_session=([^;]+)/)?.[1];
   if (!sessionCookie) return c.redirect("/doctor/login");
 
   const today = new Date().toISOString().split("T")[0];
@@ -34,7 +58,9 @@ doctor.use("*", async (c, next) => {
   }
 
   // Fall back to admin password (for dev access)
-  const adminSession = await hashPassword(c.env.ADMIN_PASSWORD_HASH + "doctor" + today);
+  const adminSession = await hashPassword(
+    c.env.ADMIN_PASSWORD_HASH + "doctor" + today,
+  );
   if (sessionCookie === adminSession) return next();
 
   return c.redirect("/doctor/login");
@@ -46,7 +72,7 @@ doctor.get("/login", (c) => c.html(LOGIN_HTML));
 
 doctor.post("/auth", async (c) => {
   const body = await c.req.parseBody();
-  const password = body.password as string || "";
+  const password = (body.password as string) || "";
   const passwordHash = await hashPassword(password);
 
   // Check doctor's own password first
@@ -67,7 +93,12 @@ doctor.post("/auth", async (c) => {
     });
   }
 
-  return c.html(LOGIN_HTML.replace("</form>", '<p style="color:#dc2626;margin-top:12px;font-size:14px">Invalid password</p></form>'));
+  return c.html(
+    LOGIN_HTML.replace(
+      "</form>",
+      '<p style="color:#dc2626;margin-top:12px;font-size:14px">Invalid password</p></form>',
+    ),
+  );
 });
 
 // ─── Dashboard ───────────────────────────────────────────────
@@ -112,29 +143,33 @@ doctor.get("/export.csv", async (c) => {
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
 
-  const rows = approved.map((x) => [
-    x.paymentIntentId,
-    x.resolvedAt || "",
-    x.orderStatus || "not_submitted",
-    x.partnerName,
-    x.patientName,
-    x.patientDob,
-    x.patientEmail,
-    x.patientPhone,
-    x.shippingAddress?.street || "",
-    x.shippingAddress?.apt || "",
-    x.shippingAddress?.city || "",
-    x.shippingAddress?.state || x.patientState || "",
-    x.shippingAddress?.zip || "",
-    x.serviceName,
-    x.dosingResult?.startingDose || "",
-    x.chargeAmount,
-    x.bloodworkStatus || "",
-    x.bloodworkKitPurchased ? "yes" : "",
-    x.bloodworkKitShipped ? "yes" : "",
-    x.trackingNumber || "",
-    x.carrier || "",
-  ].map(esc).join(","));
+  const rows = approved.map((x) =>
+    [
+      x.paymentIntentId,
+      x.resolvedAt || "",
+      x.orderStatus || "not_submitted",
+      x.partnerName,
+      x.patientName,
+      x.patientDob,
+      x.patientEmail,
+      x.patientPhone,
+      x.shippingAddress?.street || "",
+      x.shippingAddress?.apt || "",
+      x.shippingAddress?.city || "",
+      x.shippingAddress?.state || x.patientState || "",
+      x.shippingAddress?.zip || "",
+      x.serviceName,
+      x.dosingResult?.startingDose || "",
+      x.chargeAmount,
+      x.bloodworkStatus || "",
+      x.bloodworkKitPurchased ? "yes" : "",
+      x.bloodworkKitShipped ? "yes" : "",
+      x.trackingNumber || "",
+      x.carrier || "",
+    ]
+      .map(esc)
+      .join(","),
+  );
 
   const csv = [headers.join(","), ...rows].join("\n");
   const filename = `approved-orders-${new Date().toISOString().split("T")[0]}.csv`;
@@ -162,17 +197,24 @@ doctor.get("/case/:id/medplum-data", async (c) => {
   const id = c.req.param("id");
   const pendingCase = await getPendingCase(c.env.PARTNERS, id);
   if (!pendingCase) return c.json({ error: "Case not found" }, 404);
-  if (!pendingCase.medplumPatientId) return c.json({ error: "No Medplum patient linked" }, 404);
+  if (!pendingCase.medplumPatientId)
+    return c.json({ error: "No Medplum patient linked" }, 404);
 
   try {
     // Read patient
-    const patient = await fhirRead(c.env, "Patient", pendingCase.medplumPatientId);
+    const patient = await fhirRead(
+      c.env,
+      "Patient",
+      pendingCase.medplumPatientId,
+    );
 
     // Search for QuestionnaireResponses
     const qrBundle = await fhirSearch(c.env, "QuestionnaireResponse", {
       patient: `Patient/${pendingCase.medplumPatientId}`,
     });
-    const questionnaireResponses = (qrBundle.entry || []).map((e: any) => e.resource);
+    const questionnaireResponses = (qrBundle.entry || []).map(
+      (e: any) => e.resource,
+    );
 
     // Search for Compositions (SOAP notes)
     const compBundle = await fhirSearch(c.env, "Composition", {
@@ -197,12 +239,20 @@ doctor.post("/case/:id/approve", async (c) => {
   const id = c.req.param("id");
   const pendingCase = await getPendingCase(c.env.PARTNERS, id);
   if (!pendingCase) return c.json({ error: "Case not found" }, 404);
-  if (pendingCase.status !== "pending") return c.json({ error: "Case already resolved" }, 400);
+  if (pendingCase.status !== "pending")
+    return c.json({ error: "Case already resolved" }, 400);
 
   // Check expiry
   const now = new Date();
   const expires = new Date(pendingCase.authExpiresAt);
-  if (now > expires) return c.json({ error: "Payment authorization has expired. The patient will need to resubmit." }, 400);
+  if (now > expires)
+    return c.json(
+      {
+        error:
+          "Payment authorization has expired. The patient will need to resubmit.",
+      },
+      400,
+    );
 
   const partner = await getPartner(c.env.PARTNERS, pendingCase.partnerSlug);
   if (!partner) return c.json({ error: "Partner not found" }, 500);
@@ -214,25 +264,42 @@ doctor.post("/case/:id/approve", async (c) => {
       await capturePayment(stripe, pendingCase.paymentIntentId, partner);
     } catch (err) {
       const msg = String(err);
-      if (msg.includes("expired") || msg.includes("canceled") || msg.includes("cancelled")) {
-        return c.json({ error: "Payment authorization has expired or was cancelled. The patient will need to resubmit." }, 400);
+      if (
+        msg.includes("expired") ||
+        msg.includes("canceled") ||
+        msg.includes("cancelled")
+      ) {
+        return c.json(
+          {
+            error:
+              "Payment authorization has expired or was cancelled. The patient will need to resubmit.",
+          },
+          400,
+        );
       }
       return c.json({ error: `Payment capture failed: ${msg}` }, 500);
     }
 
-    // 2. Create subscription if applicable
-    if (pendingCase.subscriptionPrice > 0 && pendingCase.paymentMethodId) {
+    // 2. Create subscription — chargeAmount is the monthly rate the customer
+    // committed to (full price for monthly, 5% off for 3-month, 20% off for 6-month).
+    // First month is covered by the captured payment, so subscription starts with
+    // a 30-day trial to avoid double-charging month 1.
+    if (pendingCase.chargeAmount > 0 && pendingCase.paymentMethodId) {
       try {
         await createSubscription(
           stripe,
           partner,
           pendingCase.patientEmail,
           pendingCase.paymentMethodId,
-          pendingCase.subscriptionPrice,
-          pendingCase.serviceType
+          pendingCase.chargeAmount,
+          pendingCase.serviceType,
+          30, // 30-day trial — first month covered by the captured payment
         );
       } catch (err) {
-        console.error("Subscription creation failed (payment was captured):", err);
+        console.error(
+          "Subscription creation failed (payment was captured):",
+          err,
+        );
       }
     }
   }
@@ -240,16 +307,20 @@ doctor.post("/case/:id/approve", async (c) => {
   // 3. Email patient (from partner's branded sender if configured)
   const approveEmail = getPartnerEmailConfig(partner, c.env.RESEND_API_KEY);
   try {
-    await sendEmail(approveEmail.apiKey, {
-      to: pendingCase.patientEmail,
-      subject: `Your ${pendingCase.serviceName} prescription has been approved!`,
-      html: buildPatientApprovedEmail({
-        patientName: pendingCase.patientName,
-        serviceName: pendingCase.serviceName,
-        partnerName: pendingCase.partnerName,
-        paymentIntentId: pendingCase.paymentIntentId,
-      }),
-    }, approveEmail.from);
+    await sendEmail(
+      approveEmail.apiKey,
+      {
+        to: pendingCase.patientEmail,
+        subject: `Your ${pendingCase.serviceName} prescription has been approved!`,
+        html: buildPatientApprovedEmail({
+          patientName: pendingCase.patientName,
+          serviceName: pendingCase.serviceName,
+          partnerName: pendingCase.partnerName,
+          paymentIntentId: pendingCase.paymentIntentId,
+        }),
+      },
+      approveEmail.from,
+    );
   } catch (err) {
     console.error("Approved email failed:", err);
   }
@@ -271,12 +342,21 @@ doctor.post("/case/:id/approve", async (c) => {
 async function markCaseShipped(
   env: Env,
   caseId: string,
-  tracking: { trackingNumber: string; carrier?: string; trackingUrl?: string; pharmacyOrderId?: string }
+  tracking: {
+    trackingNumber: string;
+    carrier?: string;
+    trackingUrl?: string;
+    pharmacyOrderId?: string;
+  },
 ): Promise<void> {
   const pendingCase = await getPendingCase(env.PARTNERS, caseId);
   if (!pendingCase) throw new Error("Case not found");
-  if (pendingCase.status !== "approved") throw new Error("Only approved cases can be shipped");
-  if (pendingCase.orderStatus === "shipped" || pendingCase.orderStatus === "delivered") {
+  if (pendingCase.status !== "approved")
+    throw new Error("Only approved cases can be shipped");
+  if (
+    pendingCase.orderStatus === "shipped" ||
+    pendingCase.orderStatus === "delivered"
+  ) {
     throw new Error("Already shipped");
   }
 
@@ -290,23 +370,28 @@ async function markCaseShipped(
   pendingCase.trackingNumber = tracking.trackingNumber;
   if (tracking.carrier) pendingCase.carrier = tracking.carrier;
   if (tracking.trackingUrl) pendingCase.trackingUrl = tracking.trackingUrl;
-  if (tracking.pharmacyOrderId) pendingCase.pharmacyOrderId = tracking.pharmacyOrderId;
+  if (tracking.pharmacyOrderId)
+    pendingCase.pharmacyOrderId = tracking.pharmacyOrderId;
   await savePendingCase(env.PARTNERS, pendingCase);
 
   try {
-    await sendEmail(emailConfig.apiKey, {
-      to: pendingCase.patientEmail,
-      subject: `Your ${pendingCase.serviceName} has shipped!`,
-      html: buildPatientShippedEmail({
-        patientName: pendingCase.patientName,
-        serviceName: pendingCase.serviceName,
-        partnerName: pendingCase.partnerName,
-        carrier: pendingCase.carrier,
-        trackingNumber: pendingCase.trackingNumber,
-        trackingUrl: pendingCase.trackingUrl,
-        paymentIntentId: pendingCase.paymentIntentId,
-      }),
-    }, emailConfig.from);
+    await sendEmail(
+      emailConfig.apiKey,
+      {
+        to: pendingCase.patientEmail,
+        subject: `Your ${pendingCase.serviceName} has shipped!`,
+        html: buildPatientShippedEmail({
+          patientName: pendingCase.patientName,
+          serviceName: pendingCase.serviceName,
+          partnerName: pendingCase.partnerName,
+          carrier: pendingCase.carrier,
+          trackingNumber: pendingCase.trackingNumber,
+          trackingUrl: pendingCase.trackingUrl,
+          paymentIntentId: pendingCase.paymentIntentId,
+        }),
+      },
+      emailConfig.from,
+    );
   } catch (err) {
     console.error("Shipped email failed:", err);
   }
@@ -323,13 +408,22 @@ function parseCsv(text: string): string[][] {
     const ch = text[i];
     if (inQuotes) {
       if (ch === '"') {
-        if (text[i + 1] === '"') { field += '"'; i++; }
-        else inQuotes = false;
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else inQuotes = false;
       } else field += ch;
       continue;
     }
-    if (ch === '"') { inQuotes = true; continue; }
-    if (ch === ",") { row.push(field); field = ""; continue; }
+    if (ch === '"') {
+      inQuotes = true;
+      continue;
+    }
+    if (ch === ",") {
+      row.push(field);
+      field = "";
+      continue;
+    }
     if (ch === "\n" || ch === "\r") {
       if (ch === "\r" && text[i + 1] === "\n") i++;
       row.push(field);
@@ -340,7 +434,10 @@ function parseCsv(text: string): string[][] {
     }
     field += ch;
   }
-  if (field !== "" || row.length > 0) { row.push(field); rows.push(row); }
+  if (field !== "" || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
   return rows;
 }
 
@@ -350,7 +447,8 @@ doctor.post("/case/:id/update-order", async (c) => {
   const id = c.req.param("id");
   const pendingCase = await getPendingCase(c.env.PARTNERS, id);
   if (!pendingCase) return c.json({ error: "Case not found" }, 404);
-  if (pendingCase.status !== "approved") return c.json({ error: "Only approved cases can be updated" }, 400);
+  if (pendingCase.status !== "approved")
+    return c.json({ error: "Only approved cases can be updated" }, 400);
 
   const body = await c.req.json();
   const newStatus = body.orderStatus as string;
@@ -362,7 +460,8 @@ doctor.post("/case/:id/update-order", async (c) => {
     : { apiKey: c.env.RESEND_API_KEY, from: undefined as string | undefined };
 
   if (newStatus === "shipped") {
-    if (!body.trackingNumber) return c.json({ error: "trackingNumber required" }, 400);
+    if (!body.trackingNumber)
+      return c.json({ error: "trackingNumber required" }, 400);
     try {
       await markCaseShipped(c.env, id, {
         trackingNumber: body.trackingNumber,
@@ -383,17 +482,21 @@ doctor.post("/case/:id/update-order", async (c) => {
 
     // Email patient (branded)
     try {
-      await sendEmail(emailConfig.apiKey, {
-        to: pendingCase.patientEmail,
-        subject: `Your ${pendingCase.serviceName} has been delivered`,
-        html: buildPatientDeliveredEmail({
-          patientName: pendingCase.patientName,
-          serviceName: pendingCase.serviceName,
-          partnerName: pendingCase.partnerName,
-          startingDose: pendingCase.dosingResult?.startingDose || undefined,
-          paymentIntentId: pendingCase.paymentIntentId,
-        }),
-      }, emailConfig.from);
+      await sendEmail(
+        emailConfig.apiKey,
+        {
+          to: pendingCase.patientEmail,
+          subject: `Your ${pendingCase.serviceName} has been delivered`,
+          html: buildPatientDeliveredEmail({
+            patientName: pendingCase.patientName,
+            serviceName: pendingCase.serviceName,
+            partnerName: pendingCase.partnerName,
+            startingDose: pendingCase.dosingResult?.startingDose || undefined,
+            paymentIntentId: pendingCase.paymentIntentId,
+          }),
+        },
+        emailConfig.from,
+      );
     } catch (err) {
       console.error("Delivered email failed:", err);
     }
@@ -426,7 +529,12 @@ doctor.post("/case/:id/update-order", async (c) => {
     });
   }
 
-  return c.json({ error: `Invalid order status: ${newStatus}. Must be "shipped", "delivered", or "bloodwork".` }, 400);
+  return c.json(
+    {
+      error: `Invalid order status: ${newStatus}. Must be "shipped", "delivered", or "bloodwork".`,
+    },
+    400,
+  );
 });
 
 // ─── CSV Tracking Import (bulk mark-shipped) ────────────────
@@ -477,7 +585,9 @@ doctor.post("/import-tracking", async (c) => {
   let csvText = "";
   if (contentType.includes("multipart/form-data")) {
     const form = await c.req.formData();
-    const file = form.get("file") as unknown as { text?: () => Promise<string> } | null;
+    const file = form.get("file") as unknown as {
+      text?: () => Promise<string>;
+    } | null;
     if (!file || typeof file.text !== "function") {
       return c.json({ error: "No file uploaded" }, 400);
     }
@@ -490,7 +600,8 @@ doctor.post("/import-tracking", async (c) => {
   if (rows.length < 2) return c.json({ error: "CSV has no data rows" }, 400);
 
   const headers = rows[0].map((h) => h.trim().toLowerCase());
-  const findCol = (predicate: (h: string) => boolean) => headers.findIndex(predicate);
+  const findCol = (predicate: (h: string) => boolean) =>
+    headers.findIndex(predicate);
   const idIdx = findCol((h) => /case\s*id|payment\s*intent/.test(h));
   const trackingIdx = findCol((h) => /tracking/.test(h) && !/url/.test(h));
   const carrierIdx = findCol((h) => /carrier/.test(h));
@@ -498,13 +609,21 @@ doctor.post("/import-tracking", async (c) => {
   const orderIdIdx = findCol((h) => /pharmacy\s*order|order\s*id/.test(h));
 
   if (idIdx < 0 || trackingIdx < 0) {
-    return c.json({
-      error: "CSV must include a Case ID (or Payment Intent) column and a Tracking # column",
-      headersSeen: rows[0],
-    }, 400);
+    return c.json(
+      {
+        error:
+          "CSV must include a Case ID (or Payment Intent) column and a Tracking # column",
+        headersSeen: rows[0],
+      },
+      400,
+    );
   }
 
-  const results: { updated: string[]; skipped: { row: number; reason: string }[]; errors: { row: number; caseId: string; error: string }[] } = {
+  const results: {
+    updated: string[];
+    skipped: { row: number; reason: string }[];
+    errors: { row: number; caseId: string; error: string }[];
+  } = {
     updated: [],
     skipped: [],
     errors: [],
@@ -515,12 +634,16 @@ doctor.post("/import-tracking", async (c) => {
     const caseId = (row[idIdx] || "").trim();
     const trackingNumber = (row[trackingIdx] || "").trim();
     if (!caseId || !trackingNumber) {
-      results.skipped.push({ row: i + 1, reason: "missing Case ID or Tracking #" });
+      results.skipped.push({
+        row: i + 1,
+        reason: "missing Case ID or Tracking #",
+      });
       continue;
     }
     const carrier = carrierIdx >= 0 ? (row[carrierIdx] || "").trim() : "";
     const trackingUrl = urlIdx >= 0 ? (row[urlIdx] || "").trim() : "";
-    const pharmacyOrderId = orderIdIdx >= 0 ? (row[orderIdIdx] || "").trim() : "";
+    const pharmacyOrderId =
+      orderIdIdx >= 0 ? (row[orderIdIdx] || "").trim() : "";
     try {
       await markCaseShipped(c.env, caseId, {
         trackingNumber,
@@ -530,20 +653,28 @@ doctor.post("/import-tracking", async (c) => {
       });
       results.updated.push(caseId);
     } catch (err) {
-      results.errors.push({ row: i + 1, caseId, error: (err as Error).message });
+      results.errors.push({
+        row: i + 1,
+        caseId,
+        error: (err as Error).message,
+      });
     }
   }
 
   // If called from a browser form, render a results page. If called via
   // API (JSON content or explicit ?format=json), return JSON.
-  const wantsJson = c.req.query("format") === "json" || contentType.includes("application/json");
+  const wantsJson =
+    c.req.query("format") === "json" ||
+    contentType.includes("application/json");
   if (wantsJson) return c.json(results);
 
   const row = (label: string, value: string, color: string) =>
     `<div style="display:flex;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #e5e7eb"><span style="font-weight:600">${label}</span><span style="color:${color};font-weight:700">${value}</span></div>`;
 
-  const listBlock = (title: string, items: string[]) => items.length === 0 ? "" :
-    `<h3 style="margin:24px 0 8px;font-size:15px">${title}</h3><ul style="font-family:monospace;font-size:13px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px 32px;margin:0">${items.map(i => `<li>${i}</li>`).join("")}</ul>`;
+  const listBlock = (title: string, items: string[]) =>
+    items.length === 0
+      ? ""
+      : `<h3 style="margin:24px 0 8px;font-size:15px">${title}</h3><ul style="font-family:monospace;font-size:13px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px 32px;margin:0">${items.map((i) => `<li>${i}</li>`).join("")}</ul>`;
 
   return c.html(`<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Import Results</title>
@@ -557,8 +688,14 @@ doctor.post("/import-tracking", async (c) => {
     ${row("Errors", String(results.errors.length), "#ef4444")}
   </div>
   ${listBlock("Updated cases", results.updated)}
-  ${listBlock("Skipped rows", results.skipped.map(s => `row ${s.row}: ${s.reason}`))}
-  ${listBlock("Errors", results.errors.map(e => `row ${e.row} (${e.caseId}): ${e.error}`))}
+  ${listBlock(
+    "Skipped rows",
+    results.skipped.map((s) => `row ${s.row}: ${s.reason}`),
+  )}
+  ${listBlock(
+    "Errors",
+    results.errors.map((e) => `row ${e.row} (${e.caseId}): ${e.error}`),
+  )}
   <p style="margin-top:24px"><a href="/doctor/import-tracking">&larr; Import another CSV</a></p>
 </body></html>`);
 });
@@ -569,7 +706,8 @@ doctor.post("/case/:id/deny", async (c) => {
   const id = c.req.param("id");
   const pendingCase = await getPendingCase(c.env.PARTNERS, id);
   if (!pendingCase) return c.json({ error: "Case not found" }, 404);
-  if (pendingCase.status !== "pending") return c.json({ error: "Case already resolved" }, 400);
+  if (pendingCase.status !== "pending")
+    return c.json({ error: "Case already resolved" }, 400);
 
   const body = await c.req.json();
   const reason = body.reason || "No reason provided";
@@ -584,27 +722,36 @@ doctor.post("/case/:id/deny", async (c) => {
         pendingCase.paymentIntentId,
         partner?.paymentMode === "direct" && partner?.stripeDirectAccountId
           ? { stripeAccount: partner.stripeDirectAccountId }
-          : undefined
+          : undefined,
       );
     } catch (err) {
-      console.error("Payment cancellation failed (may already be expired):", err);
+      console.error(
+        "Payment cancellation failed (may already be expired):",
+        err,
+      );
     }
   }
 
   // 2. Email patient (from partner's branded sender if configured)
-  const denyEmailConfig = partner ? getPartnerEmailConfig(partner, c.env.RESEND_API_KEY) : { apiKey: c.env.RESEND_API_KEY, from: undefined as string | undefined };
+  const denyEmailConfig = partner
+    ? getPartnerEmailConfig(partner, c.env.RESEND_API_KEY)
+    : { apiKey: c.env.RESEND_API_KEY, from: undefined as string | undefined };
   try {
-    await sendEmail(denyEmailConfig.apiKey, {
-      to: pendingCase.patientEmail,
-      subject: `About your ${pendingCase.serviceName} request`,
-      html: buildPatientDeniedEmail({
-        patientName: pendingCase.patientName,
-        serviceName: pendingCase.serviceName,
-        partnerName: pendingCase.partnerName,
-        reason,
-        paymentIntentId: pendingCase.paymentIntentId,
-      }),
-    }, denyEmailConfig.from);
+    await sendEmail(
+      denyEmailConfig.apiKey,
+      {
+        to: pendingCase.patientEmail,
+        subject: `About your ${pendingCase.serviceName} request`,
+        html: buildPatientDeniedEmail({
+          patientName: pendingCase.patientName,
+          serviceName: pendingCase.serviceName,
+          partnerName: pendingCase.partnerName,
+          reason,
+          paymentIntentId: pendingCase.paymentIntentId,
+        }),
+      },
+      denyEmailConfig.from,
+    );
   } catch (err) {
     console.error("Denied email failed:", err);
   }
@@ -631,16 +778,28 @@ doctor.post("/case/:id/generate-soap", async (c) => {
     .map(([k, v]) => `- ${k}: ${Array.isArray(v) ? v.join(", ") : String(v)}`)
     .join("\n");
 
-  const dosingText = d ? [
-    d.startingDose ? `Starting Dose: ${d.startingDose}` : null,
-    d.maxDose ? `Max Dose: ${d.maxDose}` : null,
-    `Route: ${d.route}`,
-    `Frequency: ${d.frequency}`,
-    d.titrationSchedule.length > 0 ? `Titration: ${d.titrationSchedule.map(s => `${s.dose} (${s.durationWeeks ? s.durationWeeks + " weeks" : "maintenance"})`).join(" → ")}` : null,
-    d.providerNotes.length > 0 ? `Provider Notes: ${d.providerNotes.join("; ")}` : null,
-    d.disqualifiers.length > 0 ? `Flags: ${d.disqualifiers.map(q => `${q.field}: ${q.reason} (${q.blockType})`).join("; ")}` : null,
-    d.labRequirements.length > 0 ? `Lab Requirements: ${d.labRequirements.map(l => `${l.panel} (${l.met ? "met" : "not met"})`).join("; ")}` : null,
-  ].filter(Boolean).join("\n") : "No dosing data available";
+  const dosingText = d
+    ? [
+        d.startingDose ? `Starting Dose: ${d.startingDose}` : null,
+        d.maxDose ? `Max Dose: ${d.maxDose}` : null,
+        `Route: ${d.route}`,
+        `Frequency: ${d.frequency}`,
+        d.titrationSchedule.length > 0
+          ? `Titration: ${d.titrationSchedule.map((s) => `${s.dose} (${s.durationWeeks ? s.durationWeeks + " weeks" : "maintenance"})`).join(" → ")}`
+          : null,
+        d.providerNotes.length > 0
+          ? `Provider Notes: ${d.providerNotes.join("; ")}`
+          : null,
+        d.disqualifiers.length > 0
+          ? `Flags: ${d.disqualifiers.map((q) => `${q.field}: ${q.reason} (${q.blockType})`).join("; ")}`
+          : null,
+        d.labRequirements.length > 0
+          ? `Lab Requirements: ${d.labRequirements.map((l) => `${l.panel} (${l.met ? "met" : "not met"})`).join("; ")}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join("\n")
+    : "No dosing data available";
 
   const prompt = `You are a medical documentation assistant. Generate a SOAP note for the following telehealth encounter. This is an asynchronous telehealth visit for prescription approval.
 
@@ -687,15 +846,24 @@ Return ONLY valid JSON in this exact format:
 
     if (!res.ok) {
       const errText = await res.text();
-      return c.json({ error: `Claude API error: ${res.status} ${errText}` }, 500);
+      return c.json(
+        { error: `Claude API error: ${res.status} ${errText}` },
+        500,
+      );
     }
 
-    const result = (await res.json()) as { content: Array<{ type: string; text: string }> };
+    const result = (await res.json()) as {
+      content: Array<{ type: string; text: string }>;
+    };
     const text = result.content?.[0]?.text || "";
 
     // Parse JSON from response (handle markdown code fences)
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return c.json({ error: "Failed to parse SOAP note from AI response" }, 500);
+    if (!jsonMatch)
+      return c.json(
+        { error: "Failed to parse SOAP note from AI response" },
+        500,
+      );
 
     const soapNote = JSON.parse(jsonMatch[0]);
     return c.json({ success: true, soapNote });
@@ -710,7 +878,8 @@ doctor.post("/case/:id/save-soap", async (c) => {
   const id = c.req.param("id");
   const pendingCase = await getPendingCase(c.env.PARTNERS, id);
   if (!pendingCase) return c.json({ error: "Case not found" }, 404);
-  if (!pendingCase.medplumPatientId) return c.json({ error: "No patient ID available for this case" }, 400);
+  if (!pendingCase.medplumPatientId)
+    return c.json({ error: "No patient ID available for this case" }, 400);
 
   const body = await c.req.json();
   const { subjective, objective, assessment, plan } = body;
@@ -762,8 +931,10 @@ function timeSince(dateStr: string): string {
 function expiryBadge(expiresAt: string): string {
   const ms = new Date(expiresAt).getTime() - Date.now();
   const hours = Math.floor(ms / 3600000);
-  if (hours <= 0) return `<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fecaca;color:#991b1b">EXPIRED</span>`;
-  if (hours <= 48) return `<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fef3c7;color:#92400e">${hours}h left</span>`;
+  if (hours <= 0)
+    return `<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fecaca;color:#991b1b">EXPIRED</span>`;
+  if (hours <= 48)
+    return `<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fef3c7;color:#92400e">${hours}h left</span>`;
   const days = Math.floor(hours / 24);
   return `<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534">${days}d left</span>`;
 }
@@ -817,12 +988,17 @@ function orderStatusBadge(orderStatus?: string): string {
     shipped: { bg: "#e0e7ff", text: "#4338ca", label: "SHIPPED" },
     delivered: { bg: "#dcfce7", text: "#166534", label: "DELIVERED" },
   };
-  const c = colors[orderStatus] || { bg: "#f3f4f6", text: "#666", label: orderStatus.toUpperCase() };
+  const c = colors[orderStatus] || {
+    bg: "#f3f4f6",
+    text: "#666",
+    label: orderStatus.toUpperCase(),
+  };
   return `<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${c.bg};color:${c.text}">${c.label}</span>`;
 }
 
 function renderCaseCard(c: import("../lib/types").PendingCase): string {
-  const expired = c.status === "pending" && new Date(c.authExpiresAt).getTime() < Date.now();
+  const expired =
+    c.status === "pending" && new Date(c.authExpiresAt).getTime() < Date.now();
   return `
     <a href="/doctor/case/${encodeURIComponent(c.paymentIntentId)}" style="text-decoration:none;color:inherit;display:block">
       <div style="background:#fff;border:1px solid #e8e8e8;border-radius:10px;padding:20px;${expired ? "opacity:0.7;" : ""}">
@@ -852,10 +1028,12 @@ function renderCaseCard(c: import("../lib/types").PendingCase): string {
 }
 
 function renderDashboard(cases: import("../lib/types").PendingCase[]): string {
-  const pending = cases.filter(c => c.status === "pending");
-  const approved = cases.filter(c => c.status === "approved");
-  const denied = cases.filter(c => c.status === "denied");
-  const activeOrders = approved.filter(c => c.orderStatus === "prescribed" || c.orderStatus === "shipped");
+  const pending = cases.filter((c) => c.status === "pending");
+  const approved = cases.filter((c) => c.status === "approved");
+  const denied = cases.filter((c) => c.status === "denied");
+  const activeOrders = approved.filter(
+    (c) => c.orderStatus === "prescribed" || c.orderStatus === "shipped",
+  );
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -905,33 +1083,43 @@ function renderDashboard(cases: import("../lib/types").PendingCase[]): string {
     </div>
 
     <div id="tab-pending" class="tab-content active">
-      ${pending.length > 0
-        ? `<div class="grid">${pending.map(renderCaseCard).join("")}</div>`
-        : '<div class="empty">No cases pending review.</div>'}
+      ${
+        pending.length > 0
+          ? `<div class="grid">${pending.map(renderCaseCard).join("")}</div>`
+          : '<div class="empty">No cases pending review.</div>'
+      }
     </div>
     <div id="tab-orders" class="tab-content">
-      ${activeOrders.length > 0
-        ? `<div class="grid">${activeOrders.map(renderCaseCard).join("")}</div>`
-        : '<div class="empty">No active orders. Approved prescriptions will appear here until delivered.</div>'}
+      ${
+        activeOrders.length > 0
+          ? `<div class="grid">${activeOrders.map(renderCaseCard).join("")}</div>`
+          : '<div class="empty">No active orders. Approved prescriptions will appear here until delivered.</div>'
+      }
     </div>
     <div id="tab-approved" class="tab-content">
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px">
         <a href="/doctor/import-tracking" style="display:inline-block;background:#4F46E5;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">⬆ Import Tracking (CSV)</a>
         <a href="/doctor/export.csv" style="display:inline-block;background:#22c55e;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">⬇ Export Approved (CSV)</a>
       </div>
-      ${approved.length > 0
-        ? `<div class="grid">${approved.map(renderCaseCard).join("")}</div>`
-        : '<div class="empty">No approved cases yet.</div>'}
+      ${
+        approved.length > 0
+          ? `<div class="grid">${approved.map(renderCaseCard).join("")}</div>`
+          : '<div class="empty">No approved cases yet.</div>'
+      }
     </div>
     <div id="tab-denied" class="tab-content">
-      ${denied.length > 0
-        ? `<div class="grid">${denied.map(renderCaseCard).join("")}</div>`
-        : '<div class="empty">No denied cases.</div>'}
+      ${
+        denied.length > 0
+          ? `<div class="grid">${denied.map(renderCaseCard).join("")}</div>`
+          : '<div class="empty">No denied cases.</div>'
+      }
     </div>
     <div id="tab-all" class="tab-content">
-      ${cases.length > 0
-        ? `<div class="grid">${cases.map(renderCaseCard).join("")}</div>`
-        : '<div class="empty">No cases yet.</div>'}
+      ${
+        cases.length > 0
+          ? `<div class="grid">${cases.map(renderCaseCard).join("")}</div>`
+          : '<div class="empty">No cases yet.</div>'
+      }
     </div>
   </div>
 
@@ -955,31 +1143,42 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
   if (c.bloodworkStatus && c.bloodworkStatus !== "not-required") {
     let statusContent = "";
     if (c.bloodworkStatus === "have-labs" && c.bloodworkBinaryId) {
-      statusContent = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'
-        + '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534">LABS UPLOADED</span>'
-        + '<span style="font-size:12px;color:#888">File ID: ' + escapeHtml(c.bloodworkBinaryId) + '</span>'
-        + '</div>';
+      statusContent =
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">' +
+        '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534">LABS UPLOADED</span>' +
+        '<span style="font-size:12px;color:#888">File ID: ' +
+        escapeHtml(c.bloodworkBinaryId) +
+        "</span>" +
+        "</div>";
     } else if (c.bloodworkStatus === "have-labs") {
-      statusContent = '<div style="display:flex;align-items:center;gap:8px">'
-        + '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fef3c7;color:#92400e">LABS PENDING</span>'
-        + '<span style="font-size:12px;color:#888">Patient indicated they have labs but file was not uploaded</span>'
-        + '</div>';
+      statusContent =
+        '<div style="display:flex;align-items:center;gap:8px">' +
+        '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fef3c7;color:#92400e">LABS PENDING</span>' +
+        '<span style="font-size:12px;color:#888">Patient indicated they have labs but file was not uploaded</span>' +
+        "</div>";
     } else if (c.bloodworkStatus === "buy-kit") {
       const kitBadge = c.bloodworkKitShipped
         ? '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dbeafe;color:#1e40af">KIT SHIPPED</span>'
         : '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fef3c7;color:#92400e">KIT TO SHIP</span>';
-      statusContent = '<div style="display:flex;align-items:center;gap:8px">'
-        + kitBadge
-        + '<span style="font-size:12px;color:#888">Patient paid for the HRT Clearance Kit. '
-        + (c.bloodworkKitShipped ? 'Waiting on results.' : 'Order kit from Solutions For Your Wellness and ship to patient.')
-        + '</span>'
-        + '</div>';
+      statusContent =
+        '<div style="display:flex;align-items:center;gap:8px">' +
+        kitBadge +
+        '<span style="font-size:12px;color:#888">Patient paid for the HRT Clearance Kit. ' +
+        (c.bloodworkKitShipped
+          ? "Waiting on results."
+          : "Order kit from Solutions For Your Wellness and ship to patient.") +
+        "</span>" +
+        "</div>";
     }
-    bloodworkHtml = '<div class="card"><h3 style="font-size:16px;margin-bottom:16px">Bloodwork</h3>' + statusContent + '</div>';
+    bloodworkHtml =
+      '<div class="card"><h3 style="font-size:16px;margin-bottom:16px">Bloodwork</h3>' +
+      statusContent +
+      "</div>";
   }
 
   // Compute approval gate
-  const labsRequired = c.bloodworkStatus === "have-labs" || c.bloodworkStatus === "buy-kit";
+  const labsRequired =
+    c.bloodworkStatus === "have-labs" || c.bloodworkStatus === "buy-kit";
   const labsReady = !!c.bloodworkBinaryId; // Admin uploads kit results under the same field
   const labsBlocking = labsRequired && !labsReady;
   const canApprove = !expired && !!c.soapNoteId && !labsBlocking;
@@ -998,27 +1197,61 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
           <tr><td style="padding:4px 0;color:#666;font-size:13px">Route</td><td style="padding:4px 0;font-size:13px">${escapeHtml(d.route)}</td></tr>
           <tr><td style="padding:4px 0;color:#666;font-size:13px">Frequency</td><td style="padding:4px 0;font-size:13px">${escapeHtml(d.frequency)}</td></tr>
         </table>
-        ${d.titrationSchedule.length > 0 ? `
+        ${
+          d.titrationSchedule.length > 0
+            ? `
           <p style="font-size:13px;font-weight:600;color:#0369a1;margin:12px 0 6px 0">Titration Schedule</p>
-          <ol style="margin:0;padding-left:20px">${d.titrationSchedule.map(s => {
-            const gate = s.gate ? ' <span style="color:#dc2626;font-weight:600">[PROVIDER GATE]</span>' : "";
-            const dur = s.durationWeeks ? ` (${s.durationWeeks} weeks)` : " (maintenance)";
-            return `<li style="font-size:12px;color:#333;margin-bottom:4px">${escapeHtml(s.dose)}${dur} — ${escapeHtml(s.label)}${gate}</li>`;
-          }).join("")}</ol>` : ""}
-        ${d.providerNotes.length > 0 ? `
+          <ol style="margin:0;padding-left:20px">${d.titrationSchedule
+            .map((s) => {
+              const gate = s.gate
+                ? ' <span style="color:#dc2626;font-weight:600">[PROVIDER GATE]</span>'
+                : "";
+              const dur = s.durationWeeks
+                ? ` (${s.durationWeeks} weeks)`
+                : " (maintenance)";
+              return `<li style="font-size:12px;color:#333;margin-bottom:4px">${escapeHtml(s.dose)}${dur} — ${escapeHtml(s.label)}${gate}</li>`;
+            })
+            .join("")}</ol>`
+            : ""
+        }
+        ${
+          d.providerNotes.length > 0
+            ? `
           <p style="font-size:13px;font-weight:600;color:#0369a1;margin:12px 0 6px 0">Provider Notes</p>
-          <ul style="margin:0;padding-left:20px">${d.providerNotes.map(n => `<li style="font-size:12px;color:#333;margin-bottom:4px">${escapeHtml(n)}</li>`).join("")}</ul>` : ""}
-        ${d.disqualifiers.filter(q => q.blockType === "soft_review" || q.blockType === "hard_pending_review").length > 0 ? `
+          <ul style="margin:0;padding-left:20px">${d.providerNotes.map((n) => `<li style="font-size:12px;color:#333;margin-bottom:4px">${escapeHtml(n)}</li>`).join("")}</ul>`
+            : ""
+        }
+        ${
+          d.disqualifiers.filter(
+            (q) =>
+              q.blockType === "soft_review" ||
+              q.blockType === "hard_pending_review",
+          ).length > 0
+            ? `
           <p style="font-size:13px;font-weight:600;color:#dc2626;margin:12px 0 6px 0">Review Flags</p>
-          <ul style="margin:0;padding-left:20px">${d.disqualifiers.filter(q => q.blockType === "soft_review" || q.blockType === "hard_pending_review").map(q => `<li style="font-size:12px;color:#991b1b;margin-bottom:4px">${escapeHtml(q.field)}: ${escapeHtml(q.reason)}</li>`).join("")}</ul>` : ""}
+          <ul style="margin:0;padding-left:20px">${d.disqualifiers
+            .filter(
+              (q) =>
+                q.blockType === "soft_review" ||
+                q.blockType === "hard_pending_review",
+            )
+            .map(
+              (q) =>
+                `<li style="font-size:12px;color:#991b1b;margin-bottom:4px">${escapeHtml(q.field)}: ${escapeHtml(q.reason)}</li>`,
+            )
+            .join("")}</ul>`
+            : ""
+        }
       </div>`;
   }
 
   // Build answers section
-  const answerRows = Object.entries(c.answers || {}).map(([key, val]) => {
-    const display = Array.isArray(val) ? val.join(", ") : String(val);
-    return `<tr><td style="padding:6px 0;color:#666;font-size:13px;width:200px;vertical-align:top">${escapeHtml(key)}</td><td style="padding:6px 0;font-size:13px">${escapeHtml(display)}</td></tr>`;
-  }).join("");
+  const answerRows = Object.entries(c.answers || {})
+    .map(([key, val]) => {
+      const display = Array.isArray(val) ? val.join(", ") : String(val);
+      return `<tr><td style="padding:6px 0;color:#666;font-size:13px;width:200px;vertical-align:top">${escapeHtml(key)}</td><td style="padding:6px 0;font-size:13px">${escapeHtml(display)}</td></tr>`;
+    })
+    .join("");
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -1063,14 +1296,18 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
     </div>
 
     <!-- Medplum Verification -->
-    ${c.medplumPatientId ? `
+    ${
+      c.medplumPatientId
+        ? `
     <div class="card" id="medplumCard">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
         <h3 style="font-size:16px;margin:0">Medplum Verification</h3>
         <button class="btn" onclick="loadMedplumData()" id="btnMedplum" style="background:#6366f1;color:#fff;padding:8px 16px;font-size:12px">Verify Data</button>
       </div>
       <div id="medplumDataContainer" style="display:none"></div>
-    </div>` : ""}
+    </div>`
+        : ""
+    }
 
     <!-- Service & Payment -->
     <div class="card">
@@ -1100,18 +1337,22 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
 
     <!-- Actions -->
     <div class="card">
-      ${c.status === "pending" ? `
+      ${
+        c.status === "pending"
+          ? `
         <h3 style="font-size:16px;margin-bottom:16px">Decision</h3>
         ${expired ? '<div style="background:#fecaca;border-radius:8px;padding:12px 16px;margin-bottom:16px"><p style="font-size:13px;font-weight:600;color:#991b1b;margin:0">Payment authorization has expired. The patient will need to resubmit their intake to proceed.</p></div>' : ""}
 
         <!-- SOAP Note -->
         <div style="margin-bottom:20px">
-          ${c.soapNoteId
-            ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          ${
+            c.soapNoteId
+              ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
                 <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534">SOAP NOTE SAVED</span>
                 <span style="font-size:12px;color:#888">Note ID: ${escapeHtml(c.soapNoteId)}</span>
               </div>`
-            : ""}
+              : ""
+          }
           <button class="btn" id="btnGenerateSoap" onclick="generateSoap()" style="background:#4F46E5;color:#fff;width:100%" ${expired ? "disabled" : ""}>
             ${c.soapNoteId ? "Regenerate SOAP Note" : "Generate SOAP Note"}
           </button>
@@ -1127,7 +1368,9 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
           <textarea id="denyReason" rows="3" placeholder="Explain why this patient is not eligible..."></textarea>
           <button class="btn btn-deny" onclick="denyCase()" style="margin-top:8px">Deny — Cancel Authorization</button>
         </div>
-      ` : c.status === "approved" ? `
+      `
+          : c.status === "approved"
+            ? `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
           <h3 style="font-size:16px;margin:0;color:#22c55e">Approved</h3>
           ${orderStatusBadge(c.orderStatus)}
@@ -1153,16 +1396,22 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
             </div>
           </div>
 
-          ${c.trackingNumber ? `
+          ${
+            c.trackingNumber
+              ? `
             <div style="background:#f8f9fa;border-radius:8px;padding:12px 16px;margin-bottom:16px">
               ${c.carrier ? `<p style="font-size:13px;color:#666;margin:0 0 4px"><strong>Carrier:</strong> ${escapeHtml(c.carrier)}</p>` : ""}
               <p style="font-size:13px;color:#666;margin:0 0 4px"><strong>Tracking #:</strong> ${escapeHtml(c.trackingNumber)}</p>
               ${c.trackingUrl ? `<a href="${c.trackingUrl}" target="_blank" style="font-size:13px;color:#4F46E5">Track Package</a>` : ""}
               ${c.shippedAt ? `<p style="font-size:12px;color:#888;margin:8px 0 0">Shipped: ${new Date(c.shippedAt).toLocaleString()}</p>` : ""}
               ${c.deliveredAt ? `<p style="font-size:12px;color:#888;margin:4px 0 0">Delivered: ${new Date(c.deliveredAt).toLocaleString()}</p>` : ""}
-            </div>` : ""}
+            </div>`
+              : ""
+          }
 
-          ${c.orderStatus === "prescribed" ? `
+          ${
+            c.orderStatus === "prescribed"
+              ? `
             <div id="shipForm">
               <h4 style="font-size:13px;font-weight:600;color:#333;margin:0 0 12px">Mark as Shipped</h4>
               <div style="display:grid;gap:8px;margin-bottom:12px">
@@ -1172,21 +1421,33 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
                 <input type="text" id="orderPharmacyId" placeholder="Pharmacy order ID (optional)" style="padding:10px 12px;border:1.5px solid #d9d9d9;border-radius:6px;font-size:13px;font-family:inherit">
               </div>
               <button class="btn" onclick="markShipped()" style="background:#3b82f6;color:#fff">Mark Shipped &amp; Notify Patient</button>
-            </div>` : ""}
+            </div>`
+              : ""
+          }
 
-          ${c.orderStatus === "shipped" ? `
-            <button class="btn" onclick="markDelivered()" style="background:#22c55e;color:#fff">Mark Delivered &amp; Notify Patient</button>` : ""}
+          ${
+            c.orderStatus === "shipped"
+              ? `
+            <button class="btn" onclick="markDelivered()" style="background:#22c55e;color:#fff">Mark Delivered &amp; Notify Patient</button>`
+              : ""
+          }
 
-          ${c.orderStatus === "delivered" ? `
-            <p style="font-size:14px;color:#22c55e;font-weight:600">Order complete. Patient notified of delivery.</p>` : ""}
+          ${
+            c.orderStatus === "delivered"
+              ? `
+            <p style="font-size:14px;color:#22c55e;font-weight:600">Order complete. Patient notified of delivery.</p>`
+              : ""
+          }
         </div>
-      ` : `
+      `
+            : `
         <h3 style="font-size:16px;margin-bottom:16px;color:#dc2626">Denied</h3>
         <p style="font-size:14px;color:#666">This prescription was denied on ${c.resolvedAt ? new Date(c.resolvedAt).toLocaleString() : "—"}.</p>
         ${c.denyReason ? `<div style="background:#f8f9fa;border-radius:8px;padding:12px 16px;margin-top:12px"><p style="font-size:13px;font-weight:600;color:#666;margin:0 0 4px 0">Reason</p><p style="font-size:14px;color:#333;margin:0">${escapeHtml(c.denyReason)}</p></div>` : ""}
         <p style="font-size:14px;color:#666;margin-top:8px">Payment authorization was cancelled and the patient was notified.</p>
         ${c.medplumPatientId ? `<p style="font-size:12px;color:#888;margin-top:4px">Medplum Patient: ${escapeHtml(c.medplumPatientId)}</p>` : ""}
-      `}
+      `
+      }
     </div>
 
     <!-- SOAP Note Modal -->
@@ -1546,14 +1807,18 @@ doctor.post("/setup/:token/save", async (c) => {
   }
 
   const body = await c.req.parseBody();
-  const password = body.password as string || "";
-  const confirm = body.confirm as string || "";
+  const password = (body.password as string) || "";
+  const confirm = (body.confirm as string) || "";
 
   if (password.length < 8) {
-    return c.html(`<!DOCTYPE html><html><body><script>alert('Password must be at least 8 characters.');history.back();</script></body></html>`);
+    return c.html(
+      `<!DOCTYPE html><html><body><script>alert('Password must be at least 8 characters.');history.back();</script></body></html>`,
+    );
   }
   if (password !== confirm) {
-    return c.html(`<!DOCTYPE html><html><body><script>alert('Passwords do not match.');history.back();</script></body></html>`);
+    return c.html(
+      `<!DOCTYPE html><html><body><script>alert('Passwords do not match.');history.back();</script></body></html>`,
+    );
   }
 
   const passwordHash = await hashPassword(password);

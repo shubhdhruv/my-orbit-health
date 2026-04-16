@@ -8,10 +8,30 @@ import { sendEmail, getPartnerEmailConfig } from "./email";
 
 // ─── Follow-up schedule (days after delivery) ────────────────
 const FOLLOW_UP_SCHEDULE: FollowUpStep[] = [
-  { id: "day3", daysAfter: 3, subject: "How's everything going?", builder: buildDay3Email },
-  { id: "week2", daysAfter: 14, subject: "Quick check-in on your progress", builder: buildWeek2Email },
-  { id: "week4", daysAfter: 28, subject: "Your progress update", builder: buildWeek4Email },
-  { id: "refill", daysAfter: 50, subject: "Time to refill your prescription", builder: buildRefillEmail },
+  {
+    id: "day3",
+    daysAfter: 3,
+    subject: "How's everything going?",
+    builder: buildDay3Email,
+  },
+  {
+    id: "week2",
+    daysAfter: 14,
+    subject: "Quick check-in on your progress",
+    builder: buildWeek2Email,
+  },
+  {
+    id: "week4",
+    daysAfter: 28,
+    subject: "Your progress update",
+    builder: buildWeek4Email,
+  },
+  {
+    id: "refill",
+    daysAfter: 50,
+    subject: "Time to refill your prescription",
+    builder: buildRefillEmail,
+  },
 ];
 
 interface FollowUpStep {
@@ -35,7 +55,9 @@ interface FollowUpParams {
 
 // ─── Cron handler ────────────────────────────────────────────
 
-export async function processFollowUps(env: Env): Promise<{ sent: number; errors: number }> {
+export async function processFollowUps(
+  env: Env,
+): Promise<{ sent: number; errors: number }> {
   const kv = env.PARTNERS;
   const now = new Date();
   let sent = 0;
@@ -44,14 +66,21 @@ export async function processFollowUps(env: Env): Promise<{ sent: number; errors
   // Scan all cases
   const list = await kv.list({ prefix: "case:" });
   for (const key of list.keys) {
-    const c = await kv.get(key.name, "json") as PendingCase | null;
+    const c = (await kv.get(key.name, "json")) as PendingCase | null;
     if (!c) continue;
 
     // Only delivered cases get follow-ups
-    if (c.status !== "approved" || c.orderStatus !== "delivered" || !c.deliveredAt) continue;
+    if (
+      c.status !== "approved" ||
+      c.orderStatus !== "delivered" ||
+      !c.deliveredAt
+    )
+      continue;
 
     const deliveredAt = new Date(c.deliveredAt);
-    const daysSinceDelivery = Math.floor((now.getTime() - deliveredAt.getTime()) / (1000 * 60 * 60 * 24));
+    const daysSinceDelivery = Math.floor(
+      (now.getTime() - deliveredAt.getTime()) / (1000 * 60 * 60 * 24),
+    );
     const sentMap = c.followUpsSent || {};
 
     // Find the next follow-up that's due but not yet sent
@@ -82,7 +111,11 @@ export async function processFollowUps(env: Env): Promise<{ sent: number; errors
 
         await sendEmail(
           emailConfig.apiKey,
-          { to: c.patientEmail, subject: step.subject, html: step.builder(params) },
+          {
+            to: c.patientEmail,
+            subject: step.subject,
+            html: step.builder(params),
+          },
           emailConfig.from,
         );
 
@@ -92,7 +125,10 @@ export async function processFollowUps(env: Env): Promise<{ sent: number; errors
         await savePendingCase(kv, c);
         sent++;
       } catch (e) {
-        console.error(`Follow-up ${step.id} failed for case ${c.paymentIntentId}:`, e);
+        console.error(
+          `Follow-up ${step.id} failed for case ${c.paymentIntentId}:`,
+          e,
+        );
         errors++;
       }
 
@@ -108,7 +144,11 @@ export async function processFollowUps(env: Env): Promise<{ sent: number; errors
 // Hims/Hers-level branded email shell — logo, colors, typography, clean layout
 
 function esc(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function emailShell(p: FollowUpParams, content: string): string {
@@ -129,9 +169,10 @@ function emailShell(p: FollowUpParams, content: string): string {
   <!-- Header with logo -->
   <tr>
     <td style="padding:32px 40px 24px;text-align:center;border-bottom:1px solid #f0f0f0;">
-      ${p.logoUrl
-        ? `<img src="${p.logoUrl}" alt="${esc(p.brandName)}" style="max-height:40px;max-width:180px;" />`
-        : `<span style="font-family:'${f}',system-ui,sans-serif;font-size:20px;font-weight:700;color:#1a1a1a;letter-spacing:-0.3px;">${esc(p.brandName)}</span>`
+      ${
+        p.logoUrl
+          ? `<img src="${p.logoUrl}" alt="${esc(p.brandName)}" style="max-height:40px;max-width:180px;" />`
+          : `<span style="font-family:'${f}',system-ui,sans-serif;font-size:20px;font-weight:700;color:#1a1a1a;letter-spacing:-0.3px;">${esc(p.brandName)}</span>`
       }
     </td>
   </tr>
@@ -166,7 +207,11 @@ function ctaButton(p: FollowUpParams, label: string, url: string): string {
   return `<a href="${url}" style="display:inline-block;background:${esc(p.primaryColor)};color:#ffffff;font-family:'${esc(p.font)}',system-ui,sans-serif;font-size:15px;font-weight:600;padding:14px 32px;border-radius:10px;text-decoration:none;letter-spacing:0.2px;">${esc(label)}</a>`;
 }
 
-function secondaryButton(p: FollowUpParams, label: string, url: string): string {
+function secondaryButton(
+  p: FollowUpParams,
+  label: string,
+  url: string,
+): string {
   return `<a href="${url}" style="display:inline-block;background:#f5f5f0;color:${esc(p.primaryColor)};font-family:'${esc(p.font)}',system-ui,sans-serif;font-size:14px;font-weight:600;padding:12px 28px;border-radius:10px;text-decoration:none;border:1px solid #e5e5e0;">${esc(label)}</a>`;
 }
 
@@ -176,7 +221,11 @@ function divider(): string {
 
 // ─── Medication tips by category ─────────────────────────────
 
-function getMedicationTips(serviceType: string): { day3: string[]; week2: string[]; week4: string[] } {
+function getMedicationTips(serviceType: string): {
+  day3: string[];
+  week2: string[];
+  week4: string[];
+} {
   const glp1 = {
     day3: [
       "Take your dose at the same time each week for the best results.",
@@ -267,10 +316,23 @@ function getMedicationTips(serviceType: string): { day3: string[]; week2: string
     ],
   };
 
-  if (["semaglutide", "tirzepatide", "retatrutide"].includes(serviceType)) return glp1;
+  if (["semaglutide", "tirzepatide", "retatrutide"].includes(serviceType))
+    return glp1;
   if (["sildenafil", "tadalafil"].includes(serviceType)) return ed;
-  if (["testosterone-injectable", "testosterone-oral", "enclomiphene"].includes(serviceType)) return hrtMale;
-  if (["estrogen-cream-vaginal", "estrogen-cream-systemic", "estrogen-patches"].includes(serviceType)) return hrtFemale;
+  if (
+    ["testosterone-injectable", "testosterone-oral", "enclomiphene"].includes(
+      serviceType,
+    )
+  )
+    return hrtMale;
+  if (
+    [
+      "estrogen-cream-vaginal",
+      "estrogen-cream-systemic",
+      "estrogen-patches",
+    ].includes(serviceType)
+  )
+    return hrtFemale;
   return peptide; // peptides + blends
 }
 
@@ -278,16 +340,21 @@ function getMedicationTips(serviceType: string): { day3: string[]; week2: string
 
 function buildDay3Email(p: FollowUpParams): string {
   const tips = getMedicationTips(p.serviceType);
-  const tipsHtml = tips.day3.map(t =>
-    `<tr>
+  const tipsHtml = tips.day3
+    .map(
+      (t) =>
+        `<tr>
       <td style="padding:0 16px 0 0;vertical-align:top;width:24px;">
         <div style="width:8px;height:8px;border-radius:50%;background:${esc(p.primaryColor)};margin-top:7px;"></div>
       </td>
       <td style="padding:0 0 12px;font-size:15px;line-height:1.6;color:#444;">${esc(t)}</td>
-    </tr>`
-  ).join("");
+    </tr>`,
+    )
+    .join("");
 
-  return emailShell(p, `
+  return emailShell(
+    p,
+    `
     <h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#1a1a1a;line-height:1.3;">
       Hey ${esc(p.firstName)}, how's it going?
     </h1>
@@ -304,11 +371,15 @@ function buildDay3Email(p: FollowUpParams): string {
       </table>
     </div>
 
-    ${p.startingDose ? `
+    ${
+      p.startingDose
+        ? `
     <div style="background:${esc(p.primaryColor)}08;border:1px solid ${esc(p.primaryColor)}20;border-radius:12px;padding:20px 24px;margin:0 0 28px;">
       <p style="margin:0 0 4px;font-size:12px;font-weight:600;color:${esc(p.primaryColor)};text-transform:uppercase;letter-spacing:0.5px;">Your current dose</p>
       <p style="margin:0;font-size:20px;font-weight:700;color:#1a1a1a;">${esc(p.startingDose)}</p>
-    </div>` : ""}
+    </div>`
+        : ""
+    }
 
     <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#444;">
       If you have any questions at all, just reply to this email. We're here for you.
@@ -317,21 +388,27 @@ function buildDay3Email(p: FollowUpParams): string {
     <div style="text-align:center;">
       ${secondaryButton(p, "View Order Status", p.statusUrl)}
     </div>
-  `);
+  `,
+  );
 }
 
 function buildWeek2Email(p: FollowUpParams): string {
   const tips = getMedicationTips(p.serviceType);
-  const tipsHtml = tips.week2.map(t =>
-    `<tr>
+  const tipsHtml = tips.week2
+    .map(
+      (t) =>
+        `<tr>
       <td style="padding:0 16px 0 0;vertical-align:top;width:24px;">
         <div style="width:8px;height:8px;border-radius:50%;background:${esc(p.primaryColor)};margin-top:7px;"></div>
       </td>
       <td style="padding:0 0 12px;font-size:15px;line-height:1.6;color:#444;">${esc(t)}</td>
-    </tr>`
-  ).join("");
+    </tr>`,
+    )
+    .join("");
 
-  return emailShell(p, `
+  return emailShell(
+    p,
+    `
     <h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#1a1a1a;line-height:1.3;">
       Two weeks in, ${esc(p.firstName)}.
     </h1>
@@ -360,21 +437,27 @@ function buildWeek2Email(p: FollowUpParams): string {
     <p style="margin:0 0 4px;font-size:15px;line-height:1.6;color:#444;">
       Questions or concerns? Just hit reply.
     </p>
-  `);
+  `,
+  );
 }
 
 function buildWeek4Email(p: FollowUpParams): string {
   const tips = getMedicationTips(p.serviceType);
-  const tipsHtml = tips.week4.map(t =>
-    `<tr>
+  const tipsHtml = tips.week4
+    .map(
+      (t) =>
+        `<tr>
       <td style="padding:0 16px 0 0;vertical-align:top;width:24px;">
         <div style="width:8px;height:8px;border-radius:50%;background:${esc(p.primaryColor)};margin-top:7px;"></div>
       </td>
       <td style="padding:0 0 12px;font-size:15px;line-height:1.6;color:#444;">${esc(t)}</td>
-    </tr>`
-  ).join("");
+    </tr>`,
+    )
+    .join("");
 
-  return emailShell(p, `
+  return emailShell(
+    p,
+    `
     <h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#1a1a1a;line-height:1.3;">
       One month down, ${esc(p.firstName)}.
     </h1>
@@ -400,11 +483,14 @@ function buildWeek4Email(p: FollowUpParams): string {
     <p style="margin:0;font-size:15px;line-height:1.6;color:#444;">
       We're proud of you for sticking with it. Reply anytime if you need us.
     </p>
-  `);
+  `,
+  );
 }
 
 function buildRefillEmail(p: FollowUpParams): string {
-  return emailShell(p, `
+  return emailShell(
+    p,
+    `
     <h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#1a1a1a;line-height:1.3;">
       Time to refill, ${esc(p.firstName)}.
     </h1>
@@ -449,5 +535,6 @@ function buildRefillEmail(p: FollowUpParams): string {
     <p style="margin:0;font-size:15px;line-height:1.6;color:#444;">
       Questions about your treatment? Just reply to this email and your care team will get back to you.
     </p>
-  `);
+  `,
+  );
 }

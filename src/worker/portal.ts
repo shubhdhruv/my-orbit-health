@@ -23,11 +23,16 @@ import {
   getPatientCases,
   getPatientIdByEmail,
   getPendingCase,
+  savePendingCase,
   saveMagicToken,
   peekMagicToken,
   deleteMagicToken,
 } from "../lib/kv";
-import { sendEmail, getPartnerEmailConfig, buildPortalMagicLinkEmail } from "./email";
+import {
+  sendEmail,
+  getPartnerEmailConfig,
+  buildPortalMagicLinkEmail,
+} from "./email";
 
 type Vars = { partner: PartnerConfig; patientId: string };
 
@@ -36,7 +41,11 @@ const portal = new Hono<{ Bindings: Env; Variables: Vars }>();
 // ─── Helpers ──────────────────────────────────────────────────
 
 function esc(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function todayKey(): string {
@@ -48,7 +57,10 @@ function yesterdayKey(): string {
 }
 
 async function sha256(input: string): Promise<string> {
-  const hashBuffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  const hashBuffer = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(input),
+  );
   return Array.from(new Uint8Array(hashBuffer))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
@@ -70,12 +82,18 @@ async function buildSessionToken(
   // Fail closed: without a server secret, sessions are trivially forgeable.
   const secret = env.MEDPLUM_CLIENT_SECRET || env.ADMIN_PASSWORD_HASH;
   if (!secret) {
-    throw new Error("Portal session secret is not configured (MEDPLUM_CLIENT_SECRET / ADMIN_PASSWORD_HASH missing)");
+    throw new Error(
+      "Portal session secret is not configured (MEDPLUM_CLIENT_SECRET / ADMIN_PASSWORD_HASH missing)",
+    );
   }
   return sha256(`${patientId}|${partnerSlug}|${dateKey}|patient|${secret}`);
 }
 
-async function signSession(env: Env, patientId: string, partnerSlug: string): Promise<string> {
+async function signSession(
+  env: Env,
+  patientId: string,
+  partnerSlug: string,
+): Promise<string> {
   const sig = await buildSessionToken(env, patientId, partnerSlug, todayKey());
   const b64 = btoa(patientId);
   return `${b64}.${sig}`;
@@ -95,14 +113,27 @@ async function verifySession(
     return null;
   }
   if (!patientId) return null;
-  const sigToday = await buildSessionToken(env, patientId, partnerSlug, todayKey());
+  const sigToday = await buildSessionToken(
+    env,
+    patientId,
+    partnerSlug,
+    todayKey(),
+  );
   if (sig === sigToday) return patientId;
-  const sigYesterday = await buildSessionToken(env, patientId, partnerSlug, yesterdayKey());
+  const sigYesterday = await buildSessionToken(
+    env,
+    patientId,
+    partnerSlug,
+    yesterdayKey(),
+  );
   if (sig === sigYesterday) return patientId;
   return null;
 }
 
-function getCookie(cookieHeader: string | null | undefined, name: string): string | null {
+function getCookie(
+  cookieHeader: string | null | undefined,
+  name: string,
+): string | null {
   if (!cookieHeader) return null;
   const match = cookieHeader.match(new RegExp(`(?:^|; )${name}=([^;]+)`));
   return match ? decodeURIComponent(match[1]) : null;
@@ -111,7 +142,9 @@ function getCookie(cookieHeader: string | null | undefined, name: string): strin
 function randomToken(bytes = 32): string {
   const arr = new Uint8Array(bytes);
   crypto.getRandomValues(arr);
-  return Array.from(arr).map((b) => b.toString(16).padStart(2, "0")).join("");
+  return Array.from(arr)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 // ─── Auth middleware ──────────────────────────────────────────
@@ -122,11 +155,18 @@ portal.use("*", async (c, next) => {
 
   const path = c.req.path;
   // Public routes — no session required
-  const publicRoutes = ["/portal/login", "/portal/auth", "/portal/magic", "/portal/logout"];
+  const publicRoutes = [
+    "/portal/login",
+    "/portal/auth",
+    "/portal/magic",
+    "/portal/logout",
+  ];
   if (publicRoutes.some((p) => path === p || path === p + "/")) return next();
 
   const sessionCookie = getCookie(c.req.header("Cookie"), "portal_session");
-  const patientId = sessionCookie ? await verifySession(c.env, sessionCookie, partner.slug) : null;
+  const patientId = sessionCookie
+    ? await verifySession(c.env, sessionCookie, partner.slug)
+    : null;
   if (!patientId) return c.redirect("/portal/login");
 
   c.set("patientId", patientId);
@@ -158,7 +198,11 @@ portal.post("/auth", async (c) => {
   }
 
   // Look up patient by tenant-scoped email index
-  const patientId = await getPatientIdByEmail(c.env.PARTNERS, partner.slug, email);
+  const patientId = await getPatientIdByEmail(
+    c.env.PARTNERS,
+    partner.slug,
+    email,
+  );
 
   if (patientId) {
     // Create magic token, 15min TTL
@@ -170,7 +214,10 @@ portal.post("/auth", async (c) => {
     });
 
     // Send magic link email via partner-branded sender
-    const { apiKey, from } = getPartnerEmailConfig(partner, c.env.RESEND_API_KEY);
+    const { apiKey, from } = getPartnerEmailConfig(
+      partner,
+      c.env.RESEND_API_KEY,
+    );
     const portalBaseUrl = `https://${partner.portalDomain || new URL(c.req.url).host}`;
     const magicUrl = `${portalBaseUrl}/portal/magic?token=${token}`;
     const emailHtml = buildPortalMagicLinkEmail({
@@ -180,11 +227,15 @@ portal.post("/auth", async (c) => {
       magicUrl,
     });
     try {
-      await sendEmail(apiKey, {
-        to: email,
-        subject: `Sign in to your ${partner.businessName} account`,
-        html: emailHtml,
-      }, from);
+      await sendEmail(
+        apiKey,
+        {
+          to: email,
+          subject: `Sign in to your ${partner.businessName} account`,
+          html: emailHtml,
+        },
+        from,
+      );
     } catch (err) {
       console.error("Portal magic-link send failed:", err);
       // Still show generic confirmation to avoid user enumeration
@@ -206,11 +257,16 @@ portal.get("/magic", async (c) => {
   // burned — user can still click the original link on the right brand.
   const payload = await peekMagicToken(c.env.PARTNERS, token);
   if (!payload) return c.redirect("/portal/login?error=expired");
-  if (payload.partnerSlug !== partner.slug) return c.redirect("/portal/login?error=wrong_tenant");
+  if (payload.partnerSlug !== partner.slug)
+    return c.redirect("/portal/login?error=wrong_tenant");
   // Tenant matches — now consume it so it can't be replayed.
   await deleteMagicToken(c.env.PARTNERS, token);
 
-  const sessionValue = await signSession(c.env, payload.medplumPatientId, partner.slug);
+  const sessionValue = await signSession(
+    c.env,
+    payload.medplumPatientId,
+    partner.slug,
+  );
 
   return new Response(null, {
     status: 302,
@@ -253,10 +309,50 @@ portal.get("/orders/:id", async (c) => {
   const pendingCase = await getPendingCase(c.env.PARTNERS, id);
   if (!pendingCase) return c.html(renderNotFound(partner), 404);
   // Tenant + patient ownership check (prevents IDOR)
-  if (pendingCase.partnerSlug !== partner.slug || pendingCase.medplumPatientId !== patientId) {
+  if (
+    pendingCase.partnerSlug !== partner.slug ||
+    pendingCase.medplumPatientId !== patientId
+  ) {
     return c.html(renderNotFound(partner), 404);
   }
   return c.html(renderOrderDetail(partner, pendingCase));
+});
+
+// ─── POST /portal/orders/:id/cancel — patient cancels a pending order ─
+
+portal.post("/orders/:id/cancel", async (c) => {
+  const partner = c.get("partner");
+  const patientId = c.get("patientId");
+  const id = c.req.param("id");
+  const pendingCase = await getPendingCase(c.env.PARTNERS, id);
+  if (!pendingCase) return c.json({ error: "Not found" }, 404);
+  if (
+    pendingCase.partnerSlug !== partner.slug ||
+    pendingCase.medplumPatientId !== patientId
+  ) {
+    return c.json({ error: "Not found" }, 404);
+  }
+  if (pendingCase.status !== "pending") {
+    return c.json({ error: "This order can no longer be cancelled" }, 400);
+  }
+
+  // Void the Stripe authorization
+  if (!id.startsWith("bypass_")) {
+    try {
+      const { createStripeClient } = await import("./stripe");
+      const stripe = createStripeClient(c.env.STRIPE_SECRET_KEY);
+      await stripe.paymentIntents.cancel(id);
+    } catch (err) {
+      console.error("Stripe cancel failed:", err);
+    }
+  }
+
+  pendingCase.status = "denied";
+  pendingCase.denyReason = "Cancelled by patient";
+  pendingCase.resolvedAt = new Date().toISOString();
+  await savePendingCase(c.env.PARTNERS, pendingCase);
+
+  return c.json({ success: true });
 });
 
 // ============================================================
@@ -318,7 +414,12 @@ function brandHeader(partner: PartnerConfig, loggedIn: boolean): string {
   </div>`;
 }
 
-function htmlShell(partner: PartnerConfig, title: string, body: string, loggedIn = true): string {
+function htmlShell(
+  partner: PartnerConfig,
+  title: string,
+  body: string,
+  loggedIn = true,
+): string {
   const font = safeFontName(partner.font);
   return `<!DOCTYPE html>
 <html lang="en">
@@ -344,11 +445,15 @@ function renderLoginPage(
   opts: { error?: string | null; sent?: string | null },
 ): string {
   const errorMsg =
-    opts.error === "expired" ? "That sign-in link has expired. Request a new one below."
-    : opts.error === "invalid" ? "That sign-in link is invalid. Request a new one below."
-    : opts.error === "wrong_tenant" ? "That sign-in link was for a different account."
-    : opts.error === "missing" ? "Please enter your email address."
-    : null;
+    opts.error === "expired"
+      ? "That sign-in link has expired. Request a new one below."
+      : opts.error === "invalid"
+        ? "That sign-in link is invalid. Request a new one below."
+        : opts.error === "wrong_tenant"
+          ? "That sign-in link was for a different account."
+          : opts.error === "missing"
+            ? "Please enter your email address."
+            : null;
 
   const sentMsg = opts.sent
     ? `If an account exists for that email, we just sent a sign-in link. It expires in 15 minutes.`
@@ -373,11 +478,13 @@ function renderLoginPage(
 function renderDashboard(partner: PartnerConfig, cases: PendingCase[]): string {
   const firstName = cases[0]?.patientName?.split(" ")[0] || "there";
 
-  const orderCards = cases.length === 0
-    ? `<div class="card"><p class="muted">You don't have any orders yet. If you just submitted an intake, refresh in a minute.</p></div>`
-    : cases.map((c) => {
-        const status = summarizeStatus(c);
-        return `
+  const orderCards =
+    cases.length === 0
+      ? `<div class="card"><p class="muted">You don't have any orders yet. If you just submitted an intake, refresh in a minute.</p></div>`
+      : cases
+          .map((c) => {
+            const status = summarizeStatus(c);
+            return `
 <a href="/portal/orders/${esc(c.paymentIntentId)}" style="text-decoration:none;color:inherit">
   <div class="card" style="cursor:pointer;transition:transform 0.15s">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px">
@@ -389,7 +496,8 @@ function renderDashboard(partner: PartnerConfig, cases: PendingCase[]): string {
     <div style="margin-top:12px;font-size:13px;color:var(--primary);font-weight:600">View details →</div>
   </div>
 </a>`;
-      }).join("");
+          })
+          .join("");
 
   const body = `
 <div style="margin-bottom:16px">
@@ -412,14 +520,16 @@ function summarizeStatus(c: PendingCase): StatusSummary {
     return {
       badgeClass: "badge-denied",
       badgeLabel: "Not Approved",
-      message: "Your provider was unable to approve this prescription. See details for more.",
+      message:
+        "Your provider was unable to approve this prescription. See details for more.",
     };
   }
   if (c.status === "pending") {
     return {
       badgeClass: "badge-pending",
       badgeLabel: "Under Review",
-      message: "Your intake is being reviewed by your provider. This typically takes 1–2 business days.",
+      message:
+        "Your intake is being reviewed by your provider. This typically takes 1–2 business days.",
     };
   }
   // Approved
@@ -427,7 +537,8 @@ function summarizeStatus(c: PendingCase): StatusSummary {
     return {
       badgeClass: "badge-delivered",
       badgeLabel: "Delivered",
-      message: "Delivered. Follow the dosing instructions included with your shipment.",
+      message:
+        "Delivered. Follow the dosing instructions included with your shipment.",
     };
   }
   if (c.orderStatus === "shipped") {
@@ -443,7 +554,8 @@ function summarizeStatus(c: PendingCase): StatusSummary {
     return {
       badgeClass: "badge-approved",
       badgeLabel: "Sent to Pharmacy",
-      message: "Your prescription has been approved and is being prepared by the pharmacy.",
+      message:
+        "Your prescription has been approved and is being prepared by the pharmacy.",
     };
   }
   return {
@@ -463,8 +575,14 @@ function renderOrderDetail(partner: PartnerConfig, c: PendingCase): string {
   const isApproved = c.status === "approved";
   const step1Done = true;
   const step2Done = isApproved || isDenied;
-  const step3Done = isApproved && (c.orderStatus === "prescribed" || c.orderStatus === "shipped" || c.orderStatus === "delivered");
-  const step4Done = isApproved && (c.orderStatus === "shipped" || c.orderStatus === "delivered");
+  const step3Done =
+    isApproved &&
+    (c.orderStatus === "prescribed" ||
+      c.orderStatus === "shipped" ||
+      c.orderStatus === "delivered");
+  const step4Done =
+    isApproved &&
+    (c.orderStatus === "shipped" || c.orderStatus === "delivered");
   const step5Done = isApproved && c.orderStatus === "delivered";
 
   const stepDot = (done: boolean, active: boolean, n: number) => {
@@ -480,10 +598,13 @@ function renderOrderDetail(partner: PartnerConfig, c: PendingCase): string {
     `<div style="font-size:15px;font-weight:${done ? "600" : "500"};color:${done ? "#1a1a2e" : "#9ca3af"}">${esc(text)}</div>`;
 
   const timestamp = (iso?: string) =>
-    iso ? `<div style="font-size:12px;color:#9ca3af;margin-top:2px">${new Date(iso).toLocaleDateString()}</div>` : "";
+    iso
+      ? `<div style="font-size:12px;color:#9ca3af;margin-top:2px">${new Date(iso).toLocaleDateString()}</div>`
+      : "";
 
   // Blood work lane (only shown when relevant)
-  const showBloodwork = c.bloodworkStatus === "buy-kit" || c.bloodworkStatus === "have-labs";
+  const showBloodwork =
+    c.bloodworkStatus === "buy-kit" || c.bloodworkStatus === "have-labs";
   let bloodworkHtml = "";
   if (showBloodwork) {
     const kitShipped = !!c.bloodworkKitShipped || !!c.bloodworkKitShippedAt;
@@ -543,29 +664,36 @@ function renderOrderDetail(partner: PartnerConfig, c: PendingCase): string {
   }
 
   // Tracking card
-  const trackingHtml = c.trackingNumber ? `
+  const trackingHtml = c.trackingNumber
+    ? `
 <div class="card">
   <h2>Shipping</h2>
   ${c.carrier ? `<div style="font-size:14px;margin-bottom:4px"><strong>Carrier:</strong> ${esc(c.carrier)}</div>` : ""}
   <div style="font-size:14px;margin-bottom:12px"><strong>Tracking:</strong> ${esc(c.trackingNumber)}</div>
   ${c.trackingUrl ? `<a class="btn" href="${esc(c.trackingUrl)}" target="_blank" rel="noopener">Track package</a>` : ""}
-</div>` : "";
+</div>`
+    : "";
 
   // Dosing card
-  const dosingHtml = c.orderStatus === "delivered" && c.dosingResult?.startingDose ? `
+  const dosingHtml =
+    c.orderStatus === "delivered" && c.dosingResult?.startingDose
+      ? `
 <div class="card">
   <h2>Your starting dose</h2>
   <p style="font-size:22px;font-weight:700;color:var(--primary);margin:8px 0">${esc(c.dosingResult.startingDose)}</p>
   <p class="muted" style="font-size:13px">Follow the instructions included with your medication. Contact your provider with any questions.</p>
-</div>` : "";
+</div>`
+      : "";
 
   // Denied card
-  const deniedHtml = isDenied ? `
+  const deniedHtml = isDenied
+    ? `
 <div class="card">
   <h2>Provider's note</h2>
   ${c.denyReason ? `<p style="font-size:14px;color:#374151;margin-bottom:12px">${esc(c.denyReason)}</p>` : `<p class="muted">No additional notes from the provider.</p>`}
   <p class="muted" style="font-size:13px">Your card was <strong>not</strong> charged. Reply to any email from ${esc(partner.businessName)} if you have questions.</p>
-</div>` : "";
+</div>`
+    : "";
 
   const body = `
 <div style="margin-bottom:16px">
@@ -580,7 +708,10 @@ function renderOrderDetail(partner: PartnerConfig, c: PendingCase): string {
     <span class="badge ${summary.badgeClass}">${esc(summary.badgeLabel)}</span>
   </div>
 
-  ${isDenied ? "" : `
+  ${
+    isDenied
+      ? ""
+      : `
   <div style="position:relative;padding-left:48px">
     <div style="position:absolute;left:19px;top:8px;bottom:8px;width:2px;background:#e5e7eb"></div>
     <div style="position:relative;padding-bottom:24px">
@@ -608,8 +739,48 @@ function renderOrderDetail(partner: PartnerConfig, c: PendingCase): string {
       ${timestamp(c.deliveredAt)}
     </div>
   </div>
-  `}
+  `
+  }
 </div>
+
+${
+  isPending
+    ? `
+<div class="card" style="text-align:center">
+  <p style="font-size:14px;color:#666;margin-bottom:16px">Changed your mind? You can cancel this order while it's still under review. Your card will not be charged.</p>
+  <button class="btn" id="cancelBtn" style="background:#dc2626" onclick="cancelOrder()">Cancel This Order</button>
+  <p id="cancelMsg" style="font-size:13px;color:#dc2626;margin-top:8px;display:none"></p>
+</div>
+<script>
+async function cancelOrder() {
+  if (!confirm('Are you sure you want to cancel this order? This cannot be undone.')) return;
+  var btn = document.getElementById('cancelBtn');
+  btn.disabled = true;
+  btn.textContent = 'Cancelling...';
+  try {
+    var res = await fetch('/portal/orders/${esc(c.paymentIntentId)}/cancel', { method: 'POST' });
+    var data = await res.json();
+    if (data.success) {
+      btn.textContent = 'Order Cancelled';
+      btn.style.background = '#9ca3af';
+      setTimeout(function() { window.location.href = '/portal/dashboard'; }, 1500);
+    } else {
+      document.getElementById('cancelMsg').textContent = data.error || 'Could not cancel';
+      document.getElementById('cancelMsg').style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Cancel This Order';
+    }
+  } catch (e) {
+    document.getElementById('cancelMsg').textContent = 'Network error. Please try again.';
+    document.getElementById('cancelMsg').style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Cancel This Order';
+  }
+}
+</script>
+`
+    : ""
+}
 
 ${deniedHtml}
 ${bloodworkHtml}

@@ -8,7 +8,7 @@ export function generateRecommendationHTML(
   service: ServiceDefinition,
   partner: PartnerConfig,
   serviceConfig: ServiceConfig,
-  baseUrl: string
+  baseUrl: string,
 ): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -102,25 +102,60 @@ export function generateRecommendationHTML(
     }
     .btn-checkout:hover { opacity: 0.9; }
 
-    /* Other options */
-    .other-options { text-align: center; margin-bottom: 16px; }
-    .other-options h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
-    .other-options p { font-size: 13px; color: #888; }
+    /* Add-on options */
+    .addons-header { text-align: center; margin-bottom: 16px; }
+    .addons-header h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .addons-header p { font-size: 13px; color: #888; }
 
     .alt-card {
       display: flex; align-items: center; gap: 16px;
       padding: 16px 20px; border: 1.5px solid #e0e0e0; border-radius: 10px;
-      margin-bottom: 10px; cursor: pointer; transition: border-color 0.15s;
+      margin-bottom: 10px; cursor: pointer; transition: all 0.15s;
     }
     .alt-card:hover { border-color: var(--primary); }
-    .alt-card img { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; }
+    .alt-card.selected { border-color: var(--primary); background: var(--primary-light); }
+    .alt-card .addon-check {
+      width: 24px; height: 24px; min-width: 24px; border: 2px solid #ccc;
+      border-radius: 6px; display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+    }
+    .alt-card.selected .addon-check {
+      background: var(--primary); border-color: var(--primary);
+    }
     .alt-card .alt-info { flex: 1; }
     .alt-card .alt-info h4 { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
     .alt-card .alt-info p { font-size: 12px; color: #888; }
     .alt-card .alt-price { text-align: right; }
     .alt-card .alt-price .price { font-size: 18px; font-weight: 700; }
     .alt-card .alt-price .per { font-size: 12px; color: #888; }
-    .alt-card .alt-price .was { font-size: 12px; color: #999; text-decoration: line-through; }
+
+    /* Primary toggle */
+    .featured-toggle {
+      display: flex; align-items: center; gap: 8px; margin-top: 16px;
+      padding-top: 16px; border-top: 1px solid #eee; font-size: 14px; color: #555;
+    }
+    .featured-toggle input { width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }
+    .featured-card.excluded { border-color: #e0e0e0; opacity: 0.5; }
+    .featured-card.excluded .featured-badge { background: #999; }
+
+    /* Support section */
+    .support-section {
+      background: var(--primary-light); border-radius: 14px; padding: 28px 24px;
+      margin-bottom: 24px;
+    }
+    .support-section h2 {
+      font-size: 20px; font-weight: 600; color: var(--primary);
+      line-height: 1.4; margin-bottom: 20px;
+    }
+    .support-item {
+      display: flex; align-items: center; gap: 12px;
+      font-size: 15px; color: #333; padding: 8px 0;
+    }
+    .support-icon {
+      width: 36px; height: 36px; min-width: 36px; border-radius: 50%;
+      background: #fff; display: flex; align-items: center; justify-content: center;
+    }
+    .support-icon svg { width: 18px; height: 18px; color: var(--primary); }
 
     .disclaimer {
       font-size: 11px; color: #bbb; line-height: 1.6; margin-top: 24px;
@@ -169,7 +204,12 @@ export function generateRecommendationHTML(
           <div><strong>100% Success Guarantee</strong><br>Get results or get your money back</div>
         </div>
 
-        <button class="btn-checkout" onclick="goToCheckout('${service.id}')">
+        <div class="featured-toggle">
+          <input type="checkbox" id="includePrimary" checked onchange="togglePrimary()">
+          <label for="includePrimary">Include in your order</label>
+        </div>
+
+        <button class="btn-checkout" id="checkoutBtn" onclick="goToCheckout()">
           Continue to checkout
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
         </button>
@@ -177,6 +217,23 @@ export function generateRecommendationHTML(
     </div>
 
     <div id="otherOptions"></div>
+
+    <!-- Support section -->
+    <div class="support-section">
+      <h2>You won't have to do it alone. We're here to help.</h2>
+      <div class="support-item">
+        <div class="support-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+        <span>Unlimited messaging with a medical provider</span>
+      </div>
+      <div class="support-item">
+        <div class="support-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        <span>Regular check-ins</span>
+      </div>
+      <div class="support-item">
+        <div class="support-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>
+        <span>Adjustments as needed</span>
+      </div>
+    </div>
 
     <div class="disclaimer">
       ${partner.businessName} offers medications exclusively from U.S. pharmacies. Compounded medications are highly regulated
@@ -197,7 +254,7 @@ export function generateRecommendationHTML(
         type: s.type,
         initialPrice: s.initialPrice,
         subscriptionPrice: s.subscriptionPrice,
-      }))
+      })),
     )};
 
     // Build benefits based on service category
@@ -216,23 +273,137 @@ export function generateRecommendationHTML(
       benefitsEl.innerHTML += '<li>' + b + '</li>';
     });
 
-    // Build other options from partner's other services in same category
+    // Mutual-exclusion groups: only one service per group allowed.
+    // e.g., a patient should only be on one GLP-1 at a time.
+    const EXCLUSIVE_GROUPS = [
+      ['semaglutide', 'tirzepatide', 'retatrutide'],
+    ];
+
+    function getExclusiveGroup(serviceType) {
+      return EXCLUSIVE_GROUPS.find(g => g.includes(serviceType));
+    }
+
+    // Build add-on options from partner's other services
     const otherContainer = document.getElementById('otherOptions');
     const otherServices = SERVICES.filter(s => s.type !== SERVICE_ID);
     if (otherServices.length > 0) {
-      let html = '<div class="other-options"><h3>Other Available Options</h3><p>Click on any medication to see more details</p></div>';
+      const checkSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+      let html = '<div class="addons-header"><h3>Add to Your Order</h3><p>Select additional treatments to include in your checkout</p></div>';
       otherServices.forEach(s => {
         const label = s.type.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-        html += '<div class="alt-card" onclick="goToCheckout(\\'' + s.type + '\\')">' +
-          '<div class="alt-info"><h4>' + label + '</h4><p>Personalized Compounded Medication</p></div>' +
+        html += '<div class="alt-card" data-type="' + s.type + '" data-price="' + s.subscriptionPrice + '" data-label="' + label + '" onclick="toggleAddon(this)">' +
+          '<div class="addon-check">' + checkSvg + '</div>' +
+          '<div class="alt-info"><h4>' + label + '</h4><p>Compounded Medication</p></div>' +
           '<div class="alt-price"><span class="price">$' + s.subscriptionPrice + '</span><span class="per">/mo</span></div>' +
           '</div>';
       });
       otherContainer.innerHTML = html;
     }
 
-    function goToCheckout(serviceType) {
-      window.location.href = BASE_URL + '/form/' + PARTNER_SLUG + '/' + serviceType + '/checkout';
+    // Pre-select add-ons from quiz multi-select (passed via ?addons=type1,type2 URL param)
+    (function preSelectFromQuiz() {
+      var params = new URLSearchParams(window.location.search);
+      var addonsParam = params.get('addons');
+      if (!addonsParam) return;
+      addonsParam.split(',').forEach(function(type) {
+        var card = document.querySelector('.alt-card[data-type="' + type.trim() + '"]');
+        if (card) card.classList.add('selected');
+      });
+      updateCheckoutButton();
+    })();
+
+    function toggleAddon(el) {
+      if (el.classList.contains('disabled')) return;
+      el.classList.toggle('selected');
+      enforceExclusiveGroups();
+      updateCheckoutButton();
+    }
+
+    // When a service is selected (primary or add-on), disable other
+    // services in the same exclusive group so only one can be chosen.
+    function enforceExclusiveGroups() {
+      // Collect all selected service types (primary + add-ons)
+      var selected = [];
+      var primaryIncluded = document.getElementById('includePrimary').checked;
+      if (primaryIncluded) selected.push(SERVICE_ID);
+      document.querySelectorAll('.alt-card.selected').forEach(function(c) {
+        selected.push(c.dataset.type);
+      });
+
+      // For each add-on card, check if it conflicts with a selected service
+      document.querySelectorAll('.alt-card').forEach(function(card) {
+        var type = card.dataset.type;
+        if (card.classList.contains('selected')) return; // Don't disable selected cards
+        var group = getExclusiveGroup(type);
+        if (group && selected.some(function(s) { return s !== type && group.includes(s); })) {
+          card.classList.add('disabled');
+          card.style.opacity = '0.4';
+          card.style.pointerEvents = 'none';
+          card.title = 'Cannot combine with ' + selected.find(function(s) { return group.includes(s); });
+        } else {
+          card.classList.remove('disabled');
+          card.style.opacity = '';
+          card.style.pointerEvents = '';
+          card.title = '';
+        }
+      });
+    }
+
+    // Run on load to handle primary being a GLP-1
+    enforceExclusiveGroups();
+
+    function togglePrimary() {
+      var checked = document.getElementById('includePrimary').checked;
+      var card = document.querySelector('.featured-card');
+      if (checked) { card.classList.remove('excluded'); }
+      else { card.classList.add('excluded'); }
+      // If primary was re-included and conflicts with a selected add-on,
+      // deselect the conflicting add-on.
+      if (checked) {
+        var group = getExclusiveGroup(SERVICE_ID);
+        if (group) {
+          document.querySelectorAll('.alt-card.selected').forEach(function(c) {
+            if (group.includes(c.dataset.type)) c.classList.remove('selected');
+          });
+        }
+      }
+      enforceExclusiveGroups();
+      updateCheckoutButton();
+    }
+
+    function updateCheckoutButton() {
+      var addonCount = document.querySelectorAll('.alt-card.selected').length;
+      var primaryIncluded = document.getElementById('includePrimary').checked;
+      var total = addonCount + (primaryIncluded ? 1 : 0);
+      var btn = document.getElementById('checkoutBtn');
+      btn.disabled = total === 0;
+      btn.textContent = total > 1
+        ? 'Continue to checkout (' + total + ' items)'
+        : total === 1 ? 'Continue to checkout' : 'Select at least one item';
+    }
+
+    function goToCheckout() {
+      var primaryIncluded = document.getElementById('includePrimary').checked;
+      var addons = [];
+      document.querySelectorAll('.alt-card.selected').forEach(function(card) {
+        addons.push({
+          type: card.dataset.type,
+          label: card.dataset.label,
+          subscriptionPrice: parseInt(card.dataset.price),
+        });
+      });
+      sessionStorage.setItem('selectedAddons', JSON.stringify(addons));
+      sessionStorage.setItem('includePrimary', JSON.stringify(primaryIncluded));
+      // Forward quiz contact info to checkout for auto-population
+      var params = new URLSearchParams(window.location.search);
+      var fwd = [];
+      ['fn', 'ln', 'em'].forEach(function(k) {
+        var v = params.get(k);
+        if (v) fwd.push(k + '=' + encodeURIComponent(v));
+      });
+      var checkoutUrl = BASE_URL + '/form/' + PARTNER_SLUG + '/' + SERVICE_ID + '/checkout';
+      if (fwd.length) checkoutUrl += '?' + fwd.join('&');
+      window.location.href = checkoutUrl;
     }
   </script>
 </body>

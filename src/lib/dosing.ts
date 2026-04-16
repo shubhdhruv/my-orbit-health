@@ -17,7 +17,13 @@ import { ServiceId } from "./types";
 
 // ─── Types ───────────────────────────────────────────────────
 
-export type BlockType = "hard" | "hard_pending_review" | "soft_review" | "soft_defer" | "route_redirect" | "flag_only";
+export type BlockType =
+  | "hard"
+  | "hard_pending_review"
+  | "soft_review"
+  | "soft_defer"
+  | "route_redirect"
+  | "flag_only";
 
 export interface DisqualifierResult {
   field: string;
@@ -49,7 +55,11 @@ export interface TitrationStep {
 
 export interface DosingResult {
   serviceId: string;
-  status: "active" | "awaiting_md_signature" | "awaiting_md_dose_confirmation" | "awaiting_md_blend_ratio";
+  status:
+    | "active"
+    | "awaiting_md_signature"
+    | "awaiting_md_dose_confirmation"
+    | "awaiting_md_blend_ratio";
   automationLevel: string;
   eligible: boolean;
   disqualifiers: DisqualifierResult[];
@@ -73,10 +83,15 @@ export interface DosingResult {
 
 type Answers = Record<string, string | string[] | boolean>;
 
-function answerMatches(answers: Answers, field: string, value: string): boolean {
+function answerMatches(
+  answers: Answers,
+  field: string,
+  value: string,
+): boolean {
   const answer = answers[field];
   if (answer === undefined) return false;
-  if (typeof answer === "boolean") return answer === (value === "yes" || value === "true");
+  if (typeof answer === "boolean")
+    return answer === (value === "yes" || value === "true");
   if (Array.isArray(answer)) return answer.includes(value);
   return answer === value;
 }
@@ -84,7 +99,8 @@ function answerMatches(answers: Answers, field: string, value: string): boolean 
 function answerIsTrue(answers: Answers, field: string): boolean {
   const answer = answers[field];
   if (answer === true || answer === "yes" || answer === "true") return true;
-  if (Array.isArray(answer) && answer.length > 0 && !answer.includes("none")) return true;
+  if (Array.isArray(answer) && answer.length > 0 && !answer.includes("none"))
+    return true;
   return false;
 }
 
@@ -94,7 +110,10 @@ function getAge(answers: Answers): number | null {
   const birth = new Date(dob);
   const now = new Date();
   let age = now.getFullYear() - birth.getFullYear();
-  if (now.getMonth() < birth.getMonth() || (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate())) {
+  if (
+    now.getMonth() < birth.getMonth() ||
+    (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate())
+  ) {
     age--;
   }
   return age;
@@ -126,7 +145,13 @@ export function evaluateDosing(
       status: "awaiting_md_dose_confirmation",
       automationLevel: "decision_support",
       eligible: false,
-      disqualifiers: [{ field: "service", reason: `No protocol found for ${normalizedId}`, blockType: "hard" }],
+      disqualifiers: [
+        {
+          field: "service",
+          reason: `No protocol found for ${normalizedId}`,
+          blockType: "hard",
+        },
+      ],
       hardBlocked: true,
       softReviewRequired: false,
       startingDose: null,
@@ -151,7 +176,9 @@ export function evaluateDosing(
 
   // ── Check protocol status ──
   if (protocol.status !== "active") {
-    providerNotes.push(`Protocol status: ${protocol.status}. Full dosing automation not yet available.`);
+    providerNotes.push(
+      `Protocol status: ${protocol.status}. Full dosing automation not yet available.`,
+    );
   }
 
   // ── Evaluate disqualifiers ──
@@ -163,7 +190,7 @@ export function evaluateDosing(
     let triggered = false;
 
     if (dq.value) {
-      triggered = answerMatches(answers, dq.field, dq.value) || answerIsTrue(answers, dq.field);
+      triggered = answerMatches(answers, dq.field, dq.value);
     } else if (dq.condition) {
       // Condition-based checks
       triggered = checkCondition(dq.condition, dq.field, answers, labResults);
@@ -186,7 +213,10 @@ export function evaluateDosing(
   // ── Check disqualifying medications (GLP-1 class) ──
   if (protocol.disqualifying_medications) {
     for (const med of protocol.disqualifying_medications) {
-      if (answerMatches(answers, "disqualifying-medications", med) || answerMatches(answers, med, "yes")) {
+      if (
+        answerMatches(answers, "disqualifying-medications", med) ||
+        answerMatches(answers, med, "yes")
+      ) {
         disqualifiers.push({
           field: med,
           reason: `Disqualifying medication: ${med}`,
@@ -197,7 +227,10 @@ export function evaluateDosing(
   }
 
   const hardBlocked = disqualifiers.some((d) => d.blockType === "hard");
-  const softReviewRequired = disqualifiers.some((d) => d.blockType === "soft_review" || d.blockType === "hard_pending_review");
+  const softReviewRequired = disqualifiers.some(
+    (d) =>
+      d.blockType === "soft_review" || d.blockType === "hard_pending_review",
+  );
 
   // ── Evaluate labs ──
   const requiredLabs = protocol.required_labs || [];
@@ -216,7 +249,9 @@ export function evaluateDosing(
     });
   }
 
-  const labsBlocked = labRequirements.some((l) => l.requiredBeforeStart && !l.met);
+  const labsBlocked = labRequirements.some(
+    (l) => l.requiredBeforeStart && !l.met,
+  );
 
   // ── Calculate starting dose with adjustments ──
   let startingDose: string | null = null;
@@ -246,8 +281,12 @@ export function evaluateDosing(
             }
           }
 
-          if (rule.condition === "hepatic_impairment_any" && answerIsTrue(answers, "hepatic_impairment")) {
-            if (rule.adjusted_starting_dose_mg !== undefined) adjustedDose = rule.adjusted_starting_dose_mg;
+          if (
+            rule.condition === "hepatic_impairment_any" &&
+            answerIsTrue(answers, "hepatic_impairment")
+          ) {
+            if (rule.adjusted_starting_dose_mg !== undefined)
+              adjustedDose = rule.adjusted_starting_dose_mg;
             ruleApplied = true;
           }
 
@@ -330,10 +369,13 @@ export function evaluateDosing(
     for (const step of protocol.dosing.titration) {
       const stepDoseMg = step.dose_mg || 0;
       // Skip titration steps below the adjusted starting dose
-      if (stepDoseMg > 0 && adjustedStartMg > 0 && stepDoseMg < adjustedStartMg) continue;
+      if (stepDoseMg > 0 && adjustedStartMg > 0 && stepDoseMg < adjustedStartMg)
+        continue;
       titrationSchedule.push({
         step: step.step || titrationSchedule.length + 1,
-        dose: step.dose_mg ? `${step.dose_mg}mg` : step.dose || step.action || "see protocol",
+        dose: step.dose_mg
+          ? `${step.dose_mg}mg`
+          : step.dose || step.action || "see protocol",
         durationWeeks: step.duration_weeks ?? null,
         label: step.label || `Step ${step.step}`,
         gate: step.gate,
@@ -343,26 +385,44 @@ export function evaluateDosing(
 
   // ── Provider notes ──
   if (protocol.dea_note) providerNotes.push(protocol.dea_note);
-  if (protocol.dosing?.black_box_warning) providerNotes.push(`BLACK BOX: ${protocol.dosing.black_box_warning}`);
-  if (protocol.dosing?.lab_timing_critical) providerNotes.push(`LAB TIMING: ${protocol.dosing.lab_timing_critical}`);
-  if (protocol.dosing?.food_requirement) providerNotes.push(`FOOD: ${protocol.dosing.food_requirement}`);
-  if (protocol.dosing?.gallbladder_workflow) providerNotes.push(`Gallbladder monitoring: ${protocol.dosing.gallbladder_workflow.action}`);
+  if (protocol.dosing?.black_box_warning)
+    providerNotes.push(`BLACK BOX: ${protocol.dosing.black_box_warning}`);
+  if (protocol.dosing?.lab_timing_critical)
+    providerNotes.push(`LAB TIMING: ${protocol.dosing.lab_timing_critical}`);
+  if (protocol.dosing?.food_requirement)
+    providerNotes.push(`FOOD: ${protocol.dosing.food_requirement}`);
+  if (protocol.dosing?.gallbladder_workflow)
+    providerNotes.push(
+      `Gallbladder monitoring: ${protocol.dosing.gallbladder_workflow.action}`,
+    );
 
-  if (protocol.progesterone_co_prescribing_rule && answerIsTrue(answers, "uterus_intact")) {
+  if (
+    protocol.progesterone_co_prescribing_rule &&
+    answerIsTrue(answers, "uterus_intact")
+  ) {
     const prog = protocol.progesterone_co_prescribing_rule;
-    providerNotes.push(`MANDATORY: Co-prescribe ${prog.drug}. Postmenopause: ${prog.postmenopause_dose}. Perimenopause: ${prog.perimenopause_dose}.`);
+    providerNotes.push(
+      `MANDATORY: Co-prescribe ${prog.drug}. Postmenopause: ${prog.postmenopause_dose}. Perimenopause: ${prog.perimenopause_dose}.`,
+    );
   }
 
   if (protocol.mammogram_workflow) {
-    providerNotes.push("Annual mammogram acknowledgment required before refill.");
+    providerNotes.push(
+      "Annual mammogram acknowledgment required before refill.",
+    );
   }
 
   if (protocol.injection_training_required) {
-    providerNotes.push("Injection technique must be confirmed on initial video visit.");
+    providerNotes.push(
+      "Injection technique must be confirmed on initial video visit.",
+    );
   }
 
   // ── Visit model ──
-  const visitModel = protocol.visit_model || { initial: "sync", follow_up: "async" };
+  const visitModel = protocol.visit_model || {
+    initial: "sync",
+    follow_up: "async",
+  };
 
   return {
     serviceId: normalizedId,
@@ -476,7 +536,9 @@ function evaluateGlp1PriorUse(
   if (!priorMed || priorMed === "other") return null;
 
   // Get the prior dose from the medication-specific question
-  const priorDoseStr = answers[`prior-glp1-dose-${priorMed}`] as string | undefined;
+  const priorDoseStr = answers[`prior-glp1-dose-${priorMed}`] as
+    | string
+    | undefined;
   if (!priorDoseStr) return null;
   const priorDose = parseFloat(priorDoseStr);
   if (isNaN(priorDose)) return null;
@@ -492,7 +554,7 @@ function evaluateGlp1PriorUse(
   let priorTierIndex = priorTiers.indexOf(priorDose);
   if (priorTierIndex === -1) {
     // Closest tier below
-    priorTierIndex = priorTiers.filter(t => t <= priorDose).length - 1;
+    priorTierIndex = priorTiers.filter((t) => t <= priorDose).length - 1;
     if (priorTierIndex < 0) return null;
   }
 
@@ -523,7 +585,8 @@ function evaluateGlp1PriorUse(
 
   // Clamp: minimum step 1 (index 0), max is highest current tier
   if (targetTierIndex <= 0) return null; // Step 0 or below = just use default starting dose
-  if (targetTierIndex >= currentTiers.length) targetTierIndex = currentTiers.length - 1;
+  if (targetTierIndex >= currentTiers.length)
+    targetTierIndex = currentTiers.length - 1;
 
   const adjustedDose = currentTiers[targetTierIndex];
   const defaultDose = currentTiers[0];
@@ -533,14 +596,17 @@ function evaluateGlp1PriorUse(
 
   const priorMedLabel = priorMed.charAt(0).toUpperCase() + priorMed.slice(1);
   const timingLabel =
-    timing === "current" ? "currently taking" :
-    timing === "under-4-weeks" ? "stopped <4 weeks ago" :
-    "stopped 4-8 weeks ago";
+    timing === "current"
+      ? "currently taking"
+      : timing === "under-4-weeks"
+        ? "stopped <4 weeks ago"
+        : "stopped 4-8 weeks ago";
 
   return {
     dose: adjustedDose,
     reason: `Prior GLP-1 use: ${priorMedLabel} ${priorDose}mg, ${timingLabel}`,
-    providerNote: `PRIOR USE: Patient reports ${priorMedLabel} ${priorDose}mg/week (${timingLabel}). ` +
+    providerNote:
+      `PRIOR USE: Patient reports ${priorMedLabel} ${priorDose}mg/week (${timingLabel}). ` +
       `${sameMed ? "Same medication" : "Cross-titration from different GLP-1"} — ` +
       `starting at ${adjustedDose}mg instead of ${defaultDose}mg. ` +
       `Monitor for GI tolerance in first 2 weeks.`,
@@ -569,10 +635,13 @@ function evaluateEdPriorUse(
   if (priorMed !== currentServiceId) return null; // Different med — no auto-adjustment
 
   const response = answers["ed-prior-response"] as string | undefined;
-  if (!response || response === "none" || response === "side-effects") return null;
+  if (!response || response === "none" || response === "side-effects")
+    return null;
 
   // Get the prior dose
-  const priorDoseStr = answers[`ed-prior-dose-${priorMed}`] as string | undefined;
+  const priorDoseStr = answers[`ed-prior-dose-${priorMed}`] as
+    | string
+    | undefined;
   if (!priorDoseStr) return null;
   let priorDose = parseFloat(priorDoseStr);
   if (isNaN(priorDose)) return null;
@@ -589,7 +658,8 @@ function evaluateEdPriorUse(
   return {
     dose: priorDose,
     reason: `Prior ED use: ${priorMed} ${priorDose}mg, response: ${response}`,
-    providerNote: `PRIOR USE: Patient reports ${priorMed} ${priorDoseStr}mg (${response === "good" ? "worked well" : "partial response"}). ` +
+    providerNote:
+      `PRIOR USE: Patient reports ${priorMed} ${priorDoseStr}mg (${response === "good" ? "worked well" : "partial response"}). ` +
       `Starting at ${priorDose}mg instead of ${currentDefault}mg.`,
   };
 }

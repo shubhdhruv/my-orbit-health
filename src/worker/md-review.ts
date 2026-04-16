@@ -18,7 +18,9 @@ mdReview.use("*", async (c, next) => {
   const path = c.req.path;
   if (path.endsWith("/login") || path.endsWith("/auth")) return next();
 
-  const sessionCookie = c.req.header("Cookie")?.match(/md_session=([^;]+)/)?.[1];
+  const sessionCookie = c.req
+    .header("Cookie")
+    ?.match(/md_session=([^;]+)/)?.[1];
   if (!sessionCookie) return c.redirect("/md-review/login");
 
   const today = new Date().toISOString().split("T")[0];
@@ -48,7 +50,9 @@ mdReview.post("/auth", async (c) => {
   const hash = await hashPassword(password);
 
   if (hash !== c.env.ADMIN_PASSWORD_HASH) {
-    return c.html(`<script>alert('Wrong password');window.location='/md-review/login'</script>`);
+    return c.html(
+      `<script>alert('Wrong password');window.location='/md-review/login'</script>`,
+    );
   }
 
   const today = new Date().toISOString().split("T")[0];
@@ -355,7 +359,12 @@ function chk(saved: any, key: string): string {
   return saved?.[key] ? "checked" : "";
 }
 
-function signoffService(id: string, name: string, detail: string, saved: any): string {
+function signoffService(
+  id: string,
+  name: string,
+  detail: string,
+  saved: any,
+): string {
   return `<div class="service-card">
 <label class="check service-check">
   <input type="checkbox" name="${id}_approved" ${chk(saved, id + "_approved")}>

@@ -49,8 +49,8 @@ export interface NotifyParams {
   paymentIntentId?: string;
   medplumPatientId?: string;
   isFirstVisit: boolean;
-  daysSinceLastVisit?: number;    // Used for TX 90-day lapse enforcement
-  dosingResult?: DosingResult;    // From dosing engine
+  daysSinceLastVisit?: number; // Used for TX 90-day lapse enforcement
+  dosingResult?: DosingResult; // From dosing engine
   bloodworkStatus?: "have-labs" | "buy-kit" | "not-required";
 }
 
@@ -59,17 +59,17 @@ export interface NotifyResult {
   doctorNotified: boolean;
   patientNotified: boolean;
   appointmentCreated: boolean;
-  appointmentError?: string;      // Set if Healthie call failed — surfaced to doctor
-  routingError?: boolean;         // True if routing failed and fallback was used
+  appointmentError?: string; // Set if Healthie call failed — surfaced to doctor
+  routingError?: boolean; // True if routing failed and fallback was used
   error?: string;
 }
 
 export async function notifyOnIntake(
   env: Env,
-  params: NotifyParams
+  params: NotifyParams,
 ): Promise<NotifyResult> {
   const result: NotifyResult = {
-    visitType: "blocked",         // Default to blocked — overwritten on success
+    visitType: "blocked", // Default to blocked — overwritten on success
     doctorNotified: false,
     patientNotified: false,
     appointmentCreated: false,
@@ -100,7 +100,10 @@ export async function notifyOnIntake(
   } catch (err) {
     // CHANGED: Fail closed — blocked/review_required, not async.
     // Defaulting to async on routing error is a compliance risk for sync-required states.
-    console.error("Routing failed — defaulting to blocked for human review:", err);
+    console.error(
+      "Routing failed — defaulting to blocked for human review:",
+      err,
+    );
     routing = {
       visitType: "blocked",
       schedule: "unknown",
@@ -143,17 +146,21 @@ export async function notifyOnIntake(
         // ADDED: Patient acknowledgment — previously patients got nothing for async.
         // Reduces support inquiries and meets basic patient communication expectations.
         try {
-          await sendEmail(patientEmailConfig.apiKey, {
-            to: params.patientEmail,
-            subject: `We received your ${serviceName} intake — what happens next`,
-            html: buildAsyncPatientAckEmail({
-              patientName: params.patientName,
-              serviceName,
-              partnerName: partner.businessName,
-              paymentIntentId: params.paymentIntentId,
-              bloodworkStatus: params.bloodworkStatus,
-            }),
-          }, patientEmailConfig.from);
+          await sendEmail(
+            patientEmailConfig.apiKey,
+            {
+              to: params.patientEmail,
+              subject: `We received your ${serviceName} intake — what happens next`,
+              html: buildAsyncPatientAckEmail({
+                patientName: params.patientName,
+                serviceName,
+                partnerName: partner.businessName,
+                paymentIntentId: params.paymentIntentId,
+                bloodworkStatus: params.bloodworkStatus,
+              }),
+            },
+            patientEmailConfig.from,
+          );
           result.patientNotified = true;
         } catch (err) {
           console.error("Async patient ack email failed:", err);
@@ -181,16 +188,20 @@ export async function notifyOnIntake(
 
         // Patient scheduling email (branded)
         try {
-          await sendEmail(patientEmailConfig.apiKey, {
-            to: params.patientEmail,
-            subject: `Your ${serviceName} Video Visit — Next Steps`,
-            html: buildPatientSyncEmail({
-              patientName: params.patientName,
-              serviceName,
-              partnerName: partner.businessName,
-              paymentIntentId: params.paymentIntentId,
-            }),
-          }, patientEmailConfig.from);
+          await sendEmail(
+            patientEmailConfig.apiKey,
+            {
+              to: params.patientEmail,
+              subject: `Your ${serviceName} Video Visit — Next Steps`,
+              html: buildPatientSyncEmail({
+                patientName: params.patientName,
+                serviceName,
+                partnerName: partner.businessName,
+                paymentIntentId: params.paymentIntentId,
+              }),
+            },
+            patientEmailConfig.from,
+          );
           result.patientNotified = true;
         } catch (err) {
           console.error("Patient sync email failed:", err);
@@ -220,18 +231,22 @@ export async function notifyOnIntake(
 
         // ADDED: Patient notification — previously patients got zero communication.
         try {
-          await sendEmail(patientEmailConfig.apiKey, {
-            to: params.patientEmail,
-            subject: `Important: Your ${serviceName} Request — Action Required`,
-            html: buildPatientBlockedEmail({
-              patientName: params.patientName,
-              serviceName,
-              visitType: routing.visitType,
-              patientState: params.patientState,
-              partnerName: partner.businessName,
-              routingFailed,
-            }),
-          }, patientEmailConfig.from);
+          await sendEmail(
+            patientEmailConfig.apiKey,
+            {
+              to: params.patientEmail,
+              subject: `Important: Your ${serviceName} Request — Action Required`,
+              html: buildPatientBlockedEmail({
+                patientName: params.patientName,
+                serviceName,
+                visitType: routing.visitType,
+                patientState: params.patientState,
+                partnerName: partner.businessName,
+                routingFailed,
+              }),
+            },
+            patientEmailConfig.from,
+          );
           result.patientNotified = true;
         } catch (err) {
           console.error("Patient blocked email failed:", err);
@@ -241,7 +256,9 @@ export async function notifyOnIntake(
 
       default: {
         // Guard against any future non-standard visit_type values.
-        console.error(`Unhandled visitType: '${routing.visitType}' for ${params.patientState} / ${params.serviceType}`);
+        console.error(
+          `Unhandled visitType: '${routing.visitType}' for ${params.patientState} / ${params.serviceType}`,
+        );
         await sendEmail(env.RESEND_API_KEY, {
           to: doctorEmail,
           subject: `Routing Error: Unknown visit type for ${params.patientName} (${params.patientState})`,

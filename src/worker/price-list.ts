@@ -12,17 +12,26 @@ async function hashPassword(password: string): Promise<string> {
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
   const enc = new TextEncoder();
-  const buf = await crypto.subtle.digest("SHA-256", enc.encode(salt + password));
+  const buf = await crypto.subtle.digest(
+    "SHA-256",
+    enc.encode(salt + password),
+  );
   const hash = Array.from(new Uint8Array(buf))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
   return `${salt}:${hash}`;
 }
 
-async function verifyPassword(password: string, stored: string): Promise<boolean> {
+async function verifyPassword(
+  password: string,
+  stored: string,
+): Promise<boolean> {
   const [salt, storedHash] = stored.split(":");
   const enc = new TextEncoder();
-  const buf = await crypto.subtle.digest("SHA-256", enc.encode(salt + password));
+  const buf = await crypto.subtle.digest(
+    "SHA-256",
+    enc.encode(salt + password),
+  );
   const hash = Array.from(new Uint8Array(buf))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
@@ -59,12 +68,15 @@ async function getSession(kv: KVNamespace, token: string) {
   return session;
 }
 
-async function requireAdmin(c: any): Promise<{ session: any; token: string } | Response> {
+async function requireAdmin(
+  c: any,
+): Promise<{ session: any; token: string } | Response> {
   const token = getToken(c);
   if (!token) return c.json({ error: "Missing authorization token" }, 401);
   const session = await getSession(c.env.PARTNERS, token);
   if (!session) return c.json({ error: "Invalid or expired session" }, 401);
-  if (session.role !== "admin") return c.json({ error: "Admin access required" }, 403);
+  if (session.role !== "admin")
+    return c.json({ error: "Admin access required" }, 403);
   return { session, token };
 }
 
@@ -73,7 +85,7 @@ async function logEvent(
   username: string,
   action: string,
   source: string,
-  ip?: string
+  ip?: string,
 ) {
   const key = `pl_log:${Date.now()}:${Math.random().toString(36).slice(2, 6)}`;
   await kv.put(
@@ -85,7 +97,7 @@ async function logEvent(
       ip: ip || "unknown",
       timestamp: new Date().toISOString(),
     }),
-    { expirationTtl: 86400 * 90 }
+    { expirationTtl: 86400 * 90 },
   );
 }
 
@@ -128,7 +140,7 @@ async function getDocuSignAccessToken(env: any): Promise<string> {
       iat: now,
       exp: now + 3600,
       scope: "signature impersonation",
-    })
+    }),
   );
 
   const privateKey = await crypto.subtle.importKey(
@@ -136,11 +148,15 @@ async function getDocuSignAccessToken(env: any): Promise<string> {
     pemToArrayBuffer(env.DOCUSIGN_RSA_PRIVATE_KEY),
     { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
     false,
-    ["sign"]
+    ["sign"],
   );
 
   const sigData = new TextEncoder().encode(`${header}.${payload}`);
-  const sig = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", privateKey, sigData);
+  const sig = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    privateKey,
+    sigData,
+  );
   const signature = btoa(String.fromCharCode(...new Uint8Array(sig)))
     .replace(/=/g, "")
     .replace(/\+/g, "-")
@@ -159,14 +175,17 @@ async function getDocuSignAccessToken(env: any): Promise<string> {
     throw new Error(`DocuSign auth failed (${res.status}): ${err}`);
   }
 
-  const data = (await res.json()) as { access_token: string; expires_in: number };
+  const data = (await res.json()) as {
+    access_token: string;
+    expires_in: number;
+  };
   await kv.put(
     "pl_docusign_token",
     JSON.stringify({
       token: data.access_token,
       expires_at: Date.now() + data.expires_in * 1000,
     }),
-    { expirationTtl: data.expires_in }
+    { expirationTtl: data.expires_in },
   );
 
   return data.access_token;
@@ -184,7 +203,10 @@ app.post("/setup", async (c) => {
     return c.json({ error: "Setup already completed" }, 400);
   }
 
-  const body = await c.req.json<{ admin_name: string; admin_password: string }>();
+  const body = await c.req.json<{
+    admin_name: string;
+    admin_password: string;
+  }>();
   if (!body.admin_name || !body.admin_password) {
     return c.json({ error: "admin_name and admin_password are required" }, 400);
   }
@@ -204,7 +226,13 @@ app.post("/setup", async (c) => {
   await kv.put("pl_user:admin", JSON.stringify(user));
   await kv.put("pl_setup_done", "true");
 
-  await logEvent(kv, "admin", "setup_complete", "setup", c.req.header("CF-Connecting-IP"));
+  await logEvent(
+    kv,
+    "admin",
+    "setup_complete",
+    "setup",
+    c.req.header("CF-Connecting-IP"),
+  );
 
   return c.json({ ok: true, message: "Admin account created" });
 });
@@ -230,7 +258,13 @@ app.post("/login", async (c) => {
 
   const valid = await verifyPassword(body.password, user.password_hash);
   if (!valid) {
-    await logEvent(kv, body.username, "login_failed", "login", c.req.header("CF-Connecting-IP"));
+    await logEvent(
+      kv,
+      body.username,
+      "login_failed",
+      "login",
+      c.req.header("CF-Connecting-IP"),
+    );
     return c.json({ error: "Invalid credentials" }, 401);
   }
 
@@ -251,7 +285,13 @@ app.post("/login", async (c) => {
     expirationTtl: 86400,
   });
 
-  await logEvent(kv, user.username, "login", "login", c.req.header("CF-Connecting-IP"));
+  await logEvent(
+    kv,
+    user.username,
+    "login",
+    "login",
+    c.req.header("CF-Connecting-IP"),
+  );
 
   return c.json({ token, name: user.name, role: user.role, tier: user.tier });
 });
@@ -270,7 +310,13 @@ app.post("/logout", async (c) => {
   }
 
   await kv.delete(`pl_session:${token}`);
-  await logEvent(kv, session.username, "logout", "logout", c.req.header("CF-Connecting-IP"));
+  await logEvent(
+    kv,
+    session.username,
+    "logout",
+    "logout",
+    c.req.header("CF-Connecting-IP"),
+  );
 
   return c.json({ ok: true });
 });
@@ -357,7 +403,7 @@ app.post("/admin/users", async (c) => {
     auth.session.username,
     `created_user:${body.username}`,
     "admin",
-    c.req.header("CF-Connecting-IP")
+    c.req.header("CF-Connecting-IP"),
   );
 
   const { password_hash: _, ...safe } = user;
@@ -388,7 +434,7 @@ app.delete("/admin/users/:username", async (c) => {
     auth.session.username,
     `deleted_user:${username}`,
     "admin",
-    c.req.header("CF-Connecting-IP")
+    c.req.header("CF-Connecting-IP"),
   );
 
   return c.json({ ok: true });
@@ -409,7 +455,9 @@ app.get("/admin/logs", async (c) => {
     logs.push(JSON.parse(raw));
   }
 
-  logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  logs.sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+  );
 
   return c.json({ logs });
 });
@@ -428,7 +476,11 @@ app.post("/create-user", async (c) => {
     return c.json({ error: "Invalid API key" }, 401);
   }
 
-  const body = await c.req.json<{ name: string; email: string; tier?: string }>();
+  const body = await c.req.json<{
+    name: string;
+    email: string;
+    tier?: string;
+  }>();
   if (!body.name || !body.email) {
     return c.json({ error: "name and email are required" }, 400);
   }
@@ -458,7 +510,13 @@ app.post("/create-user", async (c) => {
 
   await kv.put(`pl_user:${username}`, JSON.stringify(user));
 
-  await logEvent(kv, username, "user_created_via_api", "api", c.req.header("CF-Connecting-IP"));
+  await logEvent(
+    kv,
+    username,
+    "user_created_via_api",
+    "api",
+    c.req.header("CF-Connecting-IP"),
+  );
 
   return c.json({
     username,
@@ -485,7 +543,7 @@ app.post("/set-api-key", async (c) => {
     auth.session.username,
     "set_api_key",
     "admin",
-    c.req.header("CF-Connecting-IP")
+    c.req.header("CF-Connecting-IP"),
   );
 
   return c.json({ ok: true });
@@ -550,7 +608,10 @@ app.post("/nda", async (c) => {
     return c.json({ success: true });
   } catch (err: any) {
     console.error("NDA error:", err);
-    return c.json({ error: err.message || "An unexpected error occurred" }, 500);
+    return c.json(
+      { error: err.message || "An unexpected error occurred" },
+      500,
+    );
   }
 });
 
@@ -579,17 +640,21 @@ app.post("/docusign/webhook", async (c) => {
     const accountId = env.DOCUSIGN_ACCOUNT_ID;
     const recipientsRes = await fetch(
       `https://demo.docusign.net/restapi/v2.1/accounts/${accountId}/envelopes/${envelopeId}/recipients`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
+      { headers: { Authorization: `Bearer ${accessToken}` } },
     );
 
     if (!recipientsRes.ok) {
-      console.error("Webhook: failed to fetch recipients:", recipientsRes.status);
+      console.error(
+        "Webhook: failed to fetch recipients:",
+        recipientsRes.status,
+      );
       return c.json({ ok: true });
     }
 
     const recipientsData = (await recipientsRes.json()) as any;
     const signers = recipientsData.signers || [];
-    const signer = signers.find((s: any) => s.roleName === "Signer") || signers[0];
+    const signer =
+      signers.find((s: any) => s.roleName === "Signer") || signers[0];
 
     if (!signer?.email) {
       console.error("Webhook: no signer email found");
@@ -636,10 +701,15 @@ app.post("/docusign/webhook", async (c) => {
         tier: "default",
         active: true,
         created_at: new Date().toISOString(),
-      })
+      }),
     );
 
-    await logEvent(kv, "docusign", `created_user:${finalUsername} (${signerInfo.email})`, "webhook");
+    await logEvent(
+      kv,
+      "docusign",
+      `created_user:${finalUsername} (${signerInfo.email})`,
+      "webhook",
+    );
 
     // Send credentials email via Resend
     if (env.RESEND_API_KEY) {
@@ -677,7 +747,11 @@ app.post("/docusign/webhook", async (c) => {
       });
 
       if (!emailRes.ok) {
-        console.error("Resend email error:", emailRes.status, await emailRes.text());
+        console.error(
+          "Resend email error:",
+          emailRes.status,
+          await emailRes.text(),
+        );
       }
     }
 

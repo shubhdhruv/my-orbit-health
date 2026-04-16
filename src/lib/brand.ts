@@ -14,19 +14,22 @@ export function injectBrand(html: string, partner: PartnerConfig): string {
 export function injectPrices(
   html: string,
   serviceType: string,
-  partner: PartnerConfig
+  partner: PartnerConfig,
 ): string {
   const service = partner.services.find((s) => s.type === serviceType);
   if (!service) return html;
 
   return html
     .replace(/\{\{INITIAL_PRICE\}\}/g, service.initialPrice.toString())
-    .replace(/\{\{SUBSCRIPTION_PRICE\}\}/g, service.subscriptionPrice.toString())
+    .replace(
+      /\{\{SUBSCRIPTION_PRICE\}\}/g,
+      service.subscriptionPrice.toString(),
+    )
     .replace(/\{\{SERVICE_TYPE\}\}/g, service.type)
     .replace(
       /\{\{SERVICE_LABEL\}\}/g,
       service.type === "semaglutide"
         ? "GLP-1 Weight Loss Program"
-        : "Hormone Replacement Therapy"
+        : "Hormone Replacement Therapy",
     );
 }

@@ -21,7 +21,10 @@ interface CachedToken {
 
 export async function getMedplumToken(env: Env): Promise<string> {
   // Check KV cache first
-  const cached = await env.PARTNERS.get("medplum_token", "json") as CachedToken | null;
+  const cached = (await env.PARTNERS.get(
+    "medplum_token",
+    "json",
+  )) as CachedToken | null;
   if (cached && cached.expiresAt > Date.now() + 60_000) {
     // Still valid with 1min buffer
     return cached.accessToken;
@@ -59,7 +62,9 @@ export async function getMedplumToken(env: Env): Promise<string> {
     };
 
     // Cache for 50min (tokens last 60min)
-    await env.PARTNERS.put("medplum_token", JSON.stringify(token), { expirationTtl: 3000 });
+    await env.PARTNERS.put("medplum_token", JSON.stringify(token), {
+      expirationTtl: 3000,
+    });
     return token.accessToken;
   } finally {
     await env.PARTNERS.delete(lockKey);
@@ -70,7 +75,11 @@ export async function getMedplumToken(env: Env): Promise<string> {
 // Generic FHIR helpers
 // ============================================================
 
-async function fhirFetch(env: Env, path: string, options: RequestInit = {}): Promise<Response> {
+async function fhirFetch(
+  env: Env,
+  path: string,
+  options: RequestInit = {},
+): Promise<Response> {
   const token = await getMedplumToken(env);
   const url = `${env.MEDPLUM_BASE_URL}/fhir/R4/${path}`;
   return fetch(url, {
@@ -83,7 +92,10 @@ async function fhirFetch(env: Env, path: string, options: RequestInit = {}): Pro
   });
 }
 
-export async function fhirCreate<T = Record<string, unknown>>(env: Env, resource: Record<string, unknown>): Promise<T> {
+export async function fhirCreate<T = Record<string, unknown>>(
+  env: Env,
+  resource: Record<string, unknown>,
+): Promise<T> {
   const resourceType = resource.resourceType as string;
   if (!resourceType) throw new Error("Missing resourceType on FHIR resource");
 
@@ -94,26 +106,40 @@ export async function fhirCreate<T = Record<string, unknown>>(env: Env, resource
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Medplum create ${resourceType} failed (${res.status}): ${err}`);
+    throw new Error(
+      `Medplum create ${resourceType} failed (${res.status}): ${err}`,
+    );
   }
   return (await res.json()) as T;
 }
 
-export async function fhirRead<T = Record<string, unknown>>(env: Env, resourceType: string, id: string): Promise<T> {
+export async function fhirRead<T = Record<string, unknown>>(
+  env: Env,
+  resourceType: string,
+  id: string,
+): Promise<T> {
   const res = await fhirFetch(env, `${resourceType}/${id}`);
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Medplum read ${resourceType}/${id} failed (${res.status}): ${err}`);
+    throw new Error(
+      `Medplum read ${resourceType}/${id} failed (${res.status}): ${err}`,
+    );
   }
   return (await res.json()) as T;
 }
 
-export async function fhirSearch<T = Record<string, unknown>>(env: Env, resourceType: string, params: Record<string, string>): Promise<{ entry?: Array<{ resource: T }> }> {
+export async function fhirSearch<T = Record<string, unknown>>(
+  env: Env,
+  resourceType: string,
+  params: Record<string, string>,
+): Promise<{ entry?: Array<{ resource: T }> }> {
   const qs = new URLSearchParams(params).toString();
   const res = await fhirFetch(env, `${resourceType}?${qs}`);
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Medplum search ${resourceType} failed (${res.status}): ${err}`);
+    throw new Error(
+      `Medplum search ${resourceType} failed (${res.status}): ${err}`,
+    );
   }
   return (await res.json()) as { entry?: Array<{ resource: T }> };
 }
@@ -129,7 +155,11 @@ interface FhirOrganization {
   identifier: Array<{ system: string; value: string }>;
 }
 
-export async function createOrganization(env: Env, name: string, slug: string): Promise<FhirOrganization> {
+export async function createOrganization(
+  env: Env,
+  name: string,
+  slug: string,
+): Promise<FhirOrganization> {
   return fhirCreate<FhirOrganization>(env, {
     resourceType: "Organization",
     name,
@@ -158,7 +188,7 @@ export async function createPatient(
     dateOfBirth: string; // YYYY-MM-DD
     gender: string;
     organizationId: string;
-  }
+  },
 ): Promise<FhirPatient> {
   const genderMap: Record<string, string> = {
     male: "male",
@@ -226,7 +256,7 @@ function buildAnswerOption(options: Array<{ label: string; value: string }>) {
 export async function buildIntakeQuestionnaire(
   env: Env,
   service: ServiceDefinition,
-  influencerName: string
+  influencerName: string,
 ): Promise<FhirQuestionnaire> {
   const items: Record<string, unknown>[] = [];
   let linkId = 1;
@@ -298,7 +328,7 @@ export async function createQuestionnaireResponse(
   env: Env,
   patientId: string,
   questionnaireId: string,
-  answers: Record<string, string | number | boolean>
+  answers: Record<string, string | number | boolean>,
 ): Promise<FhirQuestionnaireResponse> {
   const items = Object.entries(answers).map(([linkId, value]) => {
     const answer: Record<string, unknown>[] = [];
@@ -341,13 +371,19 @@ export async function createComposition(
     assessment: string;
     plan: string;
     title?: string;
-  }
+  },
 ): Promise<FhirComposition> {
   return fhirCreate<FhirComposition>(env, {
     resourceType: "Composition",
     status: "final",
     type: {
-      coding: [{ system: "http://loinc.org", code: "11488-4", display: "Consult note" }],
+      coding: [
+        {
+          system: "http://loinc.org",
+          code: "11488-4",
+          display: "Consult note",
+        },
+      ],
     },
     subject: { reference: `Patient/${params.patientId}` },
     author: [{ reference: `Practitioner/${params.practitionerId}` }],
@@ -356,23 +392,67 @@ export async function createComposition(
     section: [
       {
         title: "Subjective",
-        code: { coding: [{ system: "http://loinc.org", code: "61150-9", display: "Subjective" }] },
-        text: { status: "generated", div: `<div xmlns="http://www.w3.org/1999/xhtml">${escapeHtml(params.subjective)}</div>` },
+        code: {
+          coding: [
+            {
+              system: "http://loinc.org",
+              code: "61150-9",
+              display: "Subjective",
+            },
+          ],
+        },
+        text: {
+          status: "generated",
+          div: `<div xmlns="http://www.w3.org/1999/xhtml">${escapeHtml(params.subjective)}</div>`,
+        },
       },
       {
         title: "Objective",
-        code: { coding: [{ system: "http://loinc.org", code: "61149-1", display: "Objective" }] },
-        text: { status: "generated", div: `<div xmlns="http://www.w3.org/1999/xhtml">${escapeHtml(params.objective)}</div>` },
+        code: {
+          coding: [
+            {
+              system: "http://loinc.org",
+              code: "61149-1",
+              display: "Objective",
+            },
+          ],
+        },
+        text: {
+          status: "generated",
+          div: `<div xmlns="http://www.w3.org/1999/xhtml">${escapeHtml(params.objective)}</div>`,
+        },
       },
       {
         title: "Assessment",
-        code: { coding: [{ system: "http://loinc.org", code: "51848-0", display: "Assessment" }] },
-        text: { status: "generated", div: `<div xmlns="http://www.w3.org/1999/xhtml">${escapeHtml(params.assessment)}</div>` },
+        code: {
+          coding: [
+            {
+              system: "http://loinc.org",
+              code: "51848-0",
+              display: "Assessment",
+            },
+          ],
+        },
+        text: {
+          status: "generated",
+          div: `<div xmlns="http://www.w3.org/1999/xhtml">${escapeHtml(params.assessment)}</div>`,
+        },
       },
       {
         title: "Plan",
-        code: { coding: [{ system: "http://loinc.org", code: "18776-5", display: "Plan of care" }] },
-        text: { status: "generated", div: `<div xmlns="http://www.w3.org/1999/xhtml">${escapeHtml(params.plan)}</div>` },
+        code: {
+          coding: [
+            {
+              system: "http://loinc.org",
+              code: "18776-5",
+              display: "Plan of care",
+            },
+          ],
+        },
+        text: {
+          status: "generated",
+          div: `<div xmlns="http://www.w3.org/1999/xhtml">${escapeHtml(params.plan)}</div>`,
+        },
       },
     ],
   });
@@ -402,12 +482,16 @@ export async function createEncounter(
     patientId: string;
     practitionerId: string;
     notes?: string;
-  }
+  },
 ): Promise<FhirEncounter> {
   return fhirCreate<FhirEncounter>(env, {
     resourceType: "Encounter",
     status: "planned",
-    class: { system: "http://terminology.hl7.org/CodeSystem/v3-ActCode", code: "VR", display: "virtual" },
+    class: {
+      system: "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+      code: "VR",
+      display: "virtual",
+    },
     subject: { reference: `Patient/${params.patientId}` },
     participant: [
       {
@@ -428,12 +512,19 @@ interface FhirPractitioner {
   name: Array<{ given?: string[]; family?: string; text?: string }>;
 }
 
-export async function getPractitioners(env: Env): Promise<Array<{ id: string; name: string }>> {
-  const bundle = await fhirSearch<FhirPractitioner>(env, "Practitioner", { _count: "50" });
+export async function getPractitioners(
+  env: Env,
+): Promise<Array<{ id: string; name: string }>> {
+  const bundle = await fhirSearch<FhirPractitioner>(env, "Practitioner", {
+    _count: "50",
+  });
   return (bundle.entry || []).map((e) => {
     const p = e.resource;
     const n = p.name?.[0];
-    const name = n?.text || [n?.given?.join(" "), n?.family].filter(Boolean).join(" ") || "Unknown";
+    const name =
+      n?.text ||
+      [n?.given?.join(" "), n?.family].filter(Boolean).join(" ") ||
+      "Unknown";
     return { id: p.id, name };
   });
 }
@@ -448,7 +539,11 @@ interface FhirBinary {
   contentType: string;
 }
 
-export async function uploadBinary(env: Env, data: ArrayBuffer, contentType: string): Promise<FhirBinary> {
+export async function uploadBinary(
+  env: Env,
+  data: ArrayBuffer,
+  contentType: string,
+): Promise<FhirBinary> {
   const token = await getMedplumToken(env);
   const res = await fetch(`${env.MEDPLUM_BASE_URL}/fhir/R4/Binary`, {
     method: "POST",
@@ -483,7 +578,7 @@ export async function createDocumentReference(
     binaryId: string;
     contentType: string;
     description: string;
-  }
+  },
 ): Promise<FhirDocumentReference> {
   return fhirCreate<FhirDocumentReference>(env, {
     resourceType: "DocumentReference",
@@ -499,7 +594,13 @@ export async function createDocumentReference(
       },
     ],
     type: {
-      coding: [{ system: "http://loinc.org", code: "11502-2", display: "Laboratory report" }],
+      coding: [
+        {
+          system: "http://loinc.org",
+          code: "11502-2",
+          display: "Laboratory report",
+        },
+      ],
     },
   });
 }
