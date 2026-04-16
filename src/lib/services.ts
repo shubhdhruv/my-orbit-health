@@ -1838,6 +1838,15 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
     requiresBloodwork: false,
     intakeSteps: [STATE_STEP, ...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
   },
+  {
+    id: "cjc-ipamorelin",
+    label: "CJC-1295/Ipamorelin",
+    category: "peptide",
+    description:
+      "Dual growth hormone peptide blend for recovery, sleep, anti-aging, and body composition",
+    requiresBloodwork: false,
+    intakeSteps: [STATE_STEP, ...PEPTIDE_BASE_STEPS, OFF_LABEL_CONSENT_STEP],
+  },
 
   // Blends
   {

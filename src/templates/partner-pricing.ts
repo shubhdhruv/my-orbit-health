@@ -32,6 +32,7 @@ const PHARMACY_COSTS: Record<string, { product: string; cost: number }> = {
   "bpc-157": { product: "BPC-157 2mg/ml 5ml", cost: 78 },
   "tb-500": { product: "TB-500 2mg/ml 5ml", cost: 109.2 },
   sermorelin: { product: "Sermorelin 3mg/ml 3ml", cost: 65 },
+  "cjc-ipamorelin": { product: "Prometheus CJC-1295/Ipamorelin", cost: 91 },
   wolverine: { product: "Valkyr BPC-157/TB-500 blend 5ml", cost: 91 },
   glo: {
     product: "Fountain of Youth GHK-CU/BPC-157/TB500 blend 5ml",
@@ -77,6 +78,7 @@ const SERVICE_LIST = [
   { id: "bpc-157", name: "BPC-157", cat: "Peptides" },
   { id: "tb-500", name: "TB-500", cat: "Peptides" },
   { id: "sermorelin", name: "Sermorelin", cat: "Peptides" },
+  { id: "cjc-ipamorelin", name: "CJC-1295/Ipamorelin", cat: "Peptides" },
   { id: "wolverine", name: "Wolverine Blend", cat: "Blends" },
   { id: "glo", name: "GLO Blend", cat: "Blends" },
   { id: "klow", name: "KLOW Blend", cat: "Blends" },

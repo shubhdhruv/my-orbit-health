@@ -41,6 +41,7 @@ export type ServiceId =
   | "glo"
   | "klow"
   | "sermorelin"
+  | "cjc-ipamorelin"
   | "hair-loss"
   | "hair-loss-women"
   | "progesterone";

@@ -432,6 +432,16 @@ const PRICING_FORM_HTML = `<!DOCTYPE html>
             <div><span class="calc-label">MOH Monthly Price</span><div class="calculated" data-calc>—</div></div>
           </div>
         </div>
+        <div class="service-row" data-service="cjc-ipamorelin">
+          <div class="service-name">CJC-1295/Ipamorelin</div>
+          <div class="service-desc">Dual GH peptide blend for recovery, sleep, and anti-aging</div>
+          <div class="fields">
+            <div class="field"><label>Pharmacy Product</label><input type="text" class="product-name" placeholder="e.g. Prometheus CJC-1295/Ipamorelin"></div>
+            <div class="field"><label>Monthly Qty</label><input type="number" class="qty" placeholder="e.g. 1" min="1" value="1"></div>
+            <div class="field"><label>Pharmacy Cost (per unit)</label><input type="number" class="pharmacy-cost" placeholder="e.g. 91.00" step="0.01" min="0"></div>
+            <div><span class="calc-label">MOH Monthly Price</span><div class="calculated" data-calc>—</div></div>
+          </div>
+        </div>
       </div>
 
       <div class="category">
@@ -716,6 +726,7 @@ onboard.post("/", async (c) => {
     "bpc-157": "BPC-157 (Tissue Repair)",
     "tb-500": "TB-500 (Injury Recovery)",
     sermorelin: "Sermorelin (GH-Releasing Peptide)",
+    "cjc-ipamorelin": "CJC-1295/Ipamorelin (Dual GH Peptide)",
     wolverine: "Wolverine Blend (BPC-157 + TB-500)",
     glo: "GLO Blend (Skin & Tissue)",
     klow: "KLOW Blend (Anti-Inflammatory)",
@@ -1090,6 +1101,10 @@ const ONBOARDING_FORM_HTML = `<!DOCTYPE html>
           <div class="service-checkbox"></div>
           <div class="service-info"><h3>Sermorelin</h3><p>Growth hormone-releasing peptide for recovery and sleep</p></div>
         </div>
+        <div class="service-card" data-service="cjc-ipamorelin" onclick="toggleService(this)">
+          <div class="service-checkbox"></div>
+          <div class="service-info"><h3>CJC-1295/Ipamorelin</h3><p>Dual GH peptide blend for recovery, sleep, and anti-aging</p></div>
+        </div>
       </div>
 
       <div class="category">
@@ -1205,7 +1220,7 @@ const ONBOARDING_FORM_HTML = `<!DOCTYPE html>
       'sildenafil': 'Sildenafil', 'tadalafil': 'Tadalafil',
       'testosterone-injectable': 'Testosterone Injectable', 'testosterone-oral': 'Testosterone Oral',
       'enclomiphene': 'Enclomiphene', 'estrogen-cream-vaginal': 'Estrogen Cream (Vaginal)', 'estrogen-cream-systemic': 'Estrogen Cream (Systemic)', 'estrogen-patches': 'Estrogen Patches',
-      'mots-c': 'MOTS-c', 'nad': 'NAD+', 'bpc-157': 'BPC-157', 'tb-500': 'TB-500', 'sermorelin': 'Sermorelin',
+      'mots-c': 'MOTS-c', 'nad': 'NAD+', 'bpc-157': 'BPC-157', 'tb-500': 'TB-500', 'sermorelin': 'Sermorelin', 'cjc-ipamorelin': 'CJC-1295/Ipamorelin',
       'wolverine': 'Wolverine Blend', 'glo': 'GLO Blend', 'klow': 'KLOW Blend',
       'hair-loss': 'Hair Loss (Men)', 'hair-loss-women': 'Hair Loss (Women)', 'progesterone': 'Progesterone'
     };

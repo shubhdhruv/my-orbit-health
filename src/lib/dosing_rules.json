@@ -1475,6 +1475,62 @@
       "visit_model": { "initial": "sync", "follow_up": "async" }
     },
 
+    "cjc-ipamorelin": {
+      "status": "active",
+      "product_name": "CJC-1295/Ipamorelin (compounded blend)",
+      "schedule": "none",
+      "automation_level": "decision_support",
+      "regulatory": {
+        "pathway": "Off-label, 503B compounding",
+        "informed_consent_required": true
+      },
+      "dosing": {
+        "route": "subcutaneous injection",
+        "frequency": "5 nights per week (bedtime)",
+        "starting_dose_range": "300mcg CJC-1295 + 300mcg Ipamorelin per injection",
+        "supply": "monthly",
+        "off_label_consent_required": true,
+        "md_consent_note": "CJC-1295 (no DAC) is a growth hormone-releasing hormone analogue; Ipamorelin is a selective growth hormone secretagogue. Neither is FDA-approved. The combination amplifies pulsatile GH release with minimal cortisol or prolactin elevation. Dosed at bedtime to align with physiologic GH pulse. 503B compounded. Signed consent on file."
+      },
+      "disqualifiers": [
+        {
+          "field": "peptide-pregnancy",
+          "value": "yes",
+          "block_type": "hard",
+          "reason": "No safety data in pregnancy"
+        },
+        {
+          "field": "cancer-history",
+          "value": "active",
+          "block_type": "hard",
+          "reason": "GH-releasing agents contraindicated with active malignancy"
+        },
+        {
+          "field": "off_label_informed_consent_signed",
+          "value": "no",
+          "block_type": "hard",
+          "reason": "Consent required"
+        }
+      ],
+      "required_labs": [],
+      "injection_training_required": true,
+      "monitoring": {
+        "schedule": "4 weeks: async tolerability and sleep/recovery assessment. 12 weeks: outcome review. Every 6 months: IGF-1 level recommended.",
+        "checks": ["tolerability", "injection_site", "sleep_quality", "igf1"]
+      },
+      "escalation_triggers": [
+        {
+          "trigger": "Joint pain, edema, or carpal tunnel symptoms",
+          "action": "Hold. Reduce dose or discontinue. Sync visit."
+        },
+        {
+          "trigger": "Any unexpected adverse event",
+          "action": "Hold. Provider review."
+        }
+      ],
+      "visit_model": { "initial": "sync", "follow_up": "async" }
+    },
+
     "wolverine": {
       "status": "active",
       "product_name": "Wolverine (BPC-157 + TB-500)",
