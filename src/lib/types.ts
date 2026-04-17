@@ -158,9 +158,6 @@ export interface PendingCase {
   medplumPatientId?: string;
   prescribeRxPatientChartId?: string;
   prescribeRxEncounterId?: string;
-  prescribeRxOrderId?: string;
-  prescribeRxLabOrderId?: string;
-  prescribeRxLabResultsUploadedAt?: string; // ISO; dedup guard for uploadLabResults
 
   // Service
   partnerSlug: string;

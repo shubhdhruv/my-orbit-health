@@ -23,18 +23,10 @@ import {
 import {
   createComposition,
   createDocumentReference,
-  downloadBinary,
   fhirRead,
   fhirSearch,
   uploadBinary,
 } from "./medplum";
-import {
-  createOrder,
-  createLabOrder,
-  reportTransaction,
-  uploadLabResults,
-  getEncounterMapping,
-} from "./prescribe-rx";
 
 const doctor = new Hono<{ Bindings: Env }>();
 
@@ -339,104 +331,16 @@ doctor.post("/case/:id/approve", async (c) => {
     console.error("Approved email failed:", err);
   }
 
-  // 4. Update case (before waitUntil so PRX background write can't race)
+  // 4. Update case
   pendingCase.status = "approved";
   pendingCase.orderStatus = "prescribed";
   pendingCase.resolvedAt = new Date().toISOString();
   await savePendingCase(c.env.PARTNERS, pendingCase);
 
-  // 5. PrescribeRx: create order + report Stripe payment (non-blocking)
-  //    Runs in waitUntil so doctor gets instant response.
-  //    Requires prescribeRxPatientChartId + prescribeRxEncounterId from intake dual-write.
-  //    Skips when STRIPE_BYPASS=true (no real payment to report).
-  if (
-    pendingCase.prescribeRxPatientChartId &&
-    pendingCase.prescribeRxEncounterId &&
-    c.env.STRIPE_BYPASS !== "true"
-  ) {
-    const envRef = c.env;
-    const caseId = id;
-    const patientChartId = pendingCase.prescribeRxPatientChartId;
-    const encounterId = pendingCase.prescribeRxEncounterId;
-    const chargeAmountCents = Math.round(pendingCase.chargeAmount * 100);
-    const stripePI = pendingCase.paymentIntentId;
-    const serviceType = pendingCase.serviceType;
-    const mapping = getEncounterMapping(serviceType as any);
-
-    c.executionCtx.waitUntil(
-      (async () => {
-        let orderId: string | undefined;
-
-        // Create order if product IDs are mapped for this service
-        if (mapping?.productIds?.length) {
-          try {
-            const order = await createOrder(envRef, {
-              patientChartId,
-              lines: mapping.productIds.map((pid) => ({
-                productId: pid,
-                quantity: 1,
-              })),
-            });
-            orderId = order.id;
-            console.log(
-              `[PRX] Order created: ${order.id} (${order.order_number}) for case ${caseId}`,
-            );
-          } catch (err) {
-            console.error(
-              `[PRX] Order creation failed for case ${caseId} (non-blocking):`,
-              err,
-            );
-          }
-        } else {
-          console.log(
-            `[PRX] Skipped order creation: no productIds mapped for ${serviceType}`,
-          );
-        }
-
-        // Save PRX order ID to KV (even if reportTransaction fails below)
-        if (orderId) {
-          try {
-            const updatedCase = await getPendingCase(envRef.PARTNERS, caseId);
-            if (updatedCase) {
-              updatedCase.prescribeRxOrderId = orderId;
-              await savePendingCase(envRef.PARTNERS, updatedCase);
-              console.log(`[PRX] PendingCase ${caseId} updated with orderId`);
-            }
-          } catch (err) {
-            console.error(
-              `[PRX] Failed to save orderId to KV for case ${caseId}:`,
-              err,
-            );
-          }
-        }
-
-        // Report the Stripe payment to PrescribeRx
-        try {
-          const txn = await reportTransaction(envRef, {
-            encounterId,
-            orderId,
-            amount: chargeAmountCents,
-            stripePaymentIntentId: stripePI,
-          });
-          console.log(
-            `[PRX] Transaction reported: ${txn.id} ($${pendingCase.chargeAmount}) for case ${caseId}`,
-          );
-        } catch (err) {
-          console.error(
-            `[PRX] Transaction report failed for case ${caseId} (non-blocking):`,
-            err,
-          );
-        }
-      })(),
-    );
-  } else if (
-    !pendingCase.prescribeRxPatientChartId ||
-    !pendingCase.prescribeRxEncounterId
-  ) {
-    console.log(
-      `[PRX] Skipped order: case ${id} missing PRX IDs (patientChartId=${pendingCase.prescribeRxPatientChartId}, encounterId=${pendingCase.prescribeRxEncounterId})`,
-    );
-  }
+  // Note: MOH no longer creates PRX orders or reports the Stripe transaction
+  // from here. In the PRX architecture, the PRX provider creates the Rx/order
+  // inside PRX's own portal, and Stripe capture + reportTransaction are
+  // triggered by a PRX "encounter approved" webhook (separate handler, TBD).
 
   return c.json({ success: true });
 });
@@ -630,136 +534,12 @@ doctor.post("/case/:id/update-order", async (c) => {
     if (body.bloodworkReviewed) {
       pendingCase.bloodworkReviewedAt = now;
     }
-    // Save first — mirrors Session 3 pattern so PRX background write can't race.
     await savePendingCase(c.env.PARTNERS, pendingCase);
 
-    // PrescribeRx: lab order on kit shipped (buy-kit only), results upload on received.
-    // Requires prescribeRxPatientChartId + prescribeRxEncounterId from intake dual-write.
-    // Non-blocking via waitUntil — doctor/admin gets instant response.
-    const hasPrxIds =
-      !!pendingCase.prescribeRxPatientChartId &&
-      !!pendingCase.prescribeRxEncounterId;
-    // Dedup on existing PRX artifacts — PRX side-effects aren't idempotent,
-    // so retries / double-clicks would otherwise create duplicate orders/uploads.
-    const shouldOrderLab =
-      firedKitShipped &&
-      pendingCase.bloodworkStatus === "buy-kit" &&
-      !pendingCase.prescribeRxLabOrderId;
-    const shouldUploadLab =
-      firedReceived &&
-      !!pendingCase.bloodworkBinaryId &&
-      !pendingCase.prescribeRxLabResultsUploadedAt;
-
-    if (hasPrxIds && (shouldOrderLab || shouldUploadLab)) {
-      const envRef = c.env;
-      const caseId = id;
-      const patientChartId = pendingCase.prescribeRxPatientChartId!;
-      const encounterId = pendingCase.prescribeRxEncounterId!;
-      const serviceType = pendingCase.serviceType;
-      const binaryId = pendingCase.bloodworkBinaryId;
-
-      c.executionCtx.waitUntil(
-        (async () => {
-          // Create PRX lab order when the kit ships (buy-kit path only)
-          if (shouldOrderLab) {
-            const mapping = getEncounterMapping(serviceType as any);
-            if (mapping?.labTestIds?.length && mapping.labCollectionMethod) {
-              try {
-                const labOrder = await createLabOrder(envRef, {
-                  patientChartId,
-                  encounterId,
-                  labTestIds: mapping.labTestIds,
-                  collectionMethod: mapping.labCollectionMethod,
-                });
-                console.log(
-                  `[PRX] Lab order created: ${labOrder.id} for case ${caseId}`,
-                );
-                try {
-                  const updatedCase = await getPendingCase(
-                    envRef.PARTNERS,
-                    caseId,
-                  );
-                  if (updatedCase) {
-                    updatedCase.prescribeRxLabOrderId = labOrder.id;
-                    await savePendingCase(envRef.PARTNERS, updatedCase);
-                    console.log(
-                      `[PRX] PendingCase ${caseId} updated with labOrderId`,
-                    );
-                  }
-                } catch (err) {
-                  console.error(
-                    `[PRX] Failed to save labOrderId to KV for case ${caseId}:`,
-                    err,
-                  );
-                }
-              } catch (err) {
-                console.error(
-                  `[PRX] Lab order creation failed for case ${caseId} (non-blocking):`,
-                  err,
-                );
-              }
-            } else {
-              console.log(
-                `[PRX] Skipped lab order: no labTestIds/collectionMethod mapped for ${serviceType}`,
-              );
-            }
-          }
-
-          // Upload lab results when the doctor marks labs received
-          if (shouldUploadLab && binaryId) {
-            try {
-              const { data, contentType } = await downloadBinary(
-                envRef,
-                binaryId,
-              );
-              // Strip media-type params (e.g. "text/plain;charset=utf-8" → "plain")
-              const subtype = (contentType.split("/")[1] || "bin")
-                .split(";")[0]
-                .trim();
-              const ext = contentType.includes("pdf")
-                ? "pdf"
-                : subtype || "bin";
-              const result = await uploadLabResults(
-                envRef,
-                patientChartId,
-                data,
-                `lab-results-${caseId}.${ext}`,
-                contentType,
-              );
-              console.log(
-                `[PRX] Lab results uploaded: ${result.id} for case ${caseId}`,
-              );
-              // Persist upload timestamp so a retry won't double-upload to PRX
-              try {
-                const updatedCase = await getPendingCase(
-                  envRef.PARTNERS,
-                  caseId,
-                );
-                if (updatedCase) {
-                  updatedCase.prescribeRxLabResultsUploadedAt =
-                    new Date().toISOString();
-                  await savePendingCase(envRef.PARTNERS, updatedCase);
-                }
-              } catch (err) {
-                console.error(
-                  `[PRX] Failed to save labResultsUploadedAt for case ${caseId}:`,
-                  err,
-                );
-              }
-            } catch (err) {
-              console.error(
-                `[PRX] Lab results upload failed for case ${caseId} (non-blocking):`,
-                err,
-              );
-            }
-          }
-        })(),
-      );
-    } else if (!hasPrxIds && (shouldOrderLab || shouldUploadLab)) {
-      console.log(
-        `[PRX] Skipped lab flow: case ${id} missing PRX IDs (patientChartId=${pendingCase.prescribeRxPatientChartId}, encounterId=${pendingCase.prescribeRxEncounterId})`,
-      );
-    }
+    // Note: MOH no longer creates PRX lab orders or uploads lab results from
+    // the bloodwork lifecycle. PRX providers order labs inside PRX, and lab
+    // result routing to PRX will come through the (future) lab vendor
+    // integration, not through this MOH endpoint.
 
     return c.json({
       success: true,
@@ -782,9 +562,8 @@ doctor.post("/case/:id/update-order", async (c) => {
 // - Stores file in Medplum Binary (reuse uploadBinary)
 // - Links it to the patient via DocumentReference (best-effort)
 // - Sets bloodworkBinaryId + bloodworkReceivedAt on the PendingCase
-// - Fires PRX uploadLabResults in waitUntil (same dedup guards as update-order)
-// Without this endpoint, bloodworkBinaryId is never populated for buy-kit,
-// and the Session 4 PRX upload path never runs for those cases.
+// PRX lab-result routing will come through the (future) lab vendor
+// integration, not from here.
 doctor.post("/case/:id/upload-kit-results", async (c) => {
   const id = c.req.param("id");
   const pendingCase = await getPendingCase(c.env.PARTNERS, id);
@@ -835,7 +614,6 @@ doctor.post("/case/:id/upload-kit-results", async (c) => {
   }
 
   // 3. Persist on PendingCase — the act of uploading IS marking received.
-  //    Save first (before waitUntil) so the PRX background write can't race.
   const now = new Date().toISOString();
   pendingCase.bloodworkBinaryId = binaryId;
   if (!pendingCase.bloodworkReceivedAt) {
@@ -843,67 +621,8 @@ doctor.post("/case/:id/upload-kit-results", async (c) => {
   }
   await savePendingCase(c.env.PARTNERS, pendingCase);
 
-  // 4. Fire PRX upload in waitUntil — mirrors the bloodworkReceived branch
-  //    in update-order. Dedup on prescribeRxLabResultsUploadedAt since PRX
-  //    side-effects aren't idempotent.
-  const hasPrxIds =
-    !!pendingCase.prescribeRxPatientChartId &&
-    !!pendingCase.prescribeRxEncounterId;
-  const shouldUploadLab = !pendingCase.prescribeRxLabResultsUploadedAt;
-
-  if (hasPrxIds && shouldUploadLab) {
-    const envRef = c.env;
-    const caseId = id;
-    const patientChartId = pendingCase.prescribeRxPatientChartId!;
-    const uploadedBinaryId = binaryId;
-
-    c.executionCtx.waitUntil(
-      (async () => {
-        try {
-          const { data, contentType } = await downloadBinary(
-            envRef,
-            uploadedBinaryId,
-          );
-          const subtype = (contentType.split("/")[1] || "bin")
-            .split(";")[0]
-            .trim();
-          const ext = contentType.includes("pdf") ? "pdf" : subtype || "bin";
-          const result = await uploadLabResults(
-            envRef,
-            patientChartId,
-            data,
-            `lab-results-${caseId}.${ext}`,
-            contentType,
-          );
-          console.log(
-            `[PRX] Kit results uploaded: ${result.id} for case ${caseId}`,
-          );
-          try {
-            const updatedCase = await getPendingCase(envRef.PARTNERS, caseId);
-            if (updatedCase) {
-              updatedCase.prescribeRxLabResultsUploadedAt =
-                new Date().toISOString();
-              await savePendingCase(envRef.PARTNERS, updatedCase);
-            }
-          } catch (err) {
-            console.error(
-              `[PRX] Failed to save labResultsUploadedAt for case ${caseId}:`,
-              err,
-            );
-          }
-        } catch (err) {
-          console.error(
-            `[PRX] Kit results PRX upload failed for case ${caseId} (non-blocking):`,
-            err,
-          );
-        }
-      })(),
-    );
-  } else if (!hasPrxIds) {
-    console.log(
-      `[PRX] Skipped kit results upload: case ${id} missing PRX IDs (patientChartId=${pendingCase.prescribeRxPatientChartId}, encounterId=${pendingCase.prescribeRxEncounterId})`,
-    );
-  }
+  // Note: lab result routing to PRX will come through the (future) lab
+  // vendor integration, not from this endpoint.
 
   return c.json({
     success: true,

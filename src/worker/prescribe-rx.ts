@@ -115,16 +115,18 @@ export interface PrxHealthCheckResult {
 // ============================================================
 // Service → Encounter Type Mapping
 // ============================================================
+// Maps each MOH ServiceId to its PrescribeRx encounter type.
+//
+// Scope note: this map intentionally does NOT include productIds,
+// labTestIds, or labCollectionMethod. PRX providers pick the Rx
+// SKU and any labs directly inside the PRX provider portal when
+// they sign the encounter. MOH's only role is creating the patient +
+// encounter via submitUnifiedIntake — ordering + lab ordering are
+// owned by PRX. See project_prescribe_rx_migration.md for details.
 
 interface EncounterTypeMapping {
   encounterTypeId: string;
   encounterSlug: string;
-  // Product IDs will be populated after catalog discovery in prod
-  productIds?: string[];
-  // Lab test IDs + collection method for services that require bloodwork kits.
-  // Populated after catalog discovery in prod; when absent, createLabOrder is skipped.
-  labTestIds?: string[];
-  labCollectionMethod?: string;
 }
 
 /** Maps each MOH ServiceId to the PrescribeRx encounter type */
