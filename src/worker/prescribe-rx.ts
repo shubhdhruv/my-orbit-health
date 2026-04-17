@@ -25,8 +25,9 @@ interface PrxResponse<T> {
 }
 
 interface PrxPatient {
-  user_id: string;
-  patient_chart_id: string;
+  // `id` from /patients/search and /patients/{id} is the patient chart ID —
+  // same value that /telehealth/intake/unified returns as `patient_chart_id`.
+  id: string;
   patient_number: string;
   first_name: string;
   last_name: string;
@@ -292,11 +293,16 @@ export async function searchPatient(
   env: Env,
   email: string,
 ): Promise<PrxPatient | null> {
+  // PRX /patients/search accepts a free-text `q` param (matches email, name, phone).
+  // It returns 422 if `q` is missing, even when `email` is provided. Filter to an
+  // exact email match to avoid false positives from the broader query.
   const resp = await prxFetch<PrxPatient[]>(
     env,
-    `/patients/search?email=${encodeURIComponent(email)}`,
+    `/patients/search?q=${encodeURIComponent(email)}`,
   );
-  return resp.data.length > 0 ? resp.data[0] : null;
+  const emailLower = email.toLowerCase();
+  const match = resp.data.find((p) => p.email?.toLowerCase() === emailLower);
+  return match ?? null;
 }
 
 export async function getPatient(
@@ -392,10 +398,18 @@ export async function submitUnifiedIntake(
   }
 
   if (input.allergies || input.medications || input.conditions) {
+    // PRX expects medical_history fields as arrays. MOH intake collects them
+    // as free-text ("None", "Penicillin, Aspirin"). Split on commas/newlines
+    // and drop empties so "None" round-trips as ["None"] and "" becomes [].
+    const toArray = (s: string | undefined): string[] =>
+      (s ?? "")
+        .split(/[,\n]/)
+        .map((x) => x.trim())
+        .filter(Boolean);
     body.medical_history = {
-      allergies: input.allergies ?? "",
-      medications: input.medications ?? "",
-      conditions: input.conditions ?? "",
+      allergies: toArray(input.allergies),
+      medications: toArray(input.medications),
+      conditions: toArray(input.conditions),
     };
   }
 

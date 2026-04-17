@@ -680,7 +680,10 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
     c.executionCtx.waitUntil(
       (async () => {
         try {
-          // Check for existing PRX patient to avoid duplicates on re-intake
+          // Check for existing PRX patient to avoid duplicates on re-intake.
+          // Scoped to its own try so a search failure (API shape drift,
+          // transient 5xx, etc.) cannot block the unified intake below —
+          // PRX dedupes by email server-side regardless.
           const patientEmail = (
             body.answers?.email ||
             body.shipping?.email ||
@@ -689,10 +692,17 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
             .toString()
             .toLowerCase();
           if (patientEmail) {
-            const existing = await searchPrxPatient(envRef, patientEmail);
-            if (existing) {
-              console.log(
-                `[PRX] Existing patient found: ${existing.patient_chart_id} — unified intake will update, not duplicate`,
+            try {
+              const existing = await searchPrxPatient(envRef, patientEmail);
+              if (existing) {
+                console.log(
+                  `[PRX] Existing patient found: ${existing.id} — unified intake will update, not duplicate`,
+                );
+              }
+            } catch (searchErr) {
+              console.error(
+                "[PRX] Patient dedup search failed (non-blocking):",
+                searchErr,
               );
             }
           }
