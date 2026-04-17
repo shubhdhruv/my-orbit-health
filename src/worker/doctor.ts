@@ -1292,6 +1292,15 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
         <tr><td style="padding:6px 0;color:#666;font-size:13px">State</td><td style="padding:6px 0;font-size:14px;font-weight:600">${escapeHtml(c.patientState)}</td></tr>
         <tr><td style="padding:6px 0;color:#666;font-size:13px">DOB</td><td style="padding:6px 0;font-size:14px">${escapeHtml(c.patientDob)}</td></tr>
         ${c.medplumPatientId ? `<tr><td style="padding:6px 0;color:#666;font-size:13px">EHR ID</td><td style="padding:6px 0;font-size:14px">${escapeHtml(c.medplumPatientId)}</td></tr>` : ""}
+        ${
+          c.shippingAddress
+            ? `
+        <tr><td colspan="2" style="padding:12px 0 6px 0;color:#333;font-size:13px;font-weight:600;border-top:1px solid #eee">Shipping Address</td></tr>
+        <tr><td style="padding:6px 0;color:#666;font-size:13px">Street</td><td style="padding:6px 0;font-size:14px">${escapeHtml(c.shippingAddress.street)}${c.shippingAddress.apt ? `, ${escapeHtml(c.shippingAddress.apt)}` : ""}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;font-size:13px">City / State / Zip</td><td style="padding:6px 0;font-size:14px">${escapeHtml(c.shippingAddress.city)}, ${escapeHtml(c.shippingAddress.state)} ${escapeHtml(c.shippingAddress.zip)}</td></tr>
+        `
+            : ""
+        }
       </table>
     </div>
 

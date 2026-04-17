@@ -102,32 +102,62 @@ export function generateRecommendationHTML(
     }
     .btn-checkout:hover { opacity: 0.9; }
 
+    /* Stack suggestion banner */
+    .stack-banner {
+      background: var(--primary-light);
+      border: 1.5px solid #e0e0e0;
+      border-radius: 12px; padding: 16px 18px; margin-bottom: 20px;
+    }
+    .stack-banner .stack-label {
+      display: inline-block; font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      color: var(--primary); margin-bottom: 6px;
+    }
+    .stack-banner h4 { font-size: 15px; font-weight: 700; margin-bottom: 4px; color: #1a1a2e; }
+    .stack-banner p { font-size: 13px; color: #555; line-height: 1.5; }
+
     /* Add-on options */
     .addons-header { text-align: center; margin-bottom: 16px; }
     .addons-header h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
     .addons-header p { font-size: 13px; color: #888; }
 
     .alt-card {
-      display: flex; align-items: center; gap: 16px;
-      padding: 16px 20px; border: 1.5px solid #e0e0e0; border-radius: 10px;
+      display: flex; align-items: flex-start; gap: 14px;
+      padding: 14px 16px; border: 1.5px solid #e0e0e0; border-radius: 10px;
       margin-bottom: 10px; cursor: pointer; transition: all 0.15s;
+      position: relative;
     }
     .alt-card:hover { border-color: var(--primary); }
-    .alt-card.selected { border-color: var(--primary); background: var(--primary-light); }
+    .alt-card.selected { border-color: var(--primary); background: var(--primary-light); border-style: solid; }
+    .alt-card.suggested:not(.selected) { border-color: var(--primary); border-style: dashed; }
     .alt-card .addon-check {
-      width: 24px; height: 24px; min-width: 24px; border: 2px solid #ccc;
+      width: 22px; height: 22px; min-width: 22px; border: 2px solid #ccc;
       border-radius: 6px; display: flex; align-items: center; justify-content: center;
-      transition: all 0.15s;
+      transition: all 0.15s; margin-top: 1px;
     }
     .alt-card.selected .addon-check {
       background: var(--primary); border-color: var(--primary);
     }
-    .alt-card .alt-info { flex: 1; }
-    .alt-card .alt-info h4 { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
-    .alt-card .alt-info p { font-size: 12px; color: #888; }
-    .alt-card .alt-price { text-align: right; }
-    .alt-card .alt-price .price { font-size: 18px; font-weight: 700; }
-    .alt-card .alt-price .per { font-size: 12px; color: #888; }
+    .alt-card .alt-info { flex: 1; min-width: 0; }
+    .alt-card .alt-info h4 { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+    .alt-card .alt-info .alt-desc { font-size: 12px; color: #666; line-height: 1.4; }
+    .alt-card .alt-info .alt-tags {
+      display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px;
+    }
+    .alt-card .alt-info .alt-tag {
+      font-size: 10px; font-weight: 600; color: var(--primary);
+      background: var(--primary-light); padding: 2px 7px;
+      border-radius: 4px; white-space: nowrap;
+    }
+    .alt-card .suggested-badge {
+      position: absolute; top: -8px; right: 12px;
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.3px; color: #fff; background: var(--primary);
+      padding: 2px 8px; border-radius: 4px;
+    }
+    .alt-card .alt-price { text-align: right; white-space: nowrap; padding-top: 1px; }
+    .alt-card .alt-price .price { font-size: 17px; font-weight: 700; }
+    .alt-card .alt-price .per { font-size: 11px; color: #888; }
 
     /* Primary toggle */
     .featured-toggle {
@@ -273,8 +303,93 @@ export function generateRecommendationHTML(
       benefitsEl.innerHTML += '<li>' + b + '</li>';
     });
 
+    // Product info: short description + benefit tags for each service
+    const PRODUCT_INFO = {
+      'semaglutide':       { desc: 'GLP-1 that curbs appetite and regulates blood sugar for steady weight loss.', tags: ['Weight Loss','Appetite Control'] },
+      'tirzepatide':       { desc: 'Dual GIP/GLP-1 receptor agonist — strongest clinical weight loss results.', tags: ['Weight Loss','Appetite Control'] },
+      'retatrutide':       { desc: 'Triple agonist targeting GLP-1, GIP, and glucagon receptors for aggressive fat loss.', tags: ['Weight Loss','Metabolic'] },
+      'mots-c':            { desc: 'Mitochondrial peptide that activates fat metabolism at the cellular level.', tags: ['Fat Burn','Energy','Metabolic'] },
+      'sermorelin':        { desc: 'Stimulates your natural growth hormone release for deeper sleep, faster recovery, and fat loss.', tags: ['GH Release','Sleep','Recovery'] },
+      'cjc-ipamorelin':    { desc: 'Dual-peptide GH booster — amplifies growth hormone pulses with minimal side effects.', tags: ['GH Release','Anti-Aging','Fat Loss'] },
+      'wolverine':         { desc: 'BPC-157 + TB-500 healing stack for joint pain, injuries, and tissue repair.', tags: ['Healing','Joint Pain','Recovery'] },
+      'glo':               { desc: 'GHK-Cu + BPC-157 + TB-500 — regenerates skin, hair, and connective tissue.', tags: ['Skin','Hair','Tissue Repair'] },
+      'klow':              { desc: 'GLO stack + KPV anti-inflammatory peptide for gut health and total-body repair.', tags: ['Gut Health','Inflammation','Repair'] },
+      'bpc-157':           { desc: 'Body protection compound that accelerates healing of muscles, tendons, and gut lining.', tags: ['Healing','Gut','Recovery'] },
+      'tb-500':            { desc: 'Thymosin beta-4 promotes flexibility, reduces inflammation, and speeds injury recovery.', tags: ['Flexibility','Inflammation','Recovery'] },
+      'nad':               { desc: 'Cellular energy and DNA repair — fights fatigue and age-related decline.', tags: ['Energy','Anti-Aging','Longevity'] },
+      'testosterone-injectable': { desc: 'Testosterone cypionate injections for low-T symptoms and body composition.', tags: ['Hormone','Strength','Energy'] },
+      'testosterone-oral':      { desc: 'Oral testosterone for men who prefer no injections.', tags: ['Hormone','Strength','Energy'] },
+      'enclomiphene':      { desc: 'Boosts natural testosterone production while preserving fertility.', tags: ['Hormone','Fertility'] },
+      'sildenafil':        { desc: 'Fast-acting ED relief — works in 30-60 minutes.', tags: ['Performance','On-Demand'] },
+      'tadalafil':         { desc: 'Daily or on-demand ED treatment with a longer window of action.', tags: ['Performance','Daily Option'] },
+      'estrogen-cream-vaginal':  { desc: 'Vaginal estradiol cream for dryness, discomfort, and GSM symptoms.', tags: ['Menopause','Comfort'] },
+      'estrogen-cream-systemic': { desc: 'Topical estradiol for hot flashes, mood, and systemic menopause relief.', tags: ['Menopause','Mood','Hot Flashes'] },
+      'estrogen-patches':        { desc: 'Transdermal estradiol patches for consistent menopause symptom relief.', tags: ['Menopause','Steady Dosing'] },
+      'progesterone':      { desc: 'Oral progesterone capsules for hormone balance and better sleep.', tags: ['Hormone Balance','Sleep'] },
+      'hair-loss':         { desc: 'Finasteride + minoxidil to stop hair loss and promote regrowth.', tags: ['Hair Growth','DHT Blocker'] },
+      'hair-loss-women':   { desc: 'Minoxidil or spironolactone therapy for women\\'s hair thinning.', tags: ['Hair Growth','Women\\'s Health'] },
+    };
+
+    // Synergistic stack suggestions: primary service → suggested addons + why
+    const STACK_SUGGESTIONS = {
+      'semaglutide': {
+        ids: ['mots-c', 'sermorelin', 'cjc-ipamorelin'],
+        title: 'Maximize your fat loss results',
+        reason: 'MOTS-c supercharges mitochondrial fat burning so you lose more fat, not muscle. A GH secretagogue (Sermorelin or CJC-1295/Ipamorelin) unlocks stored fat and preserves lean mass while you cut weight.'
+      },
+      'tirzepatide': {
+        ids: ['mots-c', 'sermorelin', 'cjc-ipamorelin'],
+        title: 'Maximize your fat loss results',
+        reason: 'MOTS-c supercharges mitochondrial fat burning so you lose more fat, not muscle. A GH secretagogue (Sermorelin or CJC-1295/Ipamorelin) unlocks stored fat and preserves lean mass while you cut weight.'
+      },
+      'retatrutide': {
+        ids: ['mots-c', 'sermorelin', 'cjc-ipamorelin'],
+        title: 'Maximize your fat loss results',
+        reason: 'MOTS-c supercharges mitochondrial fat burning so you lose more fat, not muscle. A GH secretagogue (Sermorelin or CJC-1295/Ipamorelin) unlocks stored fat and preserves lean mass while you cut weight.'
+      },
+      'sermorelin': {
+        ids: ['mots-c', 'wolverine'],
+        title: 'Stack for total recovery',
+        reason: 'MOTS-c boosts cellular energy so your body uses the extra growth hormone efficiently. Wolverine accelerates tissue repair while GH handles the rebuild.'
+      },
+      'cjc-ipamorelin': {
+        ids: ['mots-c', 'wolverine'],
+        title: 'Stack for total recovery',
+        reason: 'MOTS-c boosts cellular energy so your body uses the extra growth hormone efficiently. Wolverine accelerates tissue repair while GH handles the rebuild.'
+      },
+      'mots-c': {
+        ids: ['sermorelin', 'cjc-ipamorelin'],
+        title: 'Amplify your metabolic boost',
+        reason: 'A GH secretagogue mobilizes stored fat so MOTS-c has more fuel to burn. Together they optimize body composition faster than either alone.'
+      },
+      'wolverine': {
+        ids: ['sermorelin', 'cjc-ipamorelin', 'nad'],
+        title: 'Accelerate your healing',
+        reason: 'Growth hormone speeds tissue repair while NAD+ fuels the cellular energy your body needs to rebuild. A powerful combo for injury recovery.'
+      },
+      'glo': {
+        ids: ['nad', 'klow'],
+        title: 'Level up your regeneration',
+        reason: 'NAD+ powers the cellular repair that GHK-Cu and BPC-157 are triggering. KLOW adds anti-inflammatory support for deeper, systemic healing.'
+      },
+      'klow': {
+        ids: ['nad', 'sermorelin'],
+        title: 'Total-body repair stack',
+        reason: 'NAD+ fuels cellular regeneration while Sermorelin boosts GH to rebuild tissue. Combined with KLOW\\'s anti-inflammatory peptides, recovery is accelerated.'
+      },
+      'testosterone-injectable': {
+        ids: ['enclomiphene', 'mots-c'],
+        title: 'Optimize your hormone protocol',
+        reason: 'MOTS-c improves metabolic efficiency so you get more out of your testosterone. Enclomiphene preserves fertility if that matters to you.'
+      },
+      'testosterone-oral': {
+        ids: ['enclomiphene', 'mots-c'],
+        title: 'Optimize your hormone protocol',
+        reason: 'MOTS-c improves metabolic efficiency so you get more out of your testosterone. Enclomiphene preserves fertility if that matters to you.'
+      },
+    };
+
     // Mutual-exclusion groups: only one service per group allowed.
-    // e.g., a patient should only be on one GLP-1 at a time.
     const EXCLUSIVE_GROUPS = [
       ['semaglutide', 'tirzepatide', 'retatrutide'],
     ];
@@ -286,14 +401,61 @@ export function generateRecommendationHTML(
     // Build add-on options from partner's other services
     const otherContainer = document.getElementById('otherOptions');
     const otherServices = SERVICES.filter(s => s.type !== SERVICE_ID);
+    const stack = STACK_SUGGESTIONS[SERVICE_ID];
+    const suggestedIds = stack ? stack.ids : [];
+
     if (otherServices.length > 0) {
       const checkSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-      let html = '<div class="addons-header"><h3>Add to Your Order</h3><p>Select additional treatments to include in your checkout</p></div>';
-      otherServices.forEach(s => {
-        const label = s.type.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-        html += '<div class="alt-card" data-type="' + s.type + '" data-price="' + s.subscriptionPrice + '" data-label="' + label + '" onclick="toggleAddon(this)">' +
+
+      // Sort: suggested addons first, then the rest
+      var sorted = otherServices.slice().sort(function(a, b) {
+        var aS = suggestedIds.indexOf(a.type) !== -1 ? 0 : 1;
+        var bS = suggestedIds.indexOf(b.type) !== -1 ? 0 : 1;
+        return aS - bS;
+      });
+
+      let html = '';
+
+      // Stack suggestion banner (if applicable)
+      if (stack && sorted.some(function(s) { return suggestedIds.indexOf(s.type) !== -1; })) {
+        html += '<div class="stack-banner">' +
+          '<span class="stack-label">Recommended Stack</span>' +
+          '<h4>' + stack.title + '</h4>' +
+          '<p>' + stack.reason + '</p>' +
+          '</div>';
+      }
+
+      html += '<div class="addons-header"><h3>Add to Your Order</h3><p>People who combine treatments see faster, better results</p></div>';
+
+      var displayLabels = {
+        'semaglutide': 'Semaglutide', 'tirzepatide': 'Tirzepatide', 'retatrutide': 'Retatrutide',
+        'mots-c': 'MOTS-c', 'sermorelin': 'Sermorelin', 'cjc-ipamorelin': 'CJC-1295/Ipamorelin',
+        'wolverine': 'Wolverine Blend', 'glo': 'GLO Blend', 'klow': 'KLOW Blend',
+        'bpc-157': 'BPC-157', 'tb-500': 'TB-500', 'nad': 'NAD+',
+        'testosterone-injectable': 'Testosterone (Injectable)', 'testosterone-oral': 'Testosterone (Oral)',
+        'enclomiphene': 'Enclomiphene', 'sildenafil': 'Sildenafil', 'tadalafil': 'Tadalafil',
+        'estrogen-cream-vaginal': 'Estrogen Cream (Vaginal)', 'estrogen-cream-systemic': 'Estrogen Cream (Topical)',
+        'estrogen-patches': 'Estrogen Patches', 'progesterone': 'Progesterone',
+        'hair-loss': 'Hair Loss (Men)', 'hair-loss-women': 'Hair Loss (Women)',
+      };
+
+      sorted.forEach(function(s) {
+        var info = PRODUCT_INFO[s.type] || { desc: 'Compounded Medication', tags: [] };
+        var label = s.type.split('-').map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join(' ');
+        var name = displayLabels[s.type] || label;
+        var isSuggested = suggestedIds.indexOf(s.type) !== -1;
+
+        var tagsHtml = '';
+        if (info.tags && info.tags.length) {
+          tagsHtml = '<div class="alt-tags">';
+          info.tags.forEach(function(t) { tagsHtml += '<span class="alt-tag">' + t + '</span>'; });
+          tagsHtml += '</div>';
+        }
+
+        html += '<div class="alt-card' + (isSuggested ? ' suggested' : '') + '" data-type="' + s.type + '" data-price="' + s.subscriptionPrice + '" data-label="' + name + '" onclick="toggleAddon(this)">' +
+          (isSuggested ? '<span class="suggested-badge">Suggested</span>' : '') +
           '<div class="addon-check">' + checkSvg + '</div>' +
-          '<div class="alt-info"><h4>' + label + '</h4><p>Compounded Medication</p></div>' +
+          '<div class="alt-info"><h4>' + name + '</h4><p class="alt-desc">' + info.desc + '</p>' + tagsHtml + '</div>' +
           '<div class="alt-price"><span class="price">$' + s.subscriptionPrice + '</span><span class="per">/mo</span></div>' +
           '</div>';
       });
