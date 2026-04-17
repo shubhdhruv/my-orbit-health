@@ -2,6 +2,7 @@ import type { DosingResult } from "./dosing";
 
 export interface Env {
   PARTNERS: KVNamespace;
+  BLOODWORK_R2: R2Bucket;
   ASSETS: Fetcher;
   HEALTHIE_API_KEY: string;
   STRIPE_SECRET_KEY: string;
@@ -179,8 +180,9 @@ export interface PendingCase {
 
   // Bloodwork
   bloodworkStatus?: "have-labs" | "buy-kit" | "not-required";
-  bloodworkBinaryId?: string; // Medplum Binary ID for uploaded lab file
-  bloodworkDocRefId?: string; // Medplum DocumentReference linking file to patient
+  bloodworkR2Key?: string; // R2 object key for uploaded lab file (current)
+  bloodworkBinaryId?: string; // Legacy: Medplum Binary ID — read-only fallback for pre-R2 cases
+  bloodworkDocRefId?: string; // Legacy: Medplum DocumentReference — no longer written
   bloodworkKitPurchased?: boolean; // Patient paid $124.99 for HRT clearance kit
   bloodworkKitPaymentId?: string; // Stripe PaymentIntent ID for the kit charge
   bloodworkKitShipped?: boolean; // Admin marks when the kit is physically shipped

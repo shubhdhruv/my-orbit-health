@@ -52,9 +52,8 @@ async function createRandomToken(bytes = 32): Promise<string> {
 import {
   createPatient as createMedplumPatient,
   createQuestionnaireResponse,
-  uploadBinary,
-  createDocumentReference,
 } from "./medplum";
+import { putBloodworkObject } from "./r2";
 import {
   submitUnifiedIntake,
   getEncounterMapping,
@@ -182,7 +181,7 @@ intake.get("/:slug/enrollment-terms", async (c) => {
   return c.html(generateProgramEnrollmentTerms(partner));
 });
 
-// Upload lab results file → Medplum Binary
+// Upload lab results file → Cloudflare R2
 intake.post("/:slug/:serviceType/upload-labs", async (c) => {
   const { slug, serviceType } = c.req.param();
   const partner = await getPartner(c.env.PARTNERS, slug);
@@ -205,8 +204,8 @@ intake.post("/:slug/:serviceType/upload-labs", async (c) => {
 
   try {
     const arrayBuffer = await file.arrayBuffer();
-    const binary = await uploadBinary(c.env, arrayBuffer, file.type);
-    return c.json({ success: true, binaryId: binary.id, fileName: file.name });
+    const { key } = await putBloodworkObject(c.env, arrayBuffer, file.type);
+    return c.json({ success: true, r2Key: key, fileName: file.name });
   } catch (err) {
     console.error("Lab file upload failed:", err);
     return c.json({ error: "Upload failed" }, 500);
@@ -514,8 +513,6 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
     }
   }
 
-  let bloodworkDocRefId: string | undefined;
-
   // 2.5. If patient chose to buy the HRT Clearance Kit, charge it now
   let bloodworkKitPaymentId: string | undefined;
   if (bloodworkStatus === "buy-kit" && c.env.STRIPE_BYPASS !== "true") {
@@ -581,21 +578,6 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
         medplumQuestionnaireId,
         body.answers || {},
       );
-    }
-
-    // Link uploaded lab file to patient via DocumentReference
-    if (body.bloodworkBinaryId && medplumPatientId) {
-      try {
-        const docRef = await createDocumentReference(c.env, {
-          patientId: medplumPatientId,
-          binaryId: body.bloodworkBinaryId,
-          contentType: body.bloodworkContentType || "application/pdf",
-          description: `Lab results for ${serviceType} intake`,
-        });
-        bloodworkDocRefId = docRef.id;
-      } catch (err) {
-        console.error("DocumentReference creation failed:", err);
-      }
     }
   } catch (err) {
     console.error("Medplum patient creation failed:", err);
@@ -769,8 +751,7 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
       visitType: routing?.visitType || "async",
       dosingResult: dosingResult,
       bloodworkStatus,
-      bloodworkBinaryId: body.bloodworkBinaryId,
-      bloodworkDocRefId,
+      bloodworkR2Key: body.bloodworkR2Key,
       bloodworkKitPurchased: bloodworkStatus === "buy-kit",
       bloodworkKitPaymentId,
       answers: body.answers || {},

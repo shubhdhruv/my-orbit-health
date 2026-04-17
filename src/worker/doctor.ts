@@ -20,13 +20,8 @@ import {
   buildPatientShippedEmail,
   buildPatientDeliveredEmail,
 } from "./email";
-import {
-  createComposition,
-  createDocumentReference,
-  fhirRead,
-  fhirSearch,
-  uploadBinary,
-} from "./medplum";
+import { createComposition, fhirRead, fhirSearch } from "./medplum";
+import { putBloodworkObject } from "./r2";
 
 const doctor = new Hono<{ Bindings: Env }>();
 
@@ -559,9 +554,8 @@ doctor.post("/case/:id/update-order", async (c) => {
 
 // ─── Buy-Kit Results Upload ─────────────────────────────────
 // For buy-kit cases: doctor/admin uploads the kit results PDF here.
-// - Stores file in Medplum Binary (reuse uploadBinary)
-// - Links it to the patient via DocumentReference (best-effort)
-// - Sets bloodworkBinaryId + bloodworkReceivedAt on the PendingCase
+// - Stores file in Cloudflare R2 (bloodworkR2Key)
+// - Sets bloodworkReceivedAt on the PendingCase
 // PRX lab-result routing will come through the (future) lab vendor
 // integration, not from here.
 doctor.post("/case/:id/upload-kit-results", async (c) => {
@@ -587,35 +581,20 @@ doctor.post("/case/:id/upload-kit-results", async (c) => {
   if (!allowed.includes(file.type))
     return c.json({ error: "File type not supported" }, 400);
 
-  // 1. Upload raw bytes to Medplum Binary
-  let binaryId: string;
+  // 1. Upload raw bytes to R2
+  let r2Key: string;
   try {
     const arrayBuffer = await file.arrayBuffer();
-    const binary = await uploadBinary(c.env, arrayBuffer, file.type);
-    binaryId = binary.id;
+    const put = await putBloodworkObject(c.env, arrayBuffer, file.type);
+    r2Key = put.key;
   } catch (err) {
-    console.error("Kit results Binary upload failed:", err);
+    console.error("Kit results R2 upload failed:", err);
     return c.json({ error: "Upload failed" }, 500);
   }
 
-  // 2. Link Binary → Patient via DocumentReference (best-effort; mirrors intake)
-  if (pendingCase.medplumPatientId) {
-    try {
-      const docRef = await createDocumentReference(c.env, {
-        patientId: pendingCase.medplumPatientId,
-        binaryId,
-        contentType: file.type,
-        description: `Kit results for ${pendingCase.serviceType}`,
-      });
-      pendingCase.bloodworkDocRefId = docRef.id;
-    } catch (err) {
-      console.error("DocumentReference creation failed:", err);
-    }
-  }
-
-  // 3. Persist on PendingCase — the act of uploading IS marking received.
+  // 2. Persist on PendingCase — the act of uploading IS marking received.
   const now = new Date().toISOString();
-  pendingCase.bloodworkBinaryId = binaryId;
+  pendingCase.bloodworkR2Key = r2Key;
   if (!pendingCase.bloodworkReceivedAt) {
     pendingCase.bloodworkReceivedAt = now;
   }
@@ -626,7 +605,7 @@ doctor.post("/case/:id/upload-kit-results", async (c) => {
 
   return c.json({
     success: true,
-    binaryId,
+    r2Key,
     bloodworkReceivedAt: pendingCase.bloodworkReceivedAt,
   });
 });
@@ -1233,15 +1212,18 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
   const expired = new Date(c.authExpiresAt).getTime() < Date.now();
 
   // Build bloodwork section
+  // Prefer R2 key (current); fall back to legacy Medplum Binary ID for pre-R2 cases.
+  const labsUploaded = !!(c.bloodworkR2Key || c.bloodworkBinaryId);
+  const labsFileLabel = c.bloodworkR2Key || c.bloodworkBinaryId || "";
   let bloodworkHtml = "";
   if (c.bloodworkStatus && c.bloodworkStatus !== "not-required") {
     let statusContent = "";
-    if (c.bloodworkStatus === "have-labs" && c.bloodworkBinaryId) {
+    if (c.bloodworkStatus === "have-labs" && labsUploaded) {
       statusContent =
         '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">' +
         '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534">LABS UPLOADED</span>' +
-        '<span style="font-size:12px;color:#888">File ID: ' +
-        escapeHtml(c.bloodworkBinaryId) +
+        '<span style="font-size:12px;color:#888">File: ' +
+        escapeHtml(labsFileLabel) +
         "</span>" +
         "</div>";
     } else if (c.bloodworkStatus === "have-labs") {
@@ -1254,7 +1236,7 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
       const kitBadge = c.bloodworkKitShipped
         ? '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dbeafe;color:#1e40af">KIT SHIPPED</span>'
         : '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fef3c7;color:#92400e">KIT TO SHIP</span>';
-      const resultsBadge = c.bloodworkBinaryId
+      const resultsBadge = labsUploaded
         ? ' <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534">RESULTS UPLOADED</span>'
         : "";
       statusContent =
@@ -1262,7 +1244,7 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
         kitBadge +
         resultsBadge +
         '<span style="font-size:12px;color:#888">Patient paid for the HRT Clearance Kit. ' +
-        (c.bloodworkBinaryId
+        (labsUploaded
           ? "Results uploaded — ready to review."
           : c.bloodworkKitShipped
             ? "Waiting on results. Upload the lab report below when received."
@@ -1270,7 +1252,7 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
         "</span>" +
         "</div>";
       // Show upload form once the kit has shipped and no results uploaded yet
-      if (c.bloodworkKitShipped && !c.bloodworkBinaryId) {
+      if (c.bloodworkKitShipped && !labsUploaded) {
         statusContent +=
           '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #e8e8e8">' +
           '<label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:#333">Upload Kit Results</label>' +
@@ -1289,7 +1271,7 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
   // Compute approval gate
   const labsRequired =
     c.bloodworkStatus === "have-labs" || c.bloodworkStatus === "buy-kit";
-  const labsReady = !!c.bloodworkBinaryId; // Admin uploads kit results under the same field
+  const labsReady = labsUploaded; // R2 key (new) or legacy Medplum Binary ID
   const labsBlocking = labsRequired && !labsReady;
   const canApprove = !expired && !!c.soapNoteId && !labsBlocking;
 

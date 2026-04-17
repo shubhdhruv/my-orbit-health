@@ -882,7 +882,7 @@ export function generateCheckoutHTML(
         const payload = {
           paymentMethodId: paymentMethodId,
           answers: intakeAnswers,
-          bloodworkBinaryId: intakeAnswers['_bloodworkBinaryId'] || undefined,
+          bloodworkR2Key: intakeAnswers['_bloodworkR2Key'] || undefined,
           disqualified,
           disqualifyReasons,
           selectedPlan,

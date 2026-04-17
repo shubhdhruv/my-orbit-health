@@ -609,8 +609,8 @@ export function generateIntakeFormHTML(
         const data = await res.json();
         if (data.success) {
           nameEl.textContent = file.name;
-          answers[STEPS[currentStepIndex].id] = data.binaryId;
-          answers['_bloodworkBinaryId'] = data.binaryId;
+          answers[STEPS[currentStepIndex].id] = data.r2Key;
+          answers['_bloodworkR2Key'] = data.r2Key;
           answers['_bloodworkFileName'] = file.name;
         } else {
           nameEl.textContent = data.error || 'Upload failed';

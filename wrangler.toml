@@ -13,6 +13,10 @@ MEDPLUM_BASE_URL = "https://api.medplum.com"
 binding = "PARTNERS"
 id = "92bb2fea9284478ba3ce1438ca0898b3"
 
+[[r2_buckets]]
+binding = "BLOODWORK_R2"
+bucket_name = "moh-bloodwork"
+
 [assets]
 directory = "./public"
 binding = "ASSETS"
