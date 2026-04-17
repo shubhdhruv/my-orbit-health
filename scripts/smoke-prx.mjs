@@ -29,17 +29,11 @@
 //   In another terminal: `wrangler tail` (or the dev terminal) — grep
 //   for `[PRX]` log lines emitted from doctor.ts.
 
-import { createHash } from "node:crypto";
-
 const BASE_URL = process.env.BASE_URL || "http://localhost:8787";
 const DOCTOR_PASSWORD = process.env.DOCTOR_PASSWORD || "";
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 const CASE_ID = process.argv[2];
-
-function sha256(s) {
-  return createHash("sha256").update(s).digest("hex");
-}
 
 function die(msg) {
   console.error(`\n✖ ${msg}\n`);
