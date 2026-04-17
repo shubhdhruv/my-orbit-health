@@ -55,6 +55,8 @@ import {
   uploadBinary,
   createDocumentReference,
 } from "./medplum";
+import { submitUnifiedIntake, getEncounterMapping } from "./prescribe-rx";
+import type { UnifiedIntakeInput } from "./prescribe-rx";
 import { routePatient, RoutingResult } from "../lib/router";
 import { evaluateDosing, DosingResult } from "../lib/dosing";
 import { notifyOnIntake } from "./notify";
@@ -596,6 +598,70 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
     // Don't fail — payment is authorized, we can create the patient later
   }
 
+  // 3.1. Dual-write: submit intake to PrescribeRx (new EMR).
+  //       Non-blocking — if PrescribeRx fails or isn't configured, we log
+  //       and continue. Once migration is complete Medplum calls above will
+  //       be removed and this becomes the primary path.
+  let prescribeRxPatientChartId: string | undefined;
+  let prescribeRxEncounterId: string | undefined;
+  const prxMapping = getEncounterMapping(serviceType as any);
+  if (prxMapping && prxMapping.encounterTypeId) {
+    try {
+      const prxInput: UnifiedIntakeInput = {
+        serviceId: serviceType as any,
+        patient: {
+          firstName: body.answers?.firstName || "",
+          lastName: body.answers?.lastName || "",
+          email: body.answers?.email || body.shipping?.email || "",
+          phone: body.answers?.phone || "",
+          dateOfBirth: body.answers?.dob || "",
+          gender: body.answers?.gender || "",
+          address: {
+            street: body.shipping?.street || "",
+            city: body.shipping?.city || "",
+            state: body.shipping?.state || "",
+            zip: body.shipping?.zip || "",
+          },
+        },
+        answers: body.answers || {},
+      };
+
+      // Pass vitals if present in intake answers
+      const heightIn = Number(body.answers?.heightInches);
+      const weightLb = Number(body.answers?.weightLbs);
+      if (heightIn || weightLb) {
+        prxInput.vitals = {
+          ...(heightIn ? { heightInches: heightIn } : {}),
+          ...(weightLb ? { weightLbs: weightLb } : {}),
+        };
+      }
+
+      // Pass medical history fields if present
+      if (
+        body.answers?.allergies ||
+        body.answers?.medications ||
+        body.answers?.conditions
+      ) {
+        prxInput.allergies = body.answers.allergies || undefined;
+        prxInput.medications = body.answers.medications || undefined;
+        prxInput.conditions = body.answers.conditions || undefined;
+      }
+
+      const prxResult = await submitUnifiedIntake(c.env, prxInput);
+      prescribeRxPatientChartId = prxResult.patient_chart_id;
+      prescribeRxEncounterId = prxResult.encounter_id;
+      console.log(
+        `[PRX] Intake submitted: encounter=${prxResult.encounter_id} patient=${prxResult.patient_chart_id}`,
+      );
+    } catch (err) {
+      console.error("[PRX] Unified intake failed (non-blocking):", err);
+    }
+  } else {
+    console.log(
+      `[PRX] Skipped: no encounter type mapped for service ${serviceType}`,
+    );
+  }
+
   console.log(
     `[SUBMIT] ${slug}/${serviceType} patient=${body.answers?.email || "?"} amount=${chargeAmount} pi=${paymentIntentId}`,
   );
@@ -621,6 +687,8 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
           }
         : undefined,
       medplumPatientId,
+      prescribeRxPatientChartId,
+      prescribeRxEncounterId,
       partnerSlug: slug,
       partnerName: partner.businessName,
       serviceType,
