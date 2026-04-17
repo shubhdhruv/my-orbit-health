@@ -120,6 +120,10 @@ interface EncounterTypeMapping {
   encounterSlug: string;
   // Product IDs will be populated after catalog discovery in prod
   productIds?: string[];
+  // Lab test IDs + collection method for services that require bloodwork kits.
+  // Populated after catalog discovery in prod; when absent, createLabOrder is skipped.
+  labTestIds?: string[];
+  labCollectionMethod?: string;
 }
 
 /** Maps each MOH ServiceId to the PrescribeRx encounter type */

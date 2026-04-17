@@ -20,10 +20,17 @@ import {
   buildPatientShippedEmail,
   buildPatientDeliveredEmail,
 } from "./email";
-import { createComposition, fhirRead, fhirSearch } from "./medplum";
+import {
+  createComposition,
+  downloadBinary,
+  fhirRead,
+  fhirSearch,
+} from "./medplum";
 import {
   createOrder,
+  createLabOrder,
   reportTransaction,
+  uploadLabResults,
   getEncounterMapping,
 } from "./prescribe-rx";
 
@@ -608,17 +615,150 @@ doctor.post("/case/:id/update-order", async (c) => {
   // All fields are idempotent — setting them again just overwrites the timestamp.
   if (newStatus === "bloodwork") {
     const now = new Date().toISOString();
-    if (body.bloodworkKitShipped) {
+    const firedKitShipped = !!body.bloodworkKitShipped;
+    const firedReceived = !!body.bloodworkReceived;
+
+    if (firedKitShipped) {
       pendingCase.bloodworkKitShipped = true;
       pendingCase.bloodworkKitShippedAt = now;
     }
-    if (body.bloodworkReceived) {
+    if (firedReceived) {
       pendingCase.bloodworkReceivedAt = now;
     }
     if (body.bloodworkReviewed) {
       pendingCase.bloodworkReviewedAt = now;
     }
+    // Save first — mirrors Session 3 pattern so PRX background write can't race.
     await savePendingCase(c.env.PARTNERS, pendingCase);
+
+    // PrescribeRx: lab order on kit shipped (buy-kit only), results upload on received.
+    // Requires prescribeRxPatientChartId + prescribeRxEncounterId from intake dual-write.
+    // Non-blocking via waitUntil — doctor/admin gets instant response.
+    const hasPrxIds =
+      !!pendingCase.prescribeRxPatientChartId &&
+      !!pendingCase.prescribeRxEncounterId;
+    // Dedup on existing PRX artifacts — PRX side-effects aren't idempotent,
+    // so retries / double-clicks would otherwise create duplicate orders/uploads.
+    const shouldOrderLab =
+      firedKitShipped &&
+      pendingCase.bloodworkStatus === "buy-kit" &&
+      !pendingCase.prescribeRxLabOrderId;
+    const shouldUploadLab =
+      firedReceived &&
+      !!pendingCase.bloodworkBinaryId &&
+      !pendingCase.prescribeRxLabResultsUploadedAt;
+
+    if (hasPrxIds && (shouldOrderLab || shouldUploadLab)) {
+      const envRef = c.env;
+      const caseId = id;
+      const patientChartId = pendingCase.prescribeRxPatientChartId!;
+      const encounterId = pendingCase.prescribeRxEncounterId!;
+      const serviceType = pendingCase.serviceType;
+      const binaryId = pendingCase.bloodworkBinaryId;
+
+      c.executionCtx.waitUntil(
+        (async () => {
+          // Create PRX lab order when the kit ships (buy-kit path only)
+          if (shouldOrderLab) {
+            const mapping = getEncounterMapping(serviceType as any);
+            if (mapping?.labTestIds?.length && mapping.labCollectionMethod) {
+              try {
+                const labOrder = await createLabOrder(envRef, {
+                  patientChartId,
+                  encounterId,
+                  labTestIds: mapping.labTestIds,
+                  collectionMethod: mapping.labCollectionMethod,
+                });
+                console.log(
+                  `[PRX] Lab order created: ${labOrder.id} for case ${caseId}`,
+                );
+                try {
+                  const updatedCase = await getPendingCase(
+                    envRef.PARTNERS,
+                    caseId,
+                  );
+                  if (updatedCase) {
+                    updatedCase.prescribeRxLabOrderId = labOrder.id;
+                    await savePendingCase(envRef.PARTNERS, updatedCase);
+                    console.log(
+                      `[PRX] PendingCase ${caseId} updated with labOrderId`,
+                    );
+                  }
+                } catch (err) {
+                  console.error(
+                    `[PRX] Failed to save labOrderId to KV for case ${caseId}:`,
+                    err,
+                  );
+                }
+              } catch (err) {
+                console.error(
+                  `[PRX] Lab order creation failed for case ${caseId} (non-blocking):`,
+                  err,
+                );
+              }
+            } else {
+              console.log(
+                `[PRX] Skipped lab order: no labTestIds/collectionMethod mapped for ${serviceType}`,
+              );
+            }
+          }
+
+          // Upload lab results when the doctor marks labs received
+          if (shouldUploadLab && binaryId) {
+            try {
+              const { data, contentType } = await downloadBinary(
+                envRef,
+                binaryId,
+              );
+              // Strip media-type params (e.g. "text/plain;charset=utf-8" → "plain")
+              const subtype = (contentType.split("/")[1] || "bin")
+                .split(";")[0]
+                .trim();
+              const ext = contentType.includes("pdf")
+                ? "pdf"
+                : subtype || "bin";
+              const result = await uploadLabResults(
+                envRef,
+                patientChartId,
+                data,
+                `lab-results-${caseId}.${ext}`,
+                contentType,
+              );
+              console.log(
+                `[PRX] Lab results uploaded: ${result.id} for case ${caseId}`,
+              );
+              // Persist upload timestamp so a retry won't double-upload to PRX
+              try {
+                const updatedCase = await getPendingCase(
+                  envRef.PARTNERS,
+                  caseId,
+                );
+                if (updatedCase) {
+                  updatedCase.prescribeRxLabResultsUploadedAt =
+                    new Date().toISOString();
+                  await savePendingCase(envRef.PARTNERS, updatedCase);
+                }
+              } catch (err) {
+                console.error(
+                  `[PRX] Failed to save labResultsUploadedAt for case ${caseId}:`,
+                  err,
+                );
+              }
+            } catch (err) {
+              console.error(
+                `[PRX] Lab results upload failed for case ${caseId} (non-blocking):`,
+                err,
+              );
+            }
+          }
+        })(),
+      );
+    } else if (!hasPrxIds && (shouldOrderLab || shouldUploadLab)) {
+      console.log(
+        `[PRX] Skipped lab flow: case ${id} missing PRX IDs (patientChartId=${pendingCase.prescribeRxPatientChartId}, encounterId=${pendingCase.prescribeRxEncounterId})`,
+      );
+    }
+
     return c.json({
       success: true,
       bloodworkKitShippedAt: pendingCase.bloodworkKitShippedAt,

@@ -539,6 +539,42 @@ interface FhirBinary {
   contentType: string;
 }
 
+export async function downloadBinary(
+  env: Env,
+  binaryId: string,
+): Promise<{ data: ArrayBuffer; contentType: string }> {
+  // Medplum Binary IDs are UUIDs. Validate before URL interpolation to prevent
+  // path traversal / unrelated-resource access via our bearer token.
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      binaryId,
+    )
+  ) {
+    throw new Error(`Invalid binaryId: expected UUID, got "${binaryId}"`);
+  }
+  const token = await getMedplumToken(env);
+  // Accept: application/octet-stream forces Medplum to return raw bytes.
+  // Without this, Medplum may return the FHIR JSON wrapper (with base64 `data`),
+  // which would silently upload JSON-as-PDF to PrescribeRx.
+  const res = await fetch(
+    `${env.MEDPLUM_BASE_URL}/fhir/R4/Binary/${binaryId}`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/octet-stream",
+      },
+    },
+  );
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Medplum Binary download failed (${res.status}): ${err}`);
+  }
+  const data = await res.arrayBuffer();
+  const contentType = res.headers.get("Content-Type") || "application/pdf";
+  return { data, contentType };
+}
+
 export async function uploadBinary(
   env: Env,
   data: ArrayBuffer,
