@@ -15,6 +15,7 @@ import {
   createQuestionnaireResponse,
   createComposition,
 } from "./medplum";
+import { healthCheck as prescribeRxHealthCheck } from "./prescribe-rx";
 
 const admin = new Hono<{ Bindings: Env }>();
 
@@ -1565,6 +1566,13 @@ admin.get("/medplum-healthcheck", async (c) => {
     },
     allPassed ? 200 : 500,
   );
+});
+
+// ─── PrescribeRx Health Check ────────────────────────────────
+
+admin.get("/prescribe-rx-healthcheck", async (c) => {
+  const result = await prescribeRxHealthCheck(c.env);
+  return c.json(result, result.ok ? 200 : 500);
 });
 
 // ─── Doctor Setup Token ──────────────────────────────────────

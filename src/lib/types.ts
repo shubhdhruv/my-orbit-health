@@ -19,6 +19,11 @@ export interface Env {
   MEDPLUM_CLIENT_SECRET: string;
   MEDPLUM_BASE_URL: string;
   DOCTOR_PRACTITIONER_ID: string;
+  // PrescribeRx (replacing Medplum — optional until cutover)
+  PRESCRIBE_RX_BASE_URL?: string;
+  PRESCRIBE_RX_API_TOKEN?: string;
+  PRESCRIBE_RX_CLIENT_ID?: string;
+  PRESCRIBE_RX_SALES_ORG_ID?: string;
 }
 
 export type ServiceId =
@@ -151,6 +156,9 @@ export interface PendingCase {
   };
   healthiePatientId?: string;
   medplumPatientId?: string;
+  prescribeRxPatientChartId?: string;
+  prescribeRxEncounterId?: string;
+  prescribeRxOrderId?: string;
 
   // Service
   partnerSlug: string;
