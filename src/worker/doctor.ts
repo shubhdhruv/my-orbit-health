@@ -21,6 +21,11 @@ import {
   buildPatientDeliveredEmail,
 } from "./email";
 import { createComposition, fhirRead, fhirSearch } from "./medplum";
+import {
+  createOrder,
+  reportTransaction,
+  getEncounterMapping,
+} from "./prescribe-rx";
 
 const doctor = new Hono<{ Bindings: Env }>();
 
@@ -325,11 +330,104 @@ doctor.post("/case/:id/approve", async (c) => {
     console.error("Approved email failed:", err);
   }
 
-  // 4. Update case
+  // 4. Update case (before waitUntil so PRX background write can't race)
   pendingCase.status = "approved";
   pendingCase.orderStatus = "prescribed";
   pendingCase.resolvedAt = new Date().toISOString();
   await savePendingCase(c.env.PARTNERS, pendingCase);
+
+  // 5. PrescribeRx: create order + report Stripe payment (non-blocking)
+  //    Runs in waitUntil so doctor gets instant response.
+  //    Requires prescribeRxPatientChartId + prescribeRxEncounterId from intake dual-write.
+  //    Skips when STRIPE_BYPASS=true (no real payment to report).
+  if (
+    pendingCase.prescribeRxPatientChartId &&
+    pendingCase.prescribeRxEncounterId &&
+    c.env.STRIPE_BYPASS !== "true"
+  ) {
+    const envRef = c.env;
+    const caseId = id;
+    const patientChartId = pendingCase.prescribeRxPatientChartId;
+    const encounterId = pendingCase.prescribeRxEncounterId;
+    const chargeAmountCents = Math.round(pendingCase.chargeAmount * 100);
+    const stripePI = pendingCase.paymentIntentId;
+    const serviceType = pendingCase.serviceType;
+    const mapping = getEncounterMapping(serviceType as any);
+
+    c.executionCtx.waitUntil(
+      (async () => {
+        let orderId: string | undefined;
+
+        // Create order if product IDs are mapped for this service
+        if (mapping?.productIds?.length) {
+          try {
+            const order = await createOrder(envRef, {
+              patientChartId,
+              lines: mapping.productIds.map((pid) => ({
+                productId: pid,
+                quantity: 1,
+              })),
+            });
+            orderId = order.id;
+            console.log(
+              `[PRX] Order created: ${order.id} (${order.order_number}) for case ${caseId}`,
+            );
+          } catch (err) {
+            console.error(
+              `[PRX] Order creation failed for case ${caseId} (non-blocking):`,
+              err,
+            );
+          }
+        } else {
+          console.log(
+            `[PRX] Skipped order creation: no productIds mapped for ${serviceType}`,
+          );
+        }
+
+        // Save PRX order ID to KV (even if reportTransaction fails below)
+        if (orderId) {
+          try {
+            const updatedCase = await getPendingCase(envRef.PARTNERS, caseId);
+            if (updatedCase) {
+              updatedCase.prescribeRxOrderId = orderId;
+              await savePendingCase(envRef.PARTNERS, updatedCase);
+              console.log(`[PRX] PendingCase ${caseId} updated with orderId`);
+            }
+          } catch (err) {
+            console.error(
+              `[PRX] Failed to save orderId to KV for case ${caseId}:`,
+              err,
+            );
+          }
+        }
+
+        // Report the Stripe payment to PrescribeRx
+        try {
+          const txn = await reportTransaction(envRef, {
+            encounterId,
+            orderId,
+            amount: chargeAmountCents,
+            stripePaymentIntentId: stripePI,
+          });
+          console.log(
+            `[PRX] Transaction reported: ${txn.id} ($${pendingCase.chargeAmount}) for case ${caseId}`,
+          );
+        } catch (err) {
+          console.error(
+            `[PRX] Transaction report failed for case ${caseId} (non-blocking):`,
+            err,
+          );
+        }
+      })(),
+    );
+  } else if (
+    !pendingCase.prescribeRxPatientChartId ||
+    !pendingCase.prescribeRxEncounterId
+  ) {
+    console.log(
+      `[PRX] Skipped order: case ${id} missing PRX IDs (patientChartId=${pendingCase.prescribeRxPatientChartId}, encounterId=${pendingCase.prescribeRxEncounterId})`,
+    );
+  }
 
   return c.json({ success: true });
 });
