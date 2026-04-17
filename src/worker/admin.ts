@@ -857,9 +857,9 @@ function renderPartnerDetail(
       </div>
     </div>
 
-    <!-- Medplum Integration -->
+    <!-- Legacy EHR Integration (Medplum; PrescribeRx is source of truth post-migration) -->
     <div class="card">
-      <h3>Medplum Integration</h3>
+      <h3>Legacy EHR Integration</h3>
       <table>
         <tr><td style="padding:6px 0;color:#666;font-size:13px;width:180px">Organization ID</td><td style="padding:6px 0;font-size:13px;font-family:monospace">${partner.medplumOrgId ? `<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534;margin-right:6px">LINKED</span>${partner.medplumOrgId}` : '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fecaca;color:#991b1b">NOT SET</span>'}</td></tr>
         ${(partner.services || [])

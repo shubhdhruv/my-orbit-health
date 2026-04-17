@@ -212,7 +212,7 @@ doctor.get("/case/:id/medplum-data", async (c) => {
   const pendingCase = await getPendingCase(c.env.PARTNERS, id);
   if (!pendingCase) return c.json({ error: "Case not found" }, 404);
   if (!pendingCase.medplumPatientId)
-    return c.json({ error: "No Medplum patient linked" }, 404);
+    return c.json({ error: "No legacy EHR patient linked" }, 404);
 
   try {
     // Read patient
@@ -243,7 +243,7 @@ doctor.get("/case/:id/medplum-data", async (c) => {
       compositions,
     });
   } catch (err) {
-    return c.json({ error: `Medplum read failed: ${String(err)}` }, 500);
+    return c.json({ error: `Legacy EHR read failed: ${String(err)}` }, 500);
   }
 });
 
@@ -1695,13 +1695,13 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
       </table>
     </div>
 
-    <!-- Medplum Verification -->
+    <!-- Legacy EHR Verification (Medplum; PrescribeRx is source of truth post-migration) -->
     ${
       c.medplumPatientId
         ? `
     <div class="card" id="medplumCard">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <h3 style="font-size:16px;margin:0">Medplum Verification</h3>
+        <h3 style="font-size:16px;margin:0">Legacy EHR Verification</h3>
         <button class="btn" onclick="loadMedplumData()" id="btnMedplum" style="background:#6366f1;color:#fff;padding:8px 16px;font-size:12px">Verify Data</button>
       </div>
       <div id="medplumDataContainer" style="display:none"></div>
@@ -1845,7 +1845,7 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
         <p style="font-size:14px;color:#666">This prescription was denied on ${c.resolvedAt ? new Date(c.resolvedAt).toLocaleString() : "—"}.</p>
         ${c.denyReason ? `<div style="background:#f8f9fa;border-radius:8px;padding:12px 16px;margin-top:12px"><p style="font-size:13px;font-weight:600;color:#666;margin:0 0 4px 0">Reason</p><p style="font-size:14px;color:#333;margin:0">${escapeHtml(c.denyReason)}</p></div>` : ""}
         <p style="font-size:14px;color:#666;margin-top:8px">Payment authorization was cancelled and the patient was notified.</p>
-        ${c.medplumPatientId ? `<p style="font-size:12px;color:#888;margin-top:4px">Medplum Patient: ${escapeHtml(c.medplumPatientId)}</p>` : ""}
+        ${c.medplumPatientId ? `<p style="font-size:12px;color:#888;margin-top:4px">Legacy EHR Patient: ${escapeHtml(c.medplumPatientId)}</p>` : ""}
       `
       }
     </div>
@@ -2147,7 +2147,7 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
         html += '<tr><td style="padding:4px 0;color:#666;font-size:12px">Phone</td><td style="padding:4px 0;font-size:13px">' + esc(phone ? phone.value : 'N/A') + '</td></tr>';
         html += '<tr><td style="padding:4px 0;color:#666;font-size:12px">DOB</td><td style="padding:4px 0;font-size:13px">' + esc(p.birthDate || 'N/A') + '</td></tr>';
         html += '<tr><td style="padding:4px 0;color:#666;font-size:12px">Gender</td><td style="padding:4px 0;font-size:13px">' + esc(p.gender || 'N/A') + '</td></tr>';
-        html += '<tr><td style="padding:4px 0;color:#666;font-size:12px">Medplum ID</td><td style="padding:4px 0;font-size:11px;font-family:monospace;color:#888">' + esc(p.id) + '</td></tr>';
+        html += '<tr><td style="padding:4px 0;color:#666;font-size:12px">Legacy EHR ID</td><td style="padding:4px 0;font-size:11px;font-family:monospace;color:#888">' + esc(p.id) + '</td></tr>';
         html += '</table>';
 
         // QuestionnaireResponses
@@ -2170,15 +2170,15 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
           });
         }
 
-        html += '<div style="margin-top:8px"><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534">VERIFIED — Data matches Medplum</span></div>';
+        html += '<div style="margin-top:8px"><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534">VERIFIED — Data matches legacy EHR</span></div>';
 
         container.innerHTML = html;
         container.style.display = 'block';
         btn.textContent = 'Verified';
         btn.style.background = '#22c55e';
-        showToast('Medplum data loaded successfully', '#22c55e');
+        showToast('Legacy EHR data loaded successfully', '#22c55e');
       } catch (err) {
-        container.innerHTML = '<p style="color:#dc2626;font-size:13px">Network error loading Medplum data</p>';
+        container.innerHTML = '<p style="color:#dc2626;font-size:13px">Network error loading legacy EHR data</p>';
         container.style.display = 'block';
         btn.disabled = false;
         btn.textContent = 'Retry';
