@@ -22,9 +22,11 @@ import {
 } from "./email";
 import {
   createComposition,
+  createDocumentReference,
   downloadBinary,
   fhirRead,
   fhirSearch,
+  uploadBinary,
 } from "./medplum";
 import {
   createOrder,
@@ -775,6 +777,141 @@ doctor.post("/case/:id/update-order", async (c) => {
   );
 });
 
+// ─── Buy-Kit Results Upload ─────────────────────────────────
+// For buy-kit cases: doctor/admin uploads the kit results PDF here.
+// - Stores file in Medplum Binary (reuse uploadBinary)
+// - Links it to the patient via DocumentReference (best-effort)
+// - Sets bloodworkBinaryId + bloodworkReceivedAt on the PendingCase
+// - Fires PRX uploadLabResults in waitUntil (same dedup guards as update-order)
+// Without this endpoint, bloodworkBinaryId is never populated for buy-kit,
+// and the Session 4 PRX upload path never runs for those cases.
+doctor.post("/case/:id/upload-kit-results", async (c) => {
+  const id = c.req.param("id");
+  const pendingCase = await getPendingCase(c.env.PARTNERS, id);
+  if (!pendingCase) return c.json({ error: "Case not found" }, 404);
+  if (pendingCase.bloodworkStatus !== "buy-kit") {
+    return c.json(
+      { error: "Kit results upload only valid for buy-kit cases" },
+      400,
+    );
+  }
+
+  const formData = await c.req.formData();
+  const file = formData.get("file") as File | null;
+  if (!file) return c.json({ error: "No file provided" }, 400);
+
+  const maxSize = 10 * 1024 * 1024; // 10MB — matches intake upload-labs
+  if (file.size > maxSize)
+    return c.json({ error: "File too large (max 10MB)" }, 400);
+
+  const allowed = ["application/pdf", "image/jpeg", "image/png", "image/heic"];
+  if (!allowed.includes(file.type))
+    return c.json({ error: "File type not supported" }, 400);
+
+  // 1. Upload raw bytes to Medplum Binary
+  let binaryId: string;
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const binary = await uploadBinary(c.env, arrayBuffer, file.type);
+    binaryId = binary.id;
+  } catch (err) {
+    console.error("Kit results Binary upload failed:", err);
+    return c.json({ error: "Upload failed" }, 500);
+  }
+
+  // 2. Link Binary → Patient via DocumentReference (best-effort; mirrors intake)
+  if (pendingCase.medplumPatientId) {
+    try {
+      const docRef = await createDocumentReference(c.env, {
+        patientId: pendingCase.medplumPatientId,
+        binaryId,
+        contentType: file.type,
+        description: `Kit results for ${pendingCase.serviceType}`,
+      });
+      pendingCase.bloodworkDocRefId = docRef.id;
+    } catch (err) {
+      console.error("DocumentReference creation failed:", err);
+    }
+  }
+
+  // 3. Persist on PendingCase — the act of uploading IS marking received.
+  //    Save first (before waitUntil) so the PRX background write can't race.
+  const now = new Date().toISOString();
+  pendingCase.bloodworkBinaryId = binaryId;
+  if (!pendingCase.bloodworkReceivedAt) {
+    pendingCase.bloodworkReceivedAt = now;
+  }
+  await savePendingCase(c.env.PARTNERS, pendingCase);
+
+  // 4. Fire PRX upload in waitUntil — mirrors the bloodworkReceived branch
+  //    in update-order. Dedup on prescribeRxLabResultsUploadedAt since PRX
+  //    side-effects aren't idempotent.
+  const hasPrxIds =
+    !!pendingCase.prescribeRxPatientChartId &&
+    !!pendingCase.prescribeRxEncounterId;
+  const shouldUploadLab = !pendingCase.prescribeRxLabResultsUploadedAt;
+
+  if (hasPrxIds && shouldUploadLab) {
+    const envRef = c.env;
+    const caseId = id;
+    const patientChartId = pendingCase.prescribeRxPatientChartId!;
+    const uploadedBinaryId = binaryId;
+
+    c.executionCtx.waitUntil(
+      (async () => {
+        try {
+          const { data, contentType } = await downloadBinary(
+            envRef,
+            uploadedBinaryId,
+          );
+          const subtype = (contentType.split("/")[1] || "bin")
+            .split(";")[0]
+            .trim();
+          const ext = contentType.includes("pdf") ? "pdf" : subtype || "bin";
+          const result = await uploadLabResults(
+            envRef,
+            patientChartId,
+            data,
+            `lab-results-${caseId}.${ext}`,
+            contentType,
+          );
+          console.log(
+            `[PRX] Kit results uploaded: ${result.id} for case ${caseId}`,
+          );
+          try {
+            const updatedCase = await getPendingCase(envRef.PARTNERS, caseId);
+            if (updatedCase) {
+              updatedCase.prescribeRxLabResultsUploadedAt =
+                new Date().toISOString();
+              await savePendingCase(envRef.PARTNERS, updatedCase);
+            }
+          } catch (err) {
+            console.error(
+              `[PRX] Failed to save labResultsUploadedAt for case ${caseId}:`,
+              err,
+            );
+          }
+        } catch (err) {
+          console.error(
+            `[PRX] Kit results PRX upload failed for case ${caseId} (non-blocking):`,
+            err,
+          );
+        }
+      })(),
+    );
+  } else if (!hasPrxIds) {
+    console.log(
+      `[PRX] Skipped kit results upload: case ${id} missing PRX IDs (patientChartId=${pendingCase.prescribeRxPatientChartId}, encounterId=${pendingCase.prescribeRxEncounterId})`,
+    );
+  }
+
+  return c.json({
+    success: true,
+    binaryId,
+    bloodworkReceivedAt: pendingCase.bloodworkReceivedAt,
+  });
+});
+
 // ─── CSV Tracking Import (bulk mark-shipped) ────────────────
 // Pair to /export.csv. Paste-back flow: export approved cases,
 // hand-key into RxHQ portal, receive tracking numbers from RxHQ,
@@ -1398,15 +1535,31 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
       const kitBadge = c.bloodworkKitShipped
         ? '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dbeafe;color:#1e40af">KIT SHIPPED</span>'
         : '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fef3c7;color:#92400e">KIT TO SHIP</span>';
+      const resultsBadge = c.bloodworkBinaryId
+        ? ' <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534">RESULTS UPLOADED</span>'
+        : "";
       statusContent =
-        '<div style="display:flex;align-items:center;gap:8px">' +
+        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
         kitBadge +
+        resultsBadge +
         '<span style="font-size:12px;color:#888">Patient paid for the HRT Clearance Kit. ' +
-        (c.bloodworkKitShipped
-          ? "Waiting on results."
-          : "Order kit from Solutions For Your Wellness and ship to patient.") +
+        (c.bloodworkBinaryId
+          ? "Results uploaded — ready to review."
+          : c.bloodworkKitShipped
+            ? "Waiting on results. Upload the lab report below when received."
+            : "Order kit from Solutions For Your Wellness and ship to patient.") +
         "</span>" +
         "</div>";
+      // Show upload form once the kit has shipped and no results uploaded yet
+      if (c.bloodworkKitShipped && !c.bloodworkBinaryId) {
+        statusContent +=
+          '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #e8e8e8">' +
+          '<label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:#333">Upload Kit Results</label>' +
+          '<input type="file" id="kitResultsFile" accept=".pdf,.jpg,.jpeg,.png,.heic" style="display:block;margin-bottom:8px;font-size:13px">' +
+          '<button class="btn" id="btnUploadKit" onclick="uploadKitResults()" style="background:#4F46E5;color:#fff;font-size:13px;padding:8px 14px">Upload &amp; Mark Received</button>' +
+          '<p style="font-size:11px;color:#888;margin-top:6px">PDF / JPG / PNG / HEIC · Max 10MB</p>' +
+          "</div>";
+      }
     }
     bloodworkHtml =
       '<div class="card"><h3 style="font-size:16px;margin-bottom:16px">Bloodwork</h3>' +
@@ -1905,6 +2058,40 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
         }
       } catch (err) {
         showToast('Network error', '#dc2626');
+      }
+    }
+
+    async function uploadKitResults() {
+      const fileInput = document.getElementById('kitResultsFile');
+      const btn = document.getElementById('btnUploadKit');
+      const file = fileInput && fileInput.files && fileInput.files[0];
+      if (!file) { showToast('Select a file first', '#f59e0b'); return; }
+      if (!confirm('Upload these kit results and mark labs received?')) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Uploading...';
+
+      const fd = new FormData();
+      fd.append('file', file);
+
+      try {
+        const res = await fetch('/doctor/case/' + encodeURIComponent(CASE_ID) + '/upload-kit-results', {
+          method: 'POST',
+          body: fd,
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Kit results uploaded. Labs received.', '#22c55e');
+          setTimeout(() => window.location.reload(), 1200);
+        } else {
+          showToast(data.error || 'Upload failed', '#dc2626');
+          btn.disabled = false;
+          btn.textContent = 'Upload & Mark Received';
+        }
+      } catch (err) {
+        showToast('Network error uploading file', '#dc2626');
+        btn.disabled = false;
+        btn.textContent = 'Upload & Mark Received';
       }
     }
 
