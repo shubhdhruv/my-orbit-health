@@ -55,7 +55,11 @@ import {
   uploadBinary,
   createDocumentReference,
 } from "./medplum";
-import { submitUnifiedIntake, getEncounterMapping } from "./prescribe-rx";
+import {
+  submitUnifiedIntake,
+  getEncounterMapping,
+  searchPatient as searchPrxPatient,
+} from "./prescribe-rx";
 import type { UnifiedIntakeInput } from "./prescribe-rx";
 import { routePatient, RoutingResult } from "../lib/router";
 import { evaluateDosing, DosingResult } from "../lib/dosing";
@@ -599,63 +603,118 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
   }
 
   // 3.1. Dual-write: submit intake to PrescribeRx (new EMR).
-  //       Non-blocking — if PrescribeRx fails or isn't configured, we log
-  //       and continue. Once migration is complete Medplum calls above will
-  //       be removed and this becomes the primary path.
-  let prescribeRxPatientChartId: string | undefined;
-  let prescribeRxEncounterId: string | undefined;
+  //       Runs in waitUntil so the patient doesn't wait on the PRX round-trip.
+  //       On success, updates the PendingCase in KV with PRX IDs.
+  //       Once migration is complete, Medplum calls above will be removed.
   const prxMapping = getEncounterMapping(serviceType as any);
   if (prxMapping && prxMapping.encounterTypeId) {
-    try {
-      const prxInput: UnifiedIntakeInput = {
-        serviceId: serviceType as any,
-        patient: {
-          firstName: body.answers?.firstName || "",
-          lastName: body.answers?.lastName || "",
-          email: body.answers?.email || body.shipping?.email || "",
-          phone: body.answers?.phone || "",
-          dateOfBirth: body.answers?.dob || "",
-          gender: body.answers?.gender || "",
-          address: {
-            street: body.shipping?.street || "",
-            city: body.shipping?.city || "",
-            state: body.shipping?.state || "",
-            zip: body.shipping?.zip || "",
-          },
-        },
-        answers: body.answers || {},
-      };
-
-      // Pass vitals if present in intake answers
-      const heightIn = Number(body.answers?.heightInches);
-      const weightLb = Number(body.answers?.weightLbs);
-      if (heightIn || weightLb) {
-        prxInput.vitals = {
-          ...(heightIn ? { heightInches: heightIn } : {}),
-          ...(weightLb ? { weightLbs: weightLb } : {}),
-        };
-      }
-
-      // Pass medical history fields if present
-      if (
-        body.answers?.allergies ||
-        body.answers?.medications ||
-        body.answers?.conditions
-      ) {
-        prxInput.allergies = body.answers.allergies || undefined;
-        prxInput.medications = body.answers.medications || undefined;
-        prxInput.conditions = body.answers.conditions || undefined;
-      }
-
-      const prxResult = await submitUnifiedIntake(c.env, prxInput);
-      prescribeRxPatientChartId = prxResult.patient_chart_id;
-      prescribeRxEncounterId = prxResult.encounter_id;
-      console.log(
-        `[PRX] Intake submitted: encounter=${prxResult.encounter_id} patient=${prxResult.patient_chart_id}`,
-      );
-    } catch (err) {
-      console.error("[PRX] Unified intake failed (non-blocking):", err);
+    // Strip PII keys from answers — these are passed in the structured
+    // `patient` object; sending them again in `answers` leaks duplicates
+    // into PrescribeRx's questionnaire storage.
+    const PII_KEYS = new Set([
+      "firstName",
+      "lastName",
+      "email",
+      "phone",
+      "dob",
+      "gender",
+      "heightInches",
+      "weightLbs",
+      "allergies",
+      "medications",
+      "conditions",
+    ]);
+    const questionnaireAnswers: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(body.answers || {})) {
+      if (!PII_KEYS.has(k)) questionnaireAnswers[k] = v;
     }
+
+    const prxInput: UnifiedIntakeInput = {
+      serviceId: serviceType as any,
+      patient: {
+        firstName: body.answers?.firstName || "",
+        lastName: body.answers?.lastName || "",
+        email: body.answers?.email || body.shipping?.email || "",
+        phone: body.answers?.phone || "",
+        dateOfBirth: body.answers?.dob || "",
+        gender: body.answers?.gender || "",
+        address: {
+          street: body.shipping?.street || "",
+          city: body.shipping?.city || "",
+          state: body.shipping?.state || "",
+          zip: body.shipping?.zip || "",
+        },
+      },
+      answers: questionnaireAnswers as Record<
+        string,
+        string | string[] | boolean
+      >,
+    };
+
+    // Pass vitals if present in intake answers
+    const heightIn = Number(body.answers?.heightInches);
+    const weightLb = Number(body.answers?.weightLbs);
+    if (heightIn || weightLb) {
+      prxInput.vitals = {
+        ...(heightIn ? { heightInches: heightIn } : {}),
+        ...(weightLb ? { weightLbs: weightLb } : {}),
+      };
+    }
+
+    // Pass medical history fields if present
+    if (
+      body.answers?.allergies ||
+      body.answers?.medications ||
+      body.answers?.conditions
+    ) {
+      prxInput.allergies = body.answers.allergies || undefined;
+      prxInput.medications = body.answers.medications || undefined;
+      prxInput.conditions = body.answers.conditions || undefined;
+    }
+
+    // Capture refs needed inside waitUntil closure
+    const kvRef = c.env.PARTNERS;
+    const envRef = c.env;
+    const piId = paymentIntentId;
+
+    c.executionCtx.waitUntil(
+      (async () => {
+        try {
+          // Check for existing PRX patient to avoid duplicates on re-intake
+          const patientEmail = (
+            body.answers?.email ||
+            body.shipping?.email ||
+            ""
+          )
+            .toString()
+            .toLowerCase();
+          if (patientEmail) {
+            const existing = await searchPrxPatient(envRef, patientEmail);
+            if (existing) {
+              console.log(
+                `[PRX] Existing patient found: ${existing.patient_chart_id} — unified intake will update, not duplicate`,
+              );
+            }
+          }
+
+          const prxResult = await submitUnifiedIntake(envRef, prxInput);
+          console.log(
+            `[PRX] Intake submitted: encounter=${prxResult.encounter_id} patient=${prxResult.patient_chart_id}`,
+          );
+
+          // Update the PendingCase in KV with PRX IDs
+          const savedCase = await getPendingCase(kvRef, piId);
+          if (savedCase) {
+            savedCase.prescribeRxPatientChartId = prxResult.patient_chart_id;
+            savedCase.prescribeRxEncounterId = prxResult.encounter_id;
+            await savePendingCase(kvRef, savedCase);
+            console.log(`[PRX] PendingCase ${piId} updated with PRX IDs`);
+          }
+        } catch (err) {
+          console.error("[PRX] Unified intake failed (non-blocking):", err);
+        }
+      })(),
+    );
   } else {
     console.log(
       `[PRX] Skipped: no encounter type mapped for service ${serviceType}`,
@@ -687,8 +746,8 @@ intake.post("/:slug/:serviceType/submit", async (c) => {
           }
         : undefined,
       medplumPatientId,
-      prescribeRxPatientChartId,
-      prescribeRxEncounterId,
+      // prescribeRxPatientChartId + prescribeRxEncounterId are set
+      // asynchronously via waitUntil (step 3.1) after KV save
       partnerSlug: slug,
       partnerName: partner.businessName,
       serviceType,
