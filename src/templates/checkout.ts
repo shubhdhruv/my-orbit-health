@@ -751,7 +751,8 @@ export function generateCheckoutHTML(
     }
 
     function updateSummary() {
-      var perMonth = Math.round(selectedPlan.price / selectedPlan.months);
+      // selectedPlan.price is already the per-month price (data-price on plan cards)
+      var perMonth = selectedPlan.price;
       var billingNote = selectedPlan.months === 1 ? 'billed monthly on approval' : 'billed monthly for ' + selectedPlan.months + ' months';
       var labels = { 'monthly': 'Monthly Supply', '3-month': '3-Month Supply', '6-month': '6-Month Supply' };
       document.getElementById('planTag').textContent = labels[selectedPlan.id] + ' Plan';
@@ -759,7 +760,7 @@ export function generateCheckoutHTML(
 
       if (includePrimary) {
         if (appliedCoupon) {
-          var discountedPerMonth = Math.round(appliedCoupon.discountedPrice / selectedPlan.months);
+          var discountedPerMonth = appliedCoupon.discountedPrice;
           document.getElementById('planPrice').innerHTML =
             '<span style="text-decoration:line-through;color:#999;font-weight:400">$' + perMonth + '/mo</span> ' +
             '$' + discountedPerMonth + '/mo <span style="font-weight:400;font-size:12px;color:#888">' + billingNote + '</span>';
@@ -772,12 +773,12 @@ export function generateCheckoutHTML(
       var totalDiscount = appliedCoupon && includePrimary ? appliedCoupon.discount : 0;
       document.querySelectorAll('.addon-price-display').forEach(function(el) {
         var base = parseInt(el.dataset.base);
-        var total = addonPlanPrice(base, selectedPlan.months);
-        var addonPerMonth = Math.round(total / selectedPlan.months);
+        // addonPlanPrice returns the per-month price for the chosen plan duration
+        var addonPerMonth = addonPlanPrice(base, selectedPlan.months);
         if (appliedCoupon && appliedCoupon.type === 'percent') {
           var pct = Math.round(appliedCoupon.discount / (selectedPlan.price || 1) * 100) || 20;
-          var addonDiscount = Math.round(total * pct / 100);
-          var discAddonPerMonth = Math.round((total - addonDiscount) / selectedPlan.months);
+          var addonDiscount = Math.round(addonPerMonth * pct / 100);
+          var discAddonPerMonth = addonPerMonth - addonDiscount;
           totalDiscount += addonDiscount;
           el.innerHTML = '<span style="text-decoration:line-through;color:#999;font-weight:400">$' + addonPerMonth + '/mo</span> $' + discAddonPerMonth + '/mo <span style="font-weight:400;font-size:12px;color:#888">' + billingNote + '</span>';
         } else {
