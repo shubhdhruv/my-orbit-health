@@ -336,10 +336,14 @@ function renderLoginPage(
   .title { font-size:22px; font-weight:700; margin-bottom:6px; text-align:center; }
   .subtitle { font-size:14px; color:#6b7280; text-align:center; margin-bottom:24px; }
   label { display:block; font-size:13px; font-weight:600; color:#374151; margin-bottom:6px; }
-  input { width:100%; padding:14px 16px; border-radius:10px; border:1px solid #d1d5db; font-size:15px; font-family:inherit; outline:none; transition:border 0.2s; }
+  input { width:100%; padding:14px 48px 14px 16px; border-radius:10px; border:1px solid #d1d5db; font-size:15px; font-family:inherit; outline:none; transition:border 0.2s; }
   input:focus { border-color:var(--primary); }
   button { width:100%; padding:14px; border-radius:10px; background:var(--primary); color:#fff; font-weight:600; font-size:15px; border:none; cursor:pointer; font-family:inherit; margin-top:16px; }
   button:hover { opacity:0.92; }
+  .pw-wrap { position:relative; }
+  .pw-toggle { position:absolute; top:50%; right:10px; transform:translateY(-50%); background:transparent; border:none; padding:6px 10px; margin:0; width:auto; color:#6b7280; font-size:13px; font-weight:600; cursor:pointer; border-radius:6px; }
+  .pw-toggle:hover { background:#f3f4f6; opacity:1; }
+  .pw-toggle:focus { outline:2px solid var(--primary); outline-offset:1px; }
 </style>
 </head><body>
 <div class="login-card">
@@ -348,11 +352,29 @@ function renderLoginPage(
   <p class="subtitle">Sign in to view your sales and earnings.</p>
   ${errorHtml}
   <form method="POST" action="/partner/auth">
-    <label>Password</label>
-    <input name="password" type="password" required placeholder="Enter your dashboard password">
+    <label for="pw">Password</label>
+    <div class="pw-wrap">
+      <input id="pw" name="password" type="password" required placeholder="Enter your dashboard password" autocomplete="current-password">
+      <button type="button" class="pw-toggle" id="pwToggle" aria-label="Show password" aria-pressed="false">Show</button>
+    </div>
     <button type="submit">Sign in</button>
   </form>
 </div>
+<script>
+(function(){
+  var pw = document.getElementById('pw');
+  var btn = document.getElementById('pwToggle');
+  if (!pw || !btn) return;
+  btn.addEventListener('click', function(){
+    var showing = pw.type === 'text';
+    pw.type = showing ? 'password' : 'text';
+    btn.textContent = showing ? 'Show' : 'Hide';
+    btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+    btn.setAttribute('aria-pressed', showing ? 'false' : 'true');
+    pw.focus();
+  });
+})();
+</script>
 </body>
 </html>`;
 }
