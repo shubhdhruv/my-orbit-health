@@ -28,6 +28,8 @@ import {
   buildCatalogRows,
   AuditEntry,
 } from "../lib/partner-catalog";
+import { SERVICE_CATALOG } from "../lib/pharmacy-costs";
+import { renderCatalogPage } from "../templates/partner-catalog";
 
 type Vars = { partner: PartnerConfig };
 
@@ -227,11 +229,20 @@ partnerDashboard.post("/orders/:id/cancel", async (c) => {
 //
 // Spec: docs/partner-self-service-catalog.md
 
+// GET /partner/catalog — self-service catalog edit page (HTML)
+partnerDashboard.get("/catalog", async (c) => {
+  const partner = c.get("partner");
+  // Always read fresh from KV so the UI reflects any out-of-band changes.
+  const fresh = (await getPartner(c.env.PARTNERS, partner.slug)) || partner;
+  const rows = buildCatalogRows(fresh, SERVICE_CATALOG);
+  return c.html(renderCatalogPage(fresh, rows));
+});
+
 // GET /partner/api/catalog — current catalog state for UI
 partnerDashboard.get("/api/catalog", async (c) => {
   const partner = c.get("partner");
-  const { SERVICE_CATALOG } = await import("../lib/pharmacy-costs");
-  const rows = buildCatalogRows(partner, SERVICE_CATALOG);
+  const fresh = (await getPartner(c.env.PARTNERS, partner.slug)) || partner;
+  const rows = buildCatalogRows(fresh, SERVICE_CATALOG);
   return c.json({ rows });
 });
 
@@ -578,9 +589,13 @@ function renderDashboard(partner: PartnerConfig, cases: PendingCase[]): string {
   .topbar { background:#fff; border-bottom:1px solid #e2e8f0; padding:0 32px; height:56px; display:flex; align-items:center; justify-content:space-between; }
   .topbar-left { display:flex; align-items:center; gap:12px; }
   .topbar-left img { height:28px; }
-  .topbar-left span { font-size:13px; color:#94a3b8; padding-left:12px; border-left:1px solid #e2e8f0; }
-  .topbar a { font-size:13px; color:#64748b; text-decoration:none; }
-  .topbar a:hover { color:#0f172a; }
+  .topbar-left .sep { font-size:13px; color:#94a3b8; padding-left:12px; border-left:1px solid #e2e8f0; }
+  .topbar a.signout { font-size:13px; color:#64748b; text-decoration:none; }
+  .topbar a.signout:hover { color:#0f172a; }
+  .nav-tabs { display:flex; gap:4px; margin-left:24px; }
+  .nav-tab { font-size:13px; color:#64748b; text-decoration:none; padding:8px 14px; border-radius:8px; font-weight:500; }
+  .nav-tab:hover { color:#0f172a; background:#f1f5f9; }
+  .nav-tab.active { color:var(--p); background:${primary}14; font-weight:600; }
 
   .page { max-width:1240px; margin:0 auto; padding:28px 32px 48px; }
 
@@ -645,9 +660,13 @@ function renderDashboard(partner: PartnerConfig, cases: PendingCase[]): string {
 <div class="topbar">
   <div class="topbar-left">
     ${partner.logoUrl ? `<img src="${esc(partner.logoUrl)}" alt="${name}" onerror="this.style.display='none'">` : `<strong>${name}</strong>`}
-    <span>Dashboard</span>
+    <span class="sep">Partner Portal</span>
+    <div class="nav-tabs">
+      <a class="nav-tab active" href="/partner/dashboard">Dashboard</a>
+      <a class="nav-tab" href="/partner/catalog">Products &amp; Pricing</a>
+    </div>
   </div>
-  <a href="/partner/logout">Sign out</a>
+  <a class="signout" href="/partner/logout">Sign out</a>
 </div>
 
 <div class="page">
