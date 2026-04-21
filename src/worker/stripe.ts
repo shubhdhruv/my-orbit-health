@@ -221,6 +221,60 @@ export async function createSubscription(
   return subscription.id;
 }
 
+// Count active subscriptions for a partner across one or more service
+// types. Returns Record<serviceType, count>. Used by the self-service
+// catalog to soft-block a partner from disabling a product that has
+// live patients.
+//
+// "Active" = anything Stripe considers not fully terminated: active,
+// trialing, past_due, unpaid. Deliberately conservative — prefer a
+// false positive (showing the confirmation dialog when we shouldn't)
+// over a false negative (letting a partner orphan live patients).
+export async function countActiveSubscriptions(
+  stripe: Stripe,
+  partner: PartnerConfig,
+  serviceTypes: string[],
+): Promise<Record<string, number>> {
+  const result: Record<string, number> = {};
+  if (serviceTypes.length === 0) return result;
+  for (const t of serviceTypes) result[t] = 0;
+
+  const opts: Stripe.RequestOptions | undefined =
+    partner.paymentMode === "direct" && partner.stripeDirectAccountId
+      ? { stripeAccount: partner.stripeDirectAccountId }
+      : undefined;
+
+  // Stripe Search API supports metadata filtering. One query per service
+  // type keeps the logic simple and avoids per-status fanout. Search
+  // returns up to 100 per page; we don't paginate beyond that because a
+  // partner with >100 active subs on a single product should be rare and
+  // still yields a correct "many" answer for the UI.
+  await Promise.all(
+    serviceTypes.map(async (serviceType) => {
+      const query = [
+        `metadata['partner_slug']:'${partner.slug}'`,
+        `metadata['service_type']:'${serviceType}'`,
+        `-status:'canceled'`,
+        `-status:'incomplete_expired'`,
+      ].join(" AND ");
+      try {
+        const page = await stripe.subscriptions.search(
+          { query, limit: 100 },
+          opts,
+        );
+        result[serviceType] = page.data.length;
+      } catch {
+        // If Search API fails (rare — requires indexing to have caught
+        // up), treat as "unknown but non-zero" so the UI errs on the
+        // side of asking for confirmation.
+        result[serviceType] = 1;
+      }
+    }),
+  );
+
+  return result;
+}
+
 // Immediately charge the HRT Clearance Kit fee — captured at intake
 // time so we can ship the kit before the doctor reviews the case.
 // Partners can set a custom kit price + MOH fee split via bloodworkKitPrice / bloodworkKitFee.
