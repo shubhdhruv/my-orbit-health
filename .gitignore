@@ -3,3 +3,9 @@ dist/
 .wrangler/
 .dev.vars
 .env
+
+# Throwaway experiments + test output
+my-cloner/
+test-results/
+playwright-report/
+.next/

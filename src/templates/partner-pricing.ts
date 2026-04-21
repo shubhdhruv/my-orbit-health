@@ -1,45 +1,8 @@
 // Partner pricing form — shows pharmacy costs + $5 MOH fee, lets partner set their margin
+// NOTE: This is the legacy onboarding-time form. Self-service ongoing catalog
+// management lives in src/lib/partner-catalog.ts + src/templates/partner-catalog.ts.
 
-const PHARMACY_COSTS: Record<string, { product: string; cost: number }> = {
-  semaglutide: { product: "Semaglutide Flex-Dose 2.5mg/mL 2mL", cost: 65 },
-  tirzepatide: { product: "Tirzepatide Flex-Dose 10mg/mL 2mL", cost: 91 },
-  retatrutide: { product: "Retatrutide 8mg/ml 2ml", cost: 175.5 },
-  sildenafil: { product: "Sildenafil Tablet 20mg (x30)", cost: 36.6 },
-  tadalafil: { product: "Tadalafil RDT 6mg (x30)", cost: 18.6 },
-  "testosterone-injectable": {
-    product: "Testosterone Cypionate 200mg/ml 10ml",
-    cost: 46,
-  },
-  "testosterone-oral": {
-    product: "Testosterone Undecanoate 200mg (x60)",
-    cost: 80.4,
-  },
-  enclomiphene: { product: "Enclomiphene Citrate 25mg (x30)", cost: 48.9 },
-  "estrogen-cream-vaginal": {
-    product: "Estradiol HRT Cream 0.5mg/gm (x30)",
-    cost: 60,
-  },
-  "estrogen-cream-systemic": {
-    product: "Biestrogen HRT Cream 1mg/gm (x30)",
-    cost: 60,
-  },
-  "estrogen-patches": {
-    product: "Estradiol Patch 0.05mg/day (8 patches)",
-    cost: 92.02,
-  },
-  "mots-c": { product: "Empress MOTS-C/BPC-157/GHK-CU blend 5ml", cost: 130 },
-  nad: { product: "NAD+ 200mg/mL 5mL", cost: 91 },
-  "bpc-157": { product: "BPC-157 2mg/ml 5ml", cost: 78 },
-  "tb-500": { product: "TB-500 2mg/ml 5ml", cost: 109.2 },
-  sermorelin: { product: "Sermorelin 3mg/ml 3ml", cost: 65 },
-  "cjc-ipamorelin": { product: "Prometheus CJC-1295/Ipamorelin", cost: 91 },
-  wolverine: { product: "Valkyr BPC-157/TB-500 blend 5ml", cost: 91 },
-  glo: {
-    product: "Fountain of Youth GHK-CU/BPC-157/TB500 blend 5ml",
-    cost: 130,
-  },
-  klow: { product: "Fountain of Youth + KPV blend 5ml", cost: 201.5 },
-};
+import { PHARMACY_COSTS } from "../lib/pharmacy-costs";
 
 const SERVICE_LIST = [
   { id: "semaglutide", name: "Semaglutide", cat: "Weight Loss" },
