@@ -5,7 +5,6 @@ import { SERVICE_CATALOG, getServiceById } from "../lib/services";
 import { createStripeClient, createConnectAccount } from "./stripe";
 import { createOrganization, buildIntakeQuestionnaire } from "./medplum";
 import { sendEmail, buildOnboardingCompleteEmail } from "./email";
-import { generatePartnerPricingForm } from "../templates/partner-pricing";
 
 const onboard = new Hono<{ Bindings: Env }>();
 
@@ -179,26 +178,6 @@ onboard.post("/pricing", async (c) => {
     feesApplied: Object.keys(fees).length,
     partnersUpdated: updated,
   });
-});
-
-// Partner-specific pricing form (pre-filled with pharmacy costs)
-onboard.get("/pricing/:slug", (c) => {
-  const slug = c.req.param("slug");
-  return c.html(generatePartnerPricingForm(slug));
-});
-
-onboard.post("/pricing/:slug", async (c) => {
-  const slug = c.req.param("slug");
-  const body = await c.req.json();
-  await c.env.PARTNERS.put(
-    `pricing-submission:${slug}`,
-    JSON.stringify({
-      submittedAt: new Date().toISOString(),
-      slug,
-      services: body.services,
-    }),
-  );
-  return c.json({ success: true });
 });
 
 const PRICING_FORM_HTML = `<!DOCTYPE html>
@@ -871,11 +850,6 @@ ${htmlSnippet}`;
 
 // ============================================================
 // Onboarding Form HTML — all 17 services grouped by category
-// ============================================================
-
-// Moved to separate file to avoid template literal nesting issues
-// See src/templates/partner-pricing.ts
-
 // ============================================================
 
 const ONBOARDING_FORM_HTML = `<!DOCTYPE html>

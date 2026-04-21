@@ -1,6 +1,5 @@
-// Shared pharmacy cost catalog. Single source of truth used by:
-//   - partner self-service catalog (price floor validation)
-//   - legacy onboarding pricing form (src/templates/partner-pricing.ts)
+// Shared pharmacy cost catalog. Single source of truth used by the
+// partner self-service catalog for price floor validation and display.
 // When a new service is added to src/lib/services.ts, add its cost here.
 
 export interface PharmacyCost {
