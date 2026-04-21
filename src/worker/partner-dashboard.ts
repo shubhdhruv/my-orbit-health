@@ -12,7 +12,22 @@
 
 import { Hono } from "hono";
 import { Env, PartnerConfig, PendingCase } from "../lib/types";
-import { getPartnerCases, getPendingCase, savePendingCase } from "../lib/kv";
+import {
+  getPartnerCases,
+  getPendingCase,
+  getPartner,
+  savePartner,
+  savePendingCase,
+} from "../lib/kv";
+import {
+  CatalogUpdateRequest,
+  ValidationError,
+  validateCatalogUpdate,
+  applyCatalogUpdate,
+  diffForAudit,
+  buildCatalogRows,
+  AuditEntry,
+} from "../lib/partner-catalog";
 
 type Vars = { partner: PartnerConfig };
 
@@ -202,6 +217,106 @@ partnerDashboard.post("/orders/:id/cancel", async (c) => {
   pc.resolvedAt = new Date().toISOString();
   await savePendingCase(c.env.PARTNERS, pc);
   return c.json({ success: true });
+});
+
+// ─── Catalog (self-service products & pricing) ───────────────
+//
+// Partners manage which products they offer and at what price. Writes
+// directly to partner.services[] + partner.platformFees, so intake URLs
+// at /form/{slug}/{serviceType} update instantly on save.
+//
+// Spec: docs/partner-self-service-catalog.md
+
+// GET /partner/api/catalog — current catalog state for UI
+partnerDashboard.get("/api/catalog", async (c) => {
+  const partner = c.get("partner");
+  const { SERVICE_CATALOG } = await import("../lib/pharmacy-costs");
+  const rows = buildCatalogRows(partner, SERVICE_CATALOG);
+  return c.json({ rows });
+});
+
+// POST /partner/api/catalog — save catalog changes
+partnerDashboard.post("/api/catalog", async (c) => {
+  const partner = c.get("partner");
+  let body: CatalogUpdateRequest;
+  try {
+    body = (await c.req.json()) as CatalogUpdateRequest;
+  } catch {
+    return c.json({ error: "INVALID_JSON" }, 400);
+  }
+
+  if (!body || !Array.isArray(body.services)) {
+    return c.json({ error: "MISSING_SERVICES" }, 400);
+  }
+
+  // Re-fetch partner from KV to avoid writing over a stale copy if the
+  // tenant middleware loaded the partner earlier in the request lifecycle.
+  const fresh = await getPartner(c.env.PARTNERS, partner.slug);
+  if (!fresh) return c.json({ error: "PARTNER_NOT_FOUND" }, 404);
+
+  // Collect services being disabled — these need a Stripe active-sub
+  // check before the update is allowed through.
+  const currentEnabled = new Set<string>(fresh.services.map((s) => s.type));
+  const disabling: string[] = [];
+  for (const svc of body.services) {
+    if (currentEnabled.has(svc.type) && !svc.enabled) disabling.push(svc.type);
+  }
+
+  let activeSubCounts: Record<string, number> = {};
+  if (disabling.length > 0) {
+    try {
+      const { createStripeClient, countActiveSubscriptions } =
+        await import("./stripe");
+      const stripe = createStripeClient(c.env.STRIPE_SECRET_KEY);
+      activeSubCounts = await countActiveSubscriptions(
+        stripe,
+        fresh,
+        disabling,
+      );
+    } catch (err) {
+      console.error("countActiveSubscriptions failed:", err);
+      // Fail closed: if we can't count, force the UI to show confirmation
+      // for every disable by pretending there's at least one active sub.
+      for (const t of disabling) activeSubCounts[t] = 1;
+    }
+  }
+
+  const errors = validateCatalogUpdate(fresh, body, { activeSubCounts });
+  if (errors.length > 0) {
+    // Separate 409 (needs confirmation) from 400 (bad input) so UI can
+    // decide whether to show a dialog vs. an error message.
+    const needsConfirm = errors.some(
+      (e) => e.kind === "ACTIVE_SUBS_REQUIRE_CONFIRMATION",
+    );
+    return c.json({ errors }, needsConfirm ? 409 : 400);
+  }
+
+  const changes = diffForAudit(fresh, body);
+  const next = applyCatalogUpdate(fresh, body);
+
+  await savePartner(c.env.PARTNERS, next);
+
+  // Append audit entry (keep last 50). Non-critical: don't fail the
+  // write if the audit append fails — log and keep going.
+  if (changes.length > 0) {
+    try {
+      const key = `partner_catalog_audit:${partner.slug}`;
+      const prior = (await c.env.PARTNERS.get(key, "json")) as
+        | AuditEntry[]
+        | null;
+      const entry: AuditEntry = {
+        at: new Date().toISOString(),
+        actor: "partner",
+        changes,
+      };
+      const updated = [entry, ...(prior || [])].slice(0, 50);
+      await c.env.PARTNERS.put(key, JSON.stringify(updated));
+    } catch (err) {
+      console.error("catalog audit append failed:", err);
+    }
+  }
+
+  return c.json({ success: true, changes });
 });
 
 // ─── Dashboard Data ──────────────────────────────────────────

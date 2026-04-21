@@ -71,3 +71,50 @@ export function platformFeeFor(serviceId: string): number | null {
   if (!pc) return null;
   return pc.cost + MOH_PLATFORM_FEE;
 }
+
+// Display catalog — the list of services a partner can choose to offer,
+// grouped by category. Used by both the legacy onboarding pricing form and
+// the self-service catalog page. Order here determines UI ordering.
+export const SERVICE_CATALOG: Array<{ id: string; name: string; cat: string }> =
+  [
+    { id: "semaglutide", name: "Semaglutide", cat: "Weight Loss" },
+    { id: "tirzepatide", name: "Tirzepatide", cat: "Weight Loss" },
+    { id: "retatrutide", name: "Retatrutide", cat: "Weight Loss" },
+    { id: "sildenafil", name: "Sildenafil", cat: "Erectile Dysfunction" },
+    { id: "tadalafil", name: "Tadalafil", cat: "Erectile Dysfunction" },
+    {
+      id: "testosterone-injectable",
+      name: "Testosterone Injectable",
+      cat: "Men's Hormone Therapy",
+    },
+    {
+      id: "testosterone-oral",
+      name: "Testosterone Oral",
+      cat: "Men's Hormone Therapy",
+    },
+    { id: "enclomiphene", name: "Enclomiphene", cat: "Men's Hormone Therapy" },
+    {
+      id: "estrogen-cream-vaginal",
+      name: "Estrogen Cream (Vaginal)",
+      cat: "Women's Hormone Therapy",
+    },
+    {
+      id: "estrogen-cream-systemic",
+      name: "Estrogen Cream (Systemic)",
+      cat: "Women's Hormone Therapy",
+    },
+    {
+      id: "estrogen-patches",
+      name: "Estrogen Patches",
+      cat: "Women's Hormone Therapy",
+    },
+    { id: "mots-c", name: "MOTS-c", cat: "Peptides" },
+    { id: "nad", name: "NAD+", cat: "Peptides" },
+    { id: "bpc-157", name: "BPC-157", cat: "Peptides" },
+    { id: "tb-500", name: "TB-500", cat: "Peptides" },
+    { id: "sermorelin", name: "Sermorelin", cat: "Peptides" },
+    { id: "cjc-ipamorelin", name: "CJC-1295/Ipamorelin", cat: "Peptides" },
+    { id: "wolverine", name: "Wolverine Blend", cat: "Blends" },
+    { id: "glo", name: "GLO Blend", cat: "Blends" },
+    { id: "klow", name: "KLOW Blend", cat: "Blends" },
+  ];

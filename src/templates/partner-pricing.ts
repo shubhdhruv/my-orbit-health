@@ -2,50 +2,9 @@
 // NOTE: This is the legacy onboarding-time form. Self-service ongoing catalog
 // management lives in src/lib/partner-catalog.ts + src/templates/partner-catalog.ts.
 
-import { PHARMACY_COSTS } from "../lib/pharmacy-costs";
+import { PHARMACY_COSTS, SERVICE_CATALOG } from "../lib/pharmacy-costs";
 
-const SERVICE_LIST = [
-  { id: "semaglutide", name: "Semaglutide", cat: "Weight Loss" },
-  { id: "tirzepatide", name: "Tirzepatide", cat: "Weight Loss" },
-  { id: "retatrutide", name: "Retatrutide", cat: "Weight Loss" },
-  { id: "sildenafil", name: "Sildenafil", cat: "Erectile Dysfunction" },
-  { id: "tadalafil", name: "Tadalafil", cat: "Erectile Dysfunction" },
-  {
-    id: "testosterone-injectable",
-    name: "Testosterone Injectable",
-    cat: "Men's Hormone Therapy",
-  },
-  {
-    id: "testosterone-oral",
-    name: "Testosterone Oral",
-    cat: "Men's Hormone Therapy",
-  },
-  { id: "enclomiphene", name: "Enclomiphene", cat: "Men's Hormone Therapy" },
-  {
-    id: "estrogen-cream-vaginal",
-    name: "Estrogen Cream (Vaginal)",
-    cat: "Women's Hormone Therapy",
-  },
-  {
-    id: "estrogen-cream-systemic",
-    name: "Estrogen Cream (Systemic)",
-    cat: "Women's Hormone Therapy",
-  },
-  {
-    id: "estrogen-patches",
-    name: "Estrogen Patches",
-    cat: "Women's Hormone Therapy",
-  },
-  { id: "mots-c", name: "MOTS-c", cat: "Peptides" },
-  { id: "nad", name: "NAD+", cat: "Peptides" },
-  { id: "bpc-157", name: "BPC-157", cat: "Peptides" },
-  { id: "tb-500", name: "TB-500", cat: "Peptides" },
-  { id: "sermorelin", name: "Sermorelin", cat: "Peptides" },
-  { id: "cjc-ipamorelin", name: "CJC-1295/Ipamorelin", cat: "Peptides" },
-  { id: "wolverine", name: "Wolverine Blend", cat: "Blends" },
-  { id: "glo", name: "GLO Blend", cat: "Blends" },
-  { id: "klow", name: "KLOW Blend", cat: "Blends" },
-];
+const SERVICE_LIST = SERVICE_CATALOG;
 
 export function generatePartnerPricingForm(slug: string): string {
   // Group by category
