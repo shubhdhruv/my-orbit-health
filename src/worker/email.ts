@@ -11,6 +11,7 @@ interface EmailParams {
   to: string;
   subject: string;
   html: string;
+  replyTo?: string;
 }
 
 function buildDosingSection(dosing?: DosingResult): string {
@@ -124,6 +125,7 @@ export async function sendEmail(
       to: params.to,
       subject: params.subject,
       html: params.html,
+      ...(params.replyTo ? { reply_to: params.replyTo } : {}),
     }),
   });
 

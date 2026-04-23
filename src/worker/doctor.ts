@@ -198,6 +198,53 @@ doctor.get("/", async (c) => {
   return c.html(renderDashboard(cases, me));
 });
 
+// ─── Report an Issue (doctor → Bryan) ─────────────────────────
+// Lets a doctor send a short issue/request straight to the admin.
+// Delivered via Resend to bryan@plugandplaypeptides.com.
+doctor.post("/report-issue", async (c) => {
+  const body = await c.req.parseBody();
+  const summary = String(body.summary || "").trim();
+  const details = String(body.details || "").trim();
+  if (!summary) return c.json({ error: "Please enter a short summary." }, 400);
+
+  const me = await getSessionDoctor(c);
+  const fromName = me?.name || "Doctor Portal User";
+  const fromEmail = me?.email || "unknown";
+
+  const html = `
+    <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;padding:32px 20px;">
+      <h2 style="font-size:18px;margin:0 0 16px 0">Doctor Portal — Issue Report</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:14px">
+        <tr><td style="padding:6px 0;color:#666;width:120px">From</td><td style="padding:6px 0;font-weight:600">${escapeHtml(fromName)} &lt;${escapeHtml(fromEmail)}&gt;</td></tr>
+        <tr><td style="padding:6px 0;color:#666">Submitted</td><td style="padding:6px 0">${new Date().toLocaleString()}</td></tr>
+        <tr><td style="padding:6px 0;color:#666">Summary</td><td style="padding:6px 0;font-weight:600">${escapeHtml(summary)}</td></tr>
+      </table>
+      ${
+        details
+          ? `<div style="margin-top:16px;background:#f8f9fa;border-radius:8px;padding:16px 20px;font-size:14px;line-height:1.55;white-space:pre-wrap">${escapeHtml(details)}</div>`
+          : ""
+      }
+      <p style="margin-top:20px;font-size:12px;color:#888">Reply to this email to respond to ${escapeHtml(fromName)} directly.</p>
+    </div>`;
+
+  try {
+    await sendEmail(
+      c.env.RESEND_API_KEY,
+      {
+        to: "bryan@plugandplaypeptides.com",
+        subject: `[Doctor Portal Issue] ${summary.slice(0, 80)}`,
+        html,
+        replyTo: fromEmail,
+      },
+      "My Orbit Health <noreply@myorbithealth.com>",
+    );
+  } catch (err) {
+    console.error("report-issue email failed:", err);
+    return c.json({ error: "Could not send report. Try again." }, 500);
+  }
+  return c.json({ success: true });
+});
+
 // ─── CSV Export of Approved Cases (manual-entry fallback) ─────
 
 doctor.get("/export.csv", async (c) => {
@@ -1346,7 +1393,26 @@ function renderDashboard(
 <body>
   <div class="header">
     <h1>Doctor Portal <span style="font-size:12px;color:#888">My Orbit Health</span></h1>
-    <a class="logout" href="/doctor/login">Logout</a>
+    <div style="display:flex;gap:16px;align-items:center">
+      <button onclick="document.getElementById('issueModal').style.display='flex'" style="background:#f3f4f6;color:#333;border:1px solid #d9d9d9;padding:6px 14px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Report an Issue</button>
+      <a class="logout" href="/doctor/login">Logout</a>
+    </div>
+  </div>
+
+  <!-- Report an Issue Modal -->
+  <div id="issueModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:12px;max-width:500px;width:90%;padding:28px">
+      <h2 style="font-size:18px;margin:0 0 6px">Report an Issue or Request</h2>
+      <p style="font-size:13px;color:#666;margin:0 0 20px">Goes directly to the admin. Use this for bugs, missing info, duplicate cases, or anything you need changed in the portal.</p>
+      <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Summary</label>
+      <input id="issueSummary" type="text" placeholder="e.g. Can't close expired case for Martha M." style="width:100%;padding:10px 12px;border:1.5px solid #d9d9d9;border-radius:8px;font-size:14px;font-family:inherit;margin-bottom:14px">
+      <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Details (optional)</label>
+      <textarea id="issueDetails" rows="5" placeholder="Any error messages, patient names, or steps to reproduce..." style="width:100%;padding:10px 12px;border:1.5px solid #d9d9d9;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical"></textarea>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
+        <button onclick="document.getElementById('issueModal').style.display='none'" style="background:#f3f4f6;color:#333;border:1px solid #d9d9d9;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Cancel</button>
+        <button id="issueSubmit" onclick="submitIssue()" style="background:#4F46E5;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Send Report</button>
+      </div>
+    </div>
   </div>
   <div class="container">
     ${doctorBanner}
@@ -1412,6 +1478,33 @@ function renderDashboard(
       document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
       event.target.classList.add('active');
       document.getElementById('tab-' + name).classList.add('active');
+    }
+
+    async function submitIssue() {
+      const summary = document.getElementById('issueSummary').value.trim();
+      const details = document.getElementById('issueDetails').value.trim();
+      if (!summary) { alert('Please enter a short summary.'); return; }
+      const btn = document.getElementById('issueSubmit');
+      btn.disabled = true; btn.textContent = 'Sending...';
+      try {
+        const fd = new FormData();
+        fd.append('summary', summary);
+        fd.append('details', details);
+        const res = await fetch('/doctor/report-issue', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.success) {
+          alert('Thanks — your report has been sent. You will be contacted if any follow-up is needed.');
+          document.getElementById('issueSummary').value = '';
+          document.getElementById('issueDetails').value = '';
+          document.getElementById('issueModal').style.display = 'none';
+        } else {
+          alert(data.error || 'Something went wrong. Please try again.');
+        }
+      } catch (err) {
+        alert('Network error. Please try again.');
+      } finally {
+        btn.disabled = false; btn.textContent = 'Send Report';
+      }
     }
   </script>
 </body>
