@@ -222,6 +222,11 @@ export interface PendingCase {
   authExpiresAt: string;
   resolvedAt?: string;
   denyReason?: string;
+
+  // Reviewer attribution (which doctor approved/denied the case)
+  reviewedBySlug?: string; // doctor_accounts slug, e.g. "kle" | "shubh"
+  reviewedByName?: string; // display name at time of review
+  reviewedByEmail?: string;
 }
 
 export interface IntakeSubmission {

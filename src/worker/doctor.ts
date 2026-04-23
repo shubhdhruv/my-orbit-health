@@ -81,7 +81,7 @@ function parseSessionCookie(value: string): { slug: string; token: string } {
 export async function getSessionDoctor(c: {
   env: Env;
   req: { header: (h: string) => string | undefined };
-}): Promise<DoctorAccount | null> {
+}): Promise<(DoctorAccount & { slug: string }) | null> {
   const sessionCookie = c.req
     .header("Cookie")
     ?.match(/doctor_session=([^;]+)/)?.[1];
@@ -89,7 +89,8 @@ export async function getSessionDoctor(c: {
   const { slug } = parseSessionCookie(sessionCookie);
   if (!slug) return null;
   const accounts = await getDoctorAccounts(c.env.PARTNERS);
-  return accounts[slug] || null;
+  const account = accounts[slug];
+  return account ? { ...account, slug } : null;
 }
 
 doctor.use("*", async (c, next) => {
@@ -467,6 +468,12 @@ doctor.post("/case/:id/approve", async (c) => {
   pendingCase.status = "approved";
   pendingCase.orderStatus = "prescribed";
   pendingCase.resolvedAt = new Date().toISOString();
+  const me = await getSessionDoctor(c);
+  if (me) {
+    pendingCase.reviewedBySlug = me.slug;
+    pendingCase.reviewedByName = me.name;
+    pendingCase.reviewedByEmail = me.email;
+  }
   await savePendingCase(c.env.PARTNERS, pendingCase);
 
   // Note: MOH no longer creates PRX orders or reports the Stripe transaction
@@ -970,6 +977,12 @@ doctor.post("/case/:id/deny", async (c) => {
   pendingCase.status = "denied";
   pendingCase.denyReason = reason;
   pendingCase.resolvedAt = new Date().toISOString();
+  const me = await getSessionDoctor(c);
+  if (me) {
+    pendingCase.reviewedBySlug = me.slug;
+    pendingCase.reviewedByName = me.name;
+    pendingCase.reviewedByEmail = me.email;
+  }
   await savePendingCase(c.env.PARTNERS, pendingCase);
 
   return c.json({ success: true });
@@ -1241,6 +1254,7 @@ function renderCaseCard(
           <div style="font-size:12px;color:#666"><strong>Charge:</strong> $${c.chargeAmount}</div>
           <div style="font-size:12px;color:#666"><strong>${c.resolvedAt ? "Resolved" : "Submitted"}:</strong> ${timeSince(c.resolvedAt || c.createdAt)}</div>
         </div>
+        ${c.reviewedByName && (c.status === "approved" || c.status === "denied") ? `<div style="margin-top:8px;font-size:12px;color:#555"><strong>Reviewed by:</strong> Dr. ${escapeHtml(c.reviewedByName)}</div>` : ""}
         ${c.status === "pending" && c.dosingResult?.softReviewRequired ? '<div style="margin-top:8px;font-size:11px;font-weight:600;color:#f59e0b">⚠ Requires Provider Review</div>' : ""}
         ${c.status === "pending" && c.dosingResult?.startingDose ? `<div style="margin-top:4px;font-size:12px;color:#666"><strong>Dose:</strong> ${escapeHtml(c.dosingResult.startingDose)}</div>` : ""}
         ${c.status === "denied" && c.denyReason ? `<div style="margin-top:8px;font-size:12px;color:#991b1b"><strong>Reason:</strong> ${escapeHtml(c.denyReason)}</div>` : ""}
@@ -1650,6 +1664,7 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
           ${orderStatusBadge(c.orderStatus)}
         </div>
         <p style="font-size:14px;color:#666">Approved on ${c.resolvedAt ? new Date(c.resolvedAt).toLocaleString() : "—"}. Payment of $${c.chargeAmount} captured.</p>
+        ${c.reviewedByName ? `<p style="font-size:13px;color:#166534;margin-top:4px;font-weight:600">Approved by: Dr. ${escapeHtml(c.reviewedByName)}${c.reviewedByEmail ? ` (${escapeHtml(c.reviewedByEmail)})` : ""}</p>` : ""}
         ${c.soapNoteId ? `<p style="font-size:12px;color:#888;margin-top:4px">SOAP Note: ${escapeHtml(c.soapNoteId)}</p>` : ""}
 
         <!-- Order Tracking Timeline -->
@@ -1717,6 +1732,7 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
             : `
         <h3 style="font-size:16px;margin-bottom:16px;color:#dc2626">Denied</h3>
         <p style="font-size:14px;color:#666">This prescription was denied on ${c.resolvedAt ? new Date(c.resolvedAt).toLocaleString() : "—"}.</p>
+        ${c.reviewedByName ? `<p style="font-size:13px;color:#991b1b;margin-top:4px;font-weight:600">Denied by: Dr. ${escapeHtml(c.reviewedByName)}${c.reviewedByEmail ? ` (${escapeHtml(c.reviewedByEmail)})` : ""}</p>` : ""}
         ${c.denyReason ? `<div style="background:#f8f9fa;border-radius:8px;padding:12px 16px;margin-top:12px"><p style="font-size:13px;font-weight:600;color:#666;margin:0 0 4px 0">Reason</p><p style="font-size:14px;color:#333;margin:0">${escapeHtml(c.denyReason)}</p></div>` : ""}
         <p style="font-size:14px;color:#666;margin-top:8px">Payment authorization was cancelled and the patient was notified.</p>
         ${c.medplumPatientId ? `<p style="font-size:12px;color:#888;margin-top:4px">Legacy EHR Patient: ${escapeHtml(c.medplumPatientId)}</p>` : ""}
