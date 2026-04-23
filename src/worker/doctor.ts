@@ -381,14 +381,24 @@ doctor.post("/case/:id/approve", async (c) => {
   if (pendingCase.status !== "pending")
     return c.json({ error: "Case already resolved" }, 400);
 
-  // Check expiry
+  // "force" query param lets a doctor close out legacy / reactivated cases
+  // where the payment was handled outside of this system (e.g. manual Stripe
+  // capture, old subscription already running). In that mode we skip the
+  // Stripe capture + subscription creation entirely and just record the
+  // approval + fire the patient email.
+  const force = c.req.query("force") === "1";
+
   const now = new Date();
   const expires = new Date(pendingCase.authExpiresAt);
-  if (now > expires)
+  const authExpired = now > expires;
+
+  // Block truly-expired cases unless the doctor explicitly forces closure.
+  if (authExpired && !force)
     return c.json(
       {
         error:
-          "Payment authorization has expired. The patient will need to resubmit.",
+          "Payment authorization has expired. Use Force Close if the charge was already handled.",
+        expired: true,
       },
       400,
     );
@@ -396,34 +406,53 @@ doctor.post("/case/:id/approve", async (c) => {
   const partner = await getPartner(c.env.PARTNERS, pendingCase.partnerSlug);
   if (!partner) return c.json({ error: "Partner not found" }, 500);
 
-  // 1. Capture payment
-  if (c.env.STRIPE_BYPASS !== "true") {
+  // 1. Capture payment (skipped entirely in force mode)
+  let alreadyCaptured = false;
+  if (c.env.STRIPE_BYPASS !== "true" && !force) {
     const stripe = createStripeClient(c.env.STRIPE_SECRET_KEY);
     try {
       await capturePayment(stripe, pendingCase.paymentIntentId, partner);
     } catch (err) {
       const msg = String(err);
-      if (
-        msg.includes("expired") ||
-        msg.includes("canceled") ||
-        msg.includes("cancelled")
+      const low = msg.toLowerCase();
+      // Stripe returns variants like "has already been captured".
+      // Treat as success — payment went through previously (manual capture
+      // from Stripe dashboard, or earlier approve attempt that partial-failed).
+      if (low.includes("already") && low.includes("captur")) {
+        console.log(
+          `[approve] PI ${pendingCase.paymentIntentId} already captured; continuing`,
+        );
+        alreadyCaptured = true;
+      } else if (
+        low.includes("expired") ||
+        low.includes("canceled") ||
+        low.includes("cancelled")
       ) {
         return c.json(
           {
             error:
-              "Payment authorization has expired or was cancelled. The patient will need to resubmit.",
+              "Payment authorization has expired or was cancelled. Use Force Close if the charge was already handled.",
+            expired: true,
           },
           400,
         );
+      } else {
+        return c.json({ error: `Payment capture failed: ${msg}` }, 500);
       }
-      return c.json({ error: `Payment capture failed: ${msg}` }, 500);
     }
 
     // 2. Create subscription — chargeAmount is the monthly rate the customer
     // committed to (full price for monthly, 5% off for 3-month, 20% off for 6-month).
     // First month is covered by the captured payment, so subscription starts with
     // a 30-day trial to avoid double-charging month 1.
-    if (pendingCase.chargeAmount > 0 && pendingCase.paymentMethodId) {
+    // Skip when payment was already captured externally — the legacy flow
+    // typically already has a subscription attached, and we do NOT want to
+    // create a duplicate.
+    if (
+      !alreadyCaptured &&
+      pendingCase.chargeAmount > 0 &&
+      pendingCase.paymentMethodId
+    ) {
       try {
         await createSubscription(
           stripe,
@@ -1750,7 +1779,15 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
         c.status === "pending"
           ? `
         <h3 style="font-size:16px;margin-bottom:16px">Decision</h3>
-        ${expired ? '<div style="background:#fecaca;border-radius:8px;padding:12px 16px;margin-bottom:16px"><p style="font-size:13px;font-weight:600;color:#991b1b;margin:0">Payment authorization has expired. The patient will need to resubmit their intake to proceed.</p></div>' : ""}
+        ${
+          expired
+            ? `<div style="background:#fecaca;border-radius:8px;padding:12px 16px;margin-bottom:16px">
+                <p style="font-size:13px;font-weight:600;color:#991b1b;margin:0 0 8px 0">Payment authorization has expired.</p>
+                <p style="font-size:12px;color:#991b1b;margin:0 0 10px 0">If the patient was already charged through another channel (manual Stripe capture, legacy subscription, offline payment), use <strong>Force Close</strong> to record the decision without re-attempting Stripe. The system will mark the case closed and email the patient, but will NOT capture payment or create a new subscription.</p>
+                <button class="btn" onclick="forceCloseApprove()" style="background:#991b1b;color:#fff;padding:8px 14px;font-size:13px">Force Close as Approved (no charge)</button>
+              </div>`
+            : ""
+        }
 
         <!-- SOAP Note -->
         <div style="margin-bottom:20px">
@@ -2010,6 +2047,22 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
         const data = await res.json();
         if (data.success) {
           showToast('Approved! Payment captured.', '#22c55e');
+          setTimeout(() => window.location.href = '/doctor', 1500);
+        } else {
+          showToast(data.error || 'Failed', '#dc2626');
+        }
+      } catch (err) {
+        showToast('Network error', '#dc2626');
+      }
+    }
+
+    async function forceCloseApprove() {
+      if (!confirm('Force close this expired case as Approved?\\n\\nThis will:\\n• Mark the case as approved in the portal\\n• Email the patient an approval notice\\n• SKIP Stripe capture and subscription creation\\n\\nUse only when the patient was already charged through another channel.')) return;
+      try {
+        const res = await fetch('/doctor/case/' + encodeURIComponent(CASE_ID) + '/approve?force=1', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Case closed as approved (no charge).', '#22c55e');
           setTimeout(() => window.location.href = '/doctor', 1500);
         } else {
           showToast(data.error || 'Failed', '#dc2626');
