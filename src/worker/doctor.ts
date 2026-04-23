@@ -1462,6 +1462,109 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
   const labsBlocking = labsRequired && !labsReady;
   const canApprove = !expired && !!c.soapNoteId && !labsBlocking;
 
+  // Human-readable labels for intake disqualifier field IDs.
+  // Falls back to a humanized version of the field name.
+  const CONDITION_LABELS: Record<string, string> = {
+    gastroparesis: "Gastroparesis",
+    "triglycerides-600": "Triglycerides > 600 mg/dL",
+    "pancreatic-cancer": "Pancreatic cancer (personal or family history)",
+    pancreatitis: "History of pancreatitis",
+    "type-1-diabetes": "Type 1 diabetes",
+    "insulin-dependent": "Insulin dependence",
+    "thyroid-cancer-family":
+      "Personal or family history of medullary thyroid cancer",
+    "men-2": "MEN-2 syndrome",
+    pregnancy: "Pregnancy / breastfeeding",
+    "peptide-pregnancy": "Pregnancy / breastfeeding",
+    "cancer-history": "Active cancer or recent cancer history",
+    "kidney-disease": "Severe kidney disease",
+    "liver-disease": "Severe liver disease",
+    "prostate-cancer": "Prostate cancer history",
+    hepatic_impairment: "Hepatic impairment",
+    hepatic_impairment_severe: "Severe hepatic impairment (Child-Pugh C)",
+    nitrate_use: "Concurrent nitrate use",
+    alpha_blocker_use: "Concurrent alpha-blocker use",
+    prior_mi_stroke_heart_failure: "Prior MI, stroke, or heart failure",
+    recent_mi_stroke: "Recent MI or stroke",
+    unstable_angina: "Unstable angina",
+    retinitis_pigmentosa: "Retinitis pigmentosa",
+    priapism_history: "History of priapism",
+    visual_disturbance: "Visual disturbance",
+    breast_cancer_history: "Breast cancer history",
+    male_breast_cancer_history: "Male breast cancer history",
+    prostate_cancer_history: "Prostate cancer history",
+    psa_elevated: "Elevated PSA",
+    unexplained_vaginal_bleeding: "Unexplained vaginal bleeding",
+    active_vaginal_infection: "Active vaginal infection",
+    vte_history_active_or_recent: "Recent or active VTE",
+    wilson_disease_history: "Wilson disease",
+    copper_sensitivity: "Copper sensitivity",
+    sleep_apnea_untreated: "Untreated sleep apnea",
+    primary_hypogonadism: "Primary hypogonadism",
+    hematocrit_baseline: "Elevated baseline hematocrit",
+    total_testosterone_x2: "Total testosterone (two baselines)",
+    e2_baseline_lab: "Baseline estradiol",
+    creatinine_clearance: "Reduced creatinine clearance",
+    hyperkalemia: "Hyperkalemia",
+    immunosuppressive_medications: "Immunosuppressive medication use",
+    fertility_desire: "Active fertility desire",
+    systemic_menopause_symptoms_present: "Systemic menopause symptoms",
+    blood_pressure_self_reported: "Reported blood pressure",
+    off_label_informed_consent_signed: "Off-label informed consent",
+    age: "Age",
+    gender: "Gender",
+  };
+  const humanizeField = (field: string): string => {
+    if (CONDITION_LABELS[field]) return CONDITION_LABELS[field];
+    return field
+      .replace(/[-_]/g, " ")
+      .replace(/\b\w/g, (ch) => ch.toUpperCase());
+  };
+
+  // Build vitals section (Height / Weight / BMI) from intake answers.
+  // Intake collects heightInches + weightLbs for GLP-1 services.
+  const hIn = Number(c.answers?.heightInches);
+  const wLb = Number(c.answers?.weightLbs);
+  let vitalsHtml = "";
+  if ((hIn && hIn > 0) || (wLb && wLb > 0)) {
+    const ft = hIn > 0 ? Math.floor(hIn / 12) : null;
+    const inch = hIn > 0 ? hIn % 12 : null;
+    const heightStr = hIn > 0 ? `${ft}'${inch}" (${hIn} in)` : "Not provided";
+    const weightStr = wLb > 0 ? `${wLb} lb` : "Not provided";
+    // BMI = 703 × lb / in²  (standard imperial formula)
+    const bmi =
+      hIn > 0 && wLb > 0
+        ? Math.round(((703 * wLb) / (hIn * hIn)) * 10) / 10
+        : null;
+    const bmiCategory = bmi
+      ? bmi < 18.5
+        ? { label: "Underweight", color: "#0369a1" }
+        : bmi < 25
+          ? { label: "Normal", color: "#166534" }
+          : bmi < 30
+            ? { label: "Overweight", color: "#92400e" }
+            : bmi < 35
+              ? { label: "Obesity Class I", color: "#b45309" }
+              : bmi < 40
+                ? { label: "Obesity Class II", color: "#991b1b" }
+                : { label: "Obesity Class III", color: "#991b1b" }
+      : null;
+    vitalsHtml = `
+    <div class="card">
+      <h3 style="font-size:16px;margin-bottom:16px">Vitals</h3>
+      <table style="width:100%;border-collapse:collapse">
+        <tr><td style="padding:6px 0;color:#666;font-size:13px;width:140px">Height</td><td style="padding:6px 0;font-size:14px;font-weight:600">${escapeHtml(heightStr)}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;font-size:13px">Weight</td><td style="padding:6px 0;font-size:14px;font-weight:600">${escapeHtml(weightStr)}</td></tr>
+        ${
+          bmi !== null && bmiCategory
+            ? `<tr><td style="padding:6px 0;color:#666;font-size:13px">BMI</td><td style="padding:6px 0;font-size:14px;font-weight:700">${bmi} <span style="color:${bmiCategory.color};font-weight:600;margin-left:8px">${bmiCategory.label}</span></td></tr>`
+            : ""
+        }
+      </table>
+      <p style="font-size:11px;color:#888;margin-top:10px;margin-bottom:0">Patient self-reported via intake form.</p>
+    </div>`;
+  }
+
   // Build dosing section
   let dosingHtml = "";
   if (c.dosingResult) {
@@ -1501,6 +1604,21 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
             : ""
         }
         ${
+          d.disqualifiers.filter((q) => q.blockType === "hard").length > 0
+            ? `
+          <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:12px;margin-top:14px">
+            <p style="font-size:13px;font-weight:700;color:#991b1b;margin:0 0 8px 0">Contraindications (Hard Block)</p>
+            <ul style="margin:0;padding-left:20px">${d.disqualifiers
+              .filter((q) => q.blockType === "hard")
+              .map(
+                (q) =>
+                  `<li style="font-size:13px;color:#991b1b;margin-bottom:4px"><strong>${escapeHtml(humanizeField(q.field))}</strong> — ${escapeHtml(q.reason)}</li>`,
+              )
+              .join("")}</ul>
+          </div>`
+            : ""
+        }
+        ${
           d.disqualifiers.filter(
             (q) =>
               q.blockType === "soft_review" ||
@@ -1516,7 +1634,7 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
             )
             .map(
               (q) =>
-                `<li style="font-size:12px;color:#991b1b;margin-bottom:4px">${escapeHtml(q.field)}: ${escapeHtml(q.reason)}</li>`,
+                `<li style="font-size:12px;color:#991b1b;margin-bottom:4px"><strong>${escapeHtml(humanizeField(q.field))}</strong> — ${escapeHtml(q.reason)}</li>`,
             )
             .join("")}</ul>`
             : ""
@@ -1610,6 +1728,9 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
         <tr><td style="padding:6px 0;color:#666;font-size:13px">Submitted</td><td style="padding:6px 0;font-size:14px">${new Date(c.createdAt).toLocaleString()}</td></tr>
       </table>
     </div>
+
+    <!-- Vitals -->
+    ${vitalsHtml}
 
     <!-- Dosing -->
     ${dosingHtml}
