@@ -20,8 +20,13 @@ import {
   buildPatientShippedEmail,
   buildPatientDeliveredEmail,
 } from "./email";
-import { createComposition, fhirRead, fhirSearch } from "./medplum";
-import { putBloodworkObject } from "./r2";
+import {
+  createComposition,
+  downloadBinary,
+  fhirRead,
+  fhirSearch,
+} from "./medplum";
+import { getBloodworkObject, putBloodworkObject } from "./r2";
 
 const doctor = new Hono<{ Bindings: Env }>();
 
@@ -190,6 +195,55 @@ doctor.get("/case/:id", async (c) => {
   const pendingCase = await getPendingCase(c.env.PARTNERS, id);
   if (!pendingCase) return c.text("Case not found", 404);
   return c.html(renderCaseDetail(pendingCase));
+});
+
+// ─── Bloodwork Download ──────────────────────────────────────
+// Streams the uploaded lab file inline so the doctor can view it in the
+// browser. Prefers the current R2 path (bloodworkR2Key); falls back to the
+// legacy Medplum Binary path (bloodworkBinaryId) for pre-R2 cases.
+doctor.get("/case/:id/bloodwork", async (c) => {
+  const id = c.req.param("id");
+  const pc = await getPendingCase(c.env.PARTNERS, id);
+  if (!pc) return c.text("Case not found", 404);
+
+  // R2 path (current)
+  if (
+    pc.bloodworkR2Key &&
+    (c.env as { BLOODWORK_R2?: R2Bucket }).BLOODWORK_R2
+  ) {
+    const obj = await getBloodworkObject(c.env, pc.bloodworkR2Key);
+    if (!obj) return c.text("Lab file not found in R2", 404);
+    const contentType =
+      obj.httpMetadata?.contentType || "application/octet-stream";
+    return new Response(obj.body, {
+      headers: {
+        "Content-Type": contentType,
+        "Content-Disposition": `inline; filename="labs-${id}"`,
+        "Cache-Control": "private, no-store",
+      },
+    });
+  }
+
+  // Legacy Medplum Binary path
+  if (pc.bloodworkBinaryId) {
+    try {
+      const { data, contentType } = await downloadBinary(
+        c.env,
+        pc.bloodworkBinaryId,
+      );
+      return new Response(data, {
+        headers: {
+          "Content-Type": contentType,
+          "Content-Disposition": `inline; filename="labs-${id}"`,
+          "Cache-Control": "private, no-store",
+        },
+      });
+    } catch (err) {
+      return c.text(`Lab fetch failed: ${String(err)}`, 502);
+    }
+  }
+
+  return c.text("No lab file on this case", 404);
 });
 
 // ─── Medplum Read-Back ──────────────────────────────────────
@@ -1219,9 +1273,11 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
   if (c.bloodworkStatus && c.bloodworkStatus !== "not-required") {
     let statusContent = "";
     if (c.bloodworkStatus === "have-labs" && labsUploaded) {
+      const labsUrl = `/doctor/case/${encodeURIComponent(c.paymentIntentId)}/bloodwork`;
       statusContent =
-        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">' +
         '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534">LABS UPLOADED</span>' +
+        `<a href="${labsUrl}" target="_blank" rel="noopener" style="display:inline-block;padding:6px 12px;border-radius:6px;font-size:13px;font-weight:600;background:#4F46E5;color:#fff;text-decoration:none">Open labs</a>` +
         '<span style="font-size:12px;color:#888">File: ' +
         escapeHtml(labsFileLabel) +
         "</span>" +
@@ -1239,10 +1295,14 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
       const resultsBadge = labsUploaded
         ? ' <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534">RESULTS UPLOADED</span>'
         : "";
+      const openLabsBtn = labsUploaded
+        ? ` <a href="/doctor/case/${encodeURIComponent(c.paymentIntentId)}/bloodwork" target="_blank" rel="noopener" style="display:inline-block;padding:6px 12px;border-radius:6px;font-size:13px;font-weight:600;background:#4F46E5;color:#fff;text-decoration:none">Open labs</a>`
+        : "";
       statusContent =
         '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
         kitBadge +
         resultsBadge +
+        openLabsBtn +
         '<span style="font-size:12px;color:#888">Patient paid for the HRT Clearance Kit. ' +
         (labsUploaded
           ? "Results uploaded — ready to review."
