@@ -245,6 +245,74 @@ doctor.post("/report-issue", async (c) => {
   return c.json({ success: true });
 });
 
+// ─── Doctor → Patient message (clinical question, no decision) ───
+// Lets a reviewing doctor send a direct email to the patient without
+// approving or denying. Reply-to is the doctor's email so any patient
+// response lands in her inbox, not the no-reply mailbox.
+doctor.post("/case/:id/message", async (c) => {
+  const id = c.req.param("id");
+  const pendingCase = await getPendingCase(c.env.PARTNERS, id);
+  if (!pendingCase) return c.json({ error: "Case not found" }, 404);
+
+  const body = await c.req.json<{ message?: string }>();
+  const message = (body.message || "").trim();
+  if (!message) return c.json({ error: "Message is empty" }, 400);
+  if (message.length > 5000)
+    return c.json({ error: "Message too long (5000 char max)" }, 400);
+
+  const me = await getSessionDoctor(c);
+  const doctorName = me?.name ? `Dr. ${me.name}` : "Your Provider";
+  const doctorEmail = me?.email || "";
+
+  const partner = await getPartner(c.env.PARTNERS, pendingCase.partnerSlug);
+  const emailCfg = partner
+    ? getPartnerEmailConfig(partner, c.env.RESEND_API_KEY)
+    : { apiKey: c.env.RESEND_API_KEY, from: undefined as string | undefined };
+
+  const html = `
+    <div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;padding:32px 20px;color:#1a1a2e;line-height:1.6;">
+      <h2 style="font-size:18px;margin:0 0 16px">A message from ${escapeHtml(doctorName)}</h2>
+      <p style="font-size:14px;margin:0 0 14px">Hi ${escapeHtml(pendingCase.patientName)},</p>
+      <p style="font-size:14px;margin:0 0 14px">I'm reviewing your consult for <strong>${escapeHtml(pendingCase.serviceName)}</strong> and have the following note for you:</p>
+      <div style="background:#f8f9fa;border-left:3px solid #4F46E5;border-radius:6px;padding:14px 18px;margin:0 0 16px;font-size:14px;white-space:pre-wrap">${escapeHtml(message)}</div>
+      <p style="font-size:14px;margin:0 0 14px">Simply reply to this email and your response will come directly to me.</p>
+      <p style="font-size:14px;margin:18px 0 0">— ${escapeHtml(doctorName)}<br><span style="color:#888;font-size:12px">${escapeHtml(pendingCase.partnerName)} via My Orbit Health</span></p>
+    </div>`;
+
+  try {
+    await sendEmail(
+      emailCfg.apiKey,
+      {
+        to: pendingCase.patientEmail,
+        subject: `A note from ${doctorName} about your ${pendingCase.serviceName} consult`,
+        html,
+        replyTo: doctorEmail || undefined,
+      },
+      emailCfg.from,
+    );
+  } catch (err) {
+    console.error("Patient message email failed:", err);
+    return c.json({ error: "Could not send message. Try again." }, 500);
+  }
+
+  // Log on the case so the history is preserved alongside decisions.
+  const log = pendingCase.doctorMessages || [];
+  log.push({
+    at: new Date().toISOString(),
+    fromSlug: me?.slug || "",
+    fromName: doctorName,
+    fromEmail: doctorEmail,
+    message,
+  });
+  pendingCase.doctorMessages = log;
+  await c.env.PARTNERS.put(
+    `case:${pendingCase.paymentIntentId}`,
+    JSON.stringify(pendingCase),
+  );
+
+  return c.json({ success: true });
+});
+
 // ─── CSV Export of Approved Cases (manual-entry fallback) ─────
 
 doctor.get("/export.csv", async (c) => {
@@ -1866,6 +1934,18 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
     <!-- Bloodwork -->
     ${bloodworkHtml}
 
+    <!-- Message Patient (available whenever the patient has a valid email) -->
+    ${
+      c.patientEmail
+        ? `<div class="card">
+        <h3 style="font-size:16px;margin-bottom:6px">Message Patient</h3>
+        <p style="font-size:13px;color:#666;margin-bottom:12px">Send a question or note directly to <strong>${escapeHtml(c.patientName)}</strong> &lt;${escapeHtml(c.patientEmail)}&gt;. Their reply goes to your email on file so you can correspond outside the portal.</p>
+        <textarea id="patientMessage" rows="4" placeholder="E.g. Before I can approve Retatrutide I need to confirm that you will fully discontinue Tirzepatide prior to your first dose. Could you reply and confirm?" style="width:100%;padding:12px 14px;border:1.5px solid #d9d9d9;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical"></textarea>
+        <button class="btn" id="btnSendMessage" onclick="sendPatientMessage()" style="background:#4F46E5;color:#fff;margin-top:10px;padding:10px 18px;font-size:14px">Send Message to Patient</button>
+      </div>`
+        : ""
+    }
+
     <!-- Actions -->
     <div class="card">
       ${
@@ -2141,6 +2221,12 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
         if (data.success) {
           showToast('Approved! Payment captured.', '#22c55e');
           setTimeout(() => window.location.href = '/doctor', 1500);
+        } else if (data.expired) {
+          // Stripe said the auth is expired or canceled (common after a prior
+          // deny). Offer Force Close inline instead of leaving her stuck.
+          if (confirm('Payment authorization is expired or was canceled (often from a previous Deny attempt).\\n\\nForce Close this case as Approved?\\n\\nThis will:\\n• Mark the case approved in the portal\\n• Email the patient an approval notice\\n• SKIP Stripe capture and subscription creation\\n\\nUse only when the patient was already charged through another channel, or when you deliberately want to close without re-billing.')) {
+            forceCloseApprove(true);
+          }
         } else {
           showToast(data.error || 'Failed', '#dc2626');
         }
@@ -2149,8 +2235,8 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
       }
     }
 
-    async function forceCloseApprove() {
-      if (!confirm('Force close this expired case as Approved?\\n\\nThis will:\\n• Mark the case as approved in the portal\\n• Email the patient an approval notice\\n• SKIP Stripe capture and subscription creation\\n\\nUse only when the patient was already charged through another channel.')) return;
+    async function forceCloseApprove(skipConfirm) {
+      if (!skipConfirm && !confirm('Force close this expired case as Approved?\\n\\nThis will:\\n• Mark the case as approved in the portal\\n• Email the patient an approval notice\\n• SKIP Stripe capture and subscription creation\\n\\nUse only when the patient was already charged through another channel.')) return;
       try {
         const res = await fetch('/doctor/case/' + encodeURIComponent(CASE_ID) + '/approve?force=1', { method: 'POST' });
         const data = await res.json();
@@ -2162,6 +2248,34 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
         }
       } catch (err) {
         showToast('Network error', '#dc2626');
+      }
+    }
+
+    async function sendPatientMessage() {
+      const msg = (document.getElementById('patientMessage').value || '').trim();
+      if (!msg) { showToast('Please write a message first', '#f59e0b'); return; }
+      if (msg.length < 10) { showToast('Message is too short', '#f59e0b'); return; }
+      const btn = document.getElementById('btnSendMessage');
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+      try {
+        const res = await fetch('/doctor/case/' + encodeURIComponent(CASE_ID) + '/message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: msg }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Message sent to patient. Their reply will go to your email.', '#22c55e');
+          document.getElementById('patientMessage').value = '';
+        } else {
+          showToast(data.error || 'Send failed', '#dc2626');
+        }
+      } catch (err) {
+        showToast('Network error', '#dc2626');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Send Message to Patient';
       }
     }
 

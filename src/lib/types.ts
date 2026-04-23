@@ -227,6 +227,16 @@ export interface PendingCase {
   reviewedBySlug?: string; // doctor_accounts slug, e.g. "kle" | "shubh"
   reviewedByName?: string; // display name at time of review
   reviewedByEmail?: string;
+
+  // Audit log of direct messages from doctor → patient (clinical questions
+  // that don't resolve the case). Sent via Resend with replyTo=doctor email.
+  doctorMessages?: Array<{
+    at: string;
+    fromSlug: string;
+    fromName: string;
+    fromEmail: string;
+    message: string;
+  }>;
 }
 
 export interface IntakeSubmission {

@@ -16,6 +16,33 @@ export CLOUDFLARE_API_TOKEN="$CF_SHUBH_TOKEN"
 
 **DO NOT** use Bryan's OAuth login or Bryan's API token for this project — it will deploy to the wrong account.
 
+## Public URLs — which host resolves where
+
+Both subdomains point at the same Worker and serve every path. Use whichever
+reads cleaner for the audience.
+
+- **Intake / partner quiz iframes**: `https://onboard.myorbithealth.com/form/{partnerSlug}/{serviceType}`
+- **Doctor portal**: `https://portal.myorbithealth.com/doctor/login` (also reachable at `https://onboard.myorbithealth.com/doctor/login`)
+- **Admin / partner dashboard / setup links**: same — either host works
+
+**History note:** `portal.myorbithealth.com` had a Worker route in `wrangler.toml`
+from day one, but no matching DNS record existed until 2026-04-23. Before that
+date the portal was only reachable via `onboard.myorbithealth.com/doctor/*`.
+It was re-enabled by adding a Workers Custom Domain on the MOH zone
+(`be3214ab0e821653512c0ab2639d0d75`) through the account-scoped API:
+
+```bash
+curl -X PUT -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  "https://api.cloudflare.com/client/v4/accounts/5e602c6fafc8da19fc415f90771e1f2a/workers/domains" \
+  -d '{"environment":"production","hostname":"portal.myorbithealth.com","service":"my-orbit-health","zone_id":"be3214ab0e821653512c0ab2639d0d75"}'
+```
+
+When adding new vanity subdomains (e.g. `portal.kingdomlongevitylabs.com`),
+either add a DNS record proxied through Cloudflare or register a Workers
+Custom Domain the same way. Adding a `[[routes]]` entry in `wrangler.toml`
+alone is NOT enough — DNS must exist too.
+
 ## Partner Sites (Cross-Repo Dependencies)
 
 Partner quiz pages embed MOH intake forms via iframe at:
