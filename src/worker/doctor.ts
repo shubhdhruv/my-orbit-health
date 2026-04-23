@@ -40,6 +40,58 @@ async function hashPassword(password: string): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+// ─── Doctor Accounts (multi-doctor support) ──────────────────
+// KV shape: "doctor_accounts" → Record<slug, DoctorAccount>
+// Legacy "doctor_password_hash" is kept as a fallback login for Shubh.
+interface DoctorAccount {
+  email: string;
+  name: string;
+  passwordHash: string;
+  excludeStates: string[]; // 2-letter state codes this doctor should NOT take
+  createdAt: string;
+}
+// Setup token payload: "doctor_setup_token" → stringified JSON of SetupTokenPayload
+interface SetupTokenPayload {
+  token: string;
+  slug: string;
+  email: string;
+  name: string;
+  excludeStates: string[];
+}
+
+async function getDoctorAccounts(
+  kv: KVNamespace,
+): Promise<Record<string, DoctorAccount>> {
+  return (
+    ((await kv.get("doctor_accounts", "json")) as Record<
+      string,
+      DoctorAccount
+    > | null) || {}
+  );
+}
+
+// Session cookie format: "${slug}|${sessionToken}". Legacy sessions without
+// a pipe still validate against doctor_password_hash / admin fallback.
+function parseSessionCookie(value: string): { slug: string; token: string } {
+  const idx = value.indexOf("|");
+  if (idx === -1) return { slug: "", token: value };
+  return { slug: value.slice(0, idx), token: value.slice(idx + 1) };
+}
+
+export async function getSessionDoctor(c: {
+  env: Env;
+  req: { header: (h: string) => string | undefined };
+}): Promise<DoctorAccount | null> {
+  const sessionCookie = c.req
+    .header("Cookie")
+    ?.match(/doctor_session=([^;]+)/)?.[1];
+  if (!sessionCookie) return null;
+  const { slug } = parseSessionCookie(sessionCookie);
+  if (!slug) return null;
+  const accounts = await getDoctorAccounts(c.env.PARTNERS);
+  return accounts[slug] || null;
+}
+
 doctor.use("*", async (c, next) => {
   const path = c.req.path;
   if (
@@ -55,15 +107,28 @@ doctor.use("*", async (c, next) => {
   if (!sessionCookie) return c.redirect("/doctor/login");
 
   const today = new Date().toISOString().split("T")[0];
+  const { slug, token } = parseSessionCookie(sessionCookie);
 
-  // Check doctor's own password first (set via one-time setup)
+  // New: per-doctor account sessions
+  if (slug) {
+    const accounts = await getDoctorAccounts(c.env.PARTNERS);
+    const account = accounts[slug];
+    if (account) {
+      const expected = await hashPassword(
+        account.passwordHash + "doctor" + today,
+      );
+      if (token === expected) return next();
+    }
+  }
+
+  // Legacy: check doctor's shared password hash (back-compat for Shubh)
   const doctorHash = await c.env.PARTNERS.get("doctor_password_hash");
   if (doctorHash) {
     const doctorSession = await hashPassword(doctorHash + "doctor" + today);
     if (sessionCookie === doctorSession) return next();
   }
 
-  // Fall back to admin password (for dev access)
+  // Admin fallback for dev access
   const adminSession = await hashPassword(
     c.env.ADMIN_PASSWORD_HASH + "doctor" + today,
   );
@@ -80,14 +145,31 @@ doctor.post("/auth", async (c) => {
   const body = await c.req.parseBody();
   const password = (body.password as string) || "";
   const passwordHash = await hashPassword(password);
+  const today = new Date().toISOString().split("T")[0];
 
-  // Check doctor's own password first
+  // 1. Check multi-doctor accounts (new)
+  const accounts = await getDoctorAccounts(c.env.PARTNERS);
+  for (const [slug, account] of Object.entries(accounts)) {
+    if (passwordHash === account.passwordHash) {
+      const sessionToken = await hashPassword(
+        account.passwordHash + "doctor" + today,
+      );
+      return new Response(null, {
+        status: 302,
+        headers: {
+          Location: "/doctor",
+          "Set-Cookie": `doctor_session=${slug}|${sessionToken}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=86400`,
+        },
+      });
+    }
+  }
+
+  // 2. Legacy shared doctor password + admin (back-compat)
   const doctorHash = await c.env.PARTNERS.get("doctor_password_hash");
   const isDoctor = doctorHash && passwordHash === doctorHash;
   const isAdmin = passwordHash === c.env.ADMIN_PASSWORD_HASH.trim();
 
   if (isDoctor || isAdmin) {
-    const today = new Date().toISOString().split("T")[0];
     const seedHash = isDoctor ? doctorHash : c.env.ADMIN_PASSWORD_HASH;
     const sessionToken = await hashPassword(seedHash + "doctor" + today);
     return new Response(null, {
@@ -111,7 +193,8 @@ doctor.post("/auth", async (c) => {
 
 doctor.get("/", async (c) => {
   const cases = await listAllCases(c.env.PARTNERS);
-  return c.html(renderDashboard(cases));
+  const me = await getSessionDoctor(c);
+  return c.html(renderDashboard(cases, me));
 });
 
 // ─── CSV Export of Approved Cases (manual-entry fallback) ─────
@@ -1123,25 +1206,37 @@ function orderStatusBadge(orderStatus?: string): string {
   return `<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${c.bg};color:${c.text}">${c.label}</span>`;
 }
 
-function renderCaseCard(c: import("../lib/types").PendingCase): string {
+function renderCaseCard(
+  c: import("../lib/types").PendingCase,
+  excludeStates: string[] = [],
+): string {
   const expired =
     c.status === "pending" && new Date(c.authExpiresAt).getTime() < Date.now();
+  const stateUpper = (c.patientState || "").toUpperCase();
+  const isExcluded = excludeStates.includes(stateUpper);
+  const cardStyle = isExcluded
+    ? "background:#fef2f2;border:1px solid #fecaca;"
+    : "background:#fff;border:1px solid #e8e8e8;";
+  const stateStyle = isExcluded
+    ? "font-size:12px;color:#991b1b;font-weight:700"
+    : "font-size:12px;color:#666";
   return `
     <a href="/doctor/case/${encodeURIComponent(c.paymentIntentId)}" style="text-decoration:none;color:inherit;display:block">
-      <div style="background:#fff;border:1px solid #e8e8e8;border-radius:10px;padding:20px;${expired ? "opacity:0.7;" : ""}">
+      <div style="${cardStyle}border-radius:10px;padding:20px;${expired ? "opacity:0.7;" : ""}">
         <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px">
           <div>
             <p style="font-size:16px;font-weight:700;margin:0">${escapeHtml(c.patientName)}</p>
             <p style="font-size:13px;color:#888;margin:4px 0 0 0">${escapeHtml(c.serviceName)} · ${escapeHtml(c.partnerName)}</p>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
+            ${isExcluded ? '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fee2e2;color:#991b1b">NOT YOUR STATE</span>' : ""}
             ${statusBadge(c.status)}
             ${c.status === "pending" ? expiryBadge(c.authExpiresAt) : ""}
             ${c.status === "approved" ? orderStatusBadge(c.orderStatus) : ""}
           </div>
         </div>
         <div style="display:flex;gap:16px;flex-wrap:wrap">
-          <div style="font-size:12px;color:#666"><strong>State:</strong> ${escapeHtml(c.patientState)}</div>
+          <div style="${stateStyle}"><strong>State:</strong> ${escapeHtml(c.patientState)}${isExcluded ? " ⚠" : ""}</div>
           <div style="font-size:12px;color:#666"><strong>Visit:</strong> ${escapeHtml(c.visitType)}</div>
           <div style="font-size:12px;color:#666"><strong>Charge:</strong> $${c.chargeAmount}</div>
           <div style="font-size:12px;color:#666"><strong>${c.resolvedAt ? "Resolved" : "Submitted"}:</strong> ${timeSince(c.resolvedAt || c.createdAt)}</div>
@@ -1154,13 +1249,30 @@ function renderCaseCard(c: import("../lib/types").PendingCase): string {
     </a>`;
 }
 
-function renderDashboard(cases: import("../lib/types").PendingCase[]): string {
+function renderDashboard(
+  cases: import("../lib/types").PendingCase[],
+  me: DoctorAccount | null,
+): string {
+  const excludeStates = (me?.excludeStates || []).map((s) => s.toUpperCase());
+  const renderCard = (c: import("../lib/types").PendingCase) =>
+    renderCaseCard(c, excludeStates);
   const pending = cases.filter((c) => c.status === "pending");
   const approved = cases.filter((c) => c.status === "approved");
   const denied = cases.filter((c) => c.status === "denied");
   const activeOrders = approved.filter(
     (c) => c.orderStatus === "prescribed" || c.orderStatus === "shipped",
   );
+
+  const doctorBanner = me
+    ? `<div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:14px 18px;margin-bottom:20px">
+        <div style="font-size:15px;font-weight:700;color:#3730a3">Signed in as Dr. ${escapeHtml(me.name)}</div>
+        ${
+          excludeStates.length > 0
+            ? `<div style="font-size:13px;color:#991b1b;margin-top:4px"><strong>⚠ Do not approve cases from:</strong> ${excludeStates.join(", ")} — cases from these states are highlighted in red below and should be left for another doctor.</div>`
+            : '<div style="font-size:13px;color:#555;margin-top:4px">You can review cases from all states.</div>'
+        }
+      </div>`
+    : "";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -1194,6 +1306,7 @@ function renderDashboard(cases: import("../lib/types").PendingCase[]): string {
     <a class="logout" href="/doctor/login">Logout</a>
   </div>
   <div class="container">
+    ${doctorBanner}
     <div class="stats">
       <div class="stat"><div class="val" style="color:#f59e0b">${pending.length}</div><div class="lbl">Pending Review</div></div>
       <div class="stat"><div class="val" style="color:#3b82f6">${activeOrders.length}</div><div class="lbl">Active Orders</div></div>
@@ -1212,14 +1325,14 @@ function renderDashboard(cases: import("../lib/types").PendingCase[]): string {
     <div id="tab-pending" class="tab-content active">
       ${
         pending.length > 0
-          ? `<div class="grid">${pending.map(renderCaseCard).join("")}</div>`
+          ? `<div class="grid">${pending.map(renderCard).join("")}</div>`
           : '<div class="empty">No cases pending review.</div>'
       }
     </div>
     <div id="tab-orders" class="tab-content">
       ${
         activeOrders.length > 0
-          ? `<div class="grid">${activeOrders.map(renderCaseCard).join("")}</div>`
+          ? `<div class="grid">${activeOrders.map(renderCard).join("")}</div>`
           : '<div class="empty">No active orders. Approved prescriptions will appear here until delivered.</div>'
       }
     </div>
@@ -1230,21 +1343,21 @@ function renderDashboard(cases: import("../lib/types").PendingCase[]): string {
       </div>
       ${
         approved.length > 0
-          ? `<div class="grid">${approved.map(renderCaseCard).join("")}</div>`
+          ? `<div class="grid">${approved.map(renderCard).join("")}</div>`
           : '<div class="empty">No approved cases yet.</div>'
       }
     </div>
     <div id="tab-denied" class="tab-content">
       ${
         denied.length > 0
-          ? `<div class="grid">${denied.map(renderCaseCard).join("")}</div>`
+          ? `<div class="grid">${denied.map(renderCard).join("")}</div>`
           : '<div class="empty">No denied cases.</div>'
       }
     </div>
     <div id="tab-all" class="tab-content">
       ${
         cases.length > 0
-          ? `<div class="grid">${cases.map(renderCaseCard).join("")}</div>`
+          ? `<div class="grid">${cases.map(renderCard).join("")}</div>`
           : '<div class="empty">No cases yet.</div>'
       }
     </div>
@@ -1954,16 +2067,51 @@ function renderCaseDetail(c: import("../lib/types").PendingCase): string {
 
 // ─── One-Time Doctor Password Setup ──────────────────────────
 
+// Reads the setup token. Supports new (JSON payload with slug/email/name)
+// and legacy (raw string token) shapes.
+async function readSetupToken(
+  kv: KVNamespace,
+  token: string,
+): Promise<SetupTokenPayload | null> {
+  const raw = await kv.get("doctor_setup_token");
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && parsed.token === token) {
+      return parsed as SetupTokenPayload;
+    }
+  } catch {
+    // Legacy: raw string token with no slug metadata (Shubh's original flow).
+    if (raw === token) {
+      return {
+        token,
+        slug: "shubh",
+        email: "shubh@myorbithealth.com",
+        name: "Dr. Shubh",
+        excludeStates: [],
+      };
+    }
+  }
+  return null;
+}
+
 doctor.get("/setup/:token", async (c) => {
   const token = c.req.param("token");
-  const stored = await c.env.PARTNERS.get("doctor_setup_token");
-  if (!stored || stored !== token) {
+  const payload = await readSetupToken(c.env.PARTNERS, token);
+  if (!payload) {
     return c.html(`<!DOCTYPE html><html><head><title>Invalid Link</title>
       <style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f8f9fa;}
       .card{background:#fff;border-radius:12px;padding:40px;max-width:400px;box-shadow:0 1px 3px rgba(0,0,0,0.1);text-align:center;}
       h1{font-size:20px;margin-bottom:8px;color:#991b1b;}p{color:#666;font-size:14px;}</style></head>
       <body><div class="card"><h1>Link Expired or Invalid</h1><p>This setup link has already been used or is no longer valid. Contact your administrator for a new link.</p></div></body></html>`);
   }
+
+  const excludeLine =
+    payload.excludeStates.length > 0
+      ? `<div class="note" style="background:#fef3c7;border-color:#fde68a;color:#92400e;margin-bottom:20px;margin-top:0">
+           <strong>Case assignment:</strong> You will <strong>not</strong> take cases from these states: ${payload.excludeStates.join(", ")}. Those are handled by another provider.
+         </div>`
+      : "";
 
   return c.html(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Set Your Doctor Portal Password</title>
@@ -1981,8 +2129,9 @@ doctor.get("/setup/:token", async (c) => {
       .note{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 16px;font-size:13px;color:#166534;margin-top:20px;line-height:1.5;}
     </style></head><body>
     <div class="card">
-      <h1>Set Your Password</h1>
-      <p class="subtitle">Create a password for the Doctor Portal. This is separate from the admin password — only you will know it.</p>
+      <h1>Welcome, ${escapeHtml(payload.name)}</h1>
+      <p class="subtitle">Create a password for the My Orbit Health Doctor Portal. This password is unique to you.</p>
+      ${excludeLine}
       <form method="POST" action="/doctor/setup/${token}/save">
         <label for="password">New Password</label>
         <input type="password" id="password" name="password" required placeholder="Choose a strong password" minlength="8">
@@ -1990,14 +2139,14 @@ doctor.get("/setup/:token", async (c) => {
         <input type="password" id="confirm" name="confirm" required placeholder="Re-enter password" minlength="8">
         <button type="submit">Set Password</button>
       </form>
-      <div class="note">This link can only be used once. After you set your password, you'll use it to sign in at <strong>/doctor/login</strong>.</div>
+      <div class="note">This link can only be used once. After you set your password, sign in at <strong>/doctor/login</strong>.</div>
     </div></body></html>`);
 });
 
 doctor.post("/setup/:token/save", async (c) => {
   const token = c.req.param("token");
-  const stored = await c.env.PARTNERS.get("doctor_setup_token");
-  if (!stored || stored !== token) {
+  const payload = await readSetupToken(c.env.PARTNERS, token);
+  if (!payload) {
     return c.json({ error: "Invalid or expired setup link" }, 403);
   }
 
@@ -2017,7 +2166,22 @@ doctor.post("/setup/:token/save", async (c) => {
   }
 
   const passwordHash = await hashPassword(password);
-  await c.env.PARTNERS.put("doctor_password_hash", passwordHash);
+  const accounts = await getDoctorAccounts(c.env.PARTNERS);
+  accounts[payload.slug] = {
+    email: payload.email,
+    name: payload.name,
+    passwordHash,
+    excludeStates: payload.excludeStates,
+    createdAt: accounts[payload.slug]?.createdAt || new Date().toISOString(),
+  };
+  await c.env.PARTNERS.put("doctor_accounts", JSON.stringify(accounts));
+
+  // Legacy fallback: keep "shubh" slot also in doctor_password_hash so older
+  // session cookies don't break during the transition window.
+  if (payload.slug === "shubh") {
+    await c.env.PARTNERS.put("doctor_password_hash", passwordHash);
+  }
+
   await c.env.PARTNERS.delete("doctor_setup_token");
 
   return c.html(`<!DOCTYPE html><html><head><title>Password Set</title>
