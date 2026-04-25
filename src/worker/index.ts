@@ -10,6 +10,7 @@ import doctor from "./doctor";
 import priceList from "./price-list";
 import portal from "./portal";
 import partnerDashboard from "./partner-dashboard";
+import partnerForms from "./partner-forms";
 import { getPendingCase, getPartnerByHost } from "../lib/kv";
 import { getPartner } from "../lib/kv";
 import { processFollowUps } from "./followup";
@@ -75,6 +76,10 @@ app.route("/portal", portal);
 
 // Partner dashboard (sales/earnings, same portal subdomain)
 app.route("/partner", partnerDashboard);
+
+// Partner-public form intakes (called unauthenticated from partner websites,
+// e.g. kingdomlongevitylabs.com/add-product-request → /partner-forms/:slug/product-request)
+app.route("/partner-forms", partnerForms);
 
 // Influencer onboarding
 app.route("/onboard", onboard);
