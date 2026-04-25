@@ -11,6 +11,7 @@ import priceList from "./price-list";
 import portal from "./portal";
 import partnerDashboard from "./partner-dashboard";
 import partnerForms from "./partner-forms";
+import consult from "./consult";
 import { getPendingCase, getPartnerByHost } from "../lib/kv";
 import { getPartner } from "../lib/kv";
 import { processFollowUps } from "./followup";
@@ -80,6 +81,11 @@ app.route("/partner", partnerDashboard);
 // Partner-public form intakes (called unauthenticated from partner websites,
 // e.g. kingdomlongevitylabs.com/add-product-request → /partner-forms/:slug/product-request)
 app.route("/partner-forms", partnerForms);
+
+// Standalone $49.99 paid consultation flow (iframed by partner sites).
+// Separate from /form intake because a consult is a paid lead, not a
+// prescription, so it skips PendingCase / doctor-portal entirely.
+app.route("/consult", consult);
 
 // Influencer onboarding
 app.route("/onboard", onboard);
