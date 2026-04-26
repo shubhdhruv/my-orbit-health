@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { Env } from "../lib/types";
-import { getPartner } from "../lib/kv";
+import { getPartner, getPendingCase, savePendingCase } from "../lib/kv";
 import {
   createStripeClient,
   capturePayment,
@@ -155,11 +155,47 @@ webhooks.post("/stripe", async (c) => {
       break;
     }
     case "checkout.session.completed": {
+      const session = event.data.object as any;
+      const meta = (session.metadata || {}) as Record<string, string>;
+
+      // Re-enrollment flow: patient's original PaymentIntent auth expired
+      // before doctor review, so support generated a fresh subscription
+      // Checkout. On payment, clear the "expired" flag on the original
+      // case and tag it with the new subscription ID so the Approve
+      // handler skips Stripe capture + sub creation (already done here).
+      if (meta.type === "re_enrollment" && meta.caseId) {
+        const pc = await getPendingCase(c.env.PARTNERS, meta.caseId);
+        if (!pc) {
+          console.error(`re_enrollment webhook: case ${meta.caseId} not found`);
+          break;
+        }
+        if (pc.status !== "pending") {
+          console.log(
+            `re_enrollment webhook: case ${meta.caseId} already resolved (${pc.status}); skipping`,
+          );
+          break;
+        }
+        const subscriptionId =
+          typeof session.subscription === "string"
+            ? session.subscription
+            : session.subscription?.id || "";
+        pc.reenrollmentSubscriptionId = subscriptionId || session.id;
+        pc.reenrolledAt = new Date().toISOString();
+        // Push auth expiry 14 days into the future so the doctor portal
+        // stops flagging the case as expired and the Approve button enables.
+        pc.authExpiresAt = new Date(
+          Date.now() + 14 * 24 * 60 * 60 * 1000,
+        ).toISOString();
+        await savePendingCase(c.env.PARTNERS, pc);
+        console.log(
+          `re_enrollment webhook: case ${meta.caseId} updated (sub=${subscriptionId})`,
+        );
+        break;
+      }
+
       // $49.99 consultation flow (see worker/consult.ts). Other Checkout
       // Sessions don't carry metadata.type === "consultation" so they fall
       // through silently.
-      const session = event.data.object as any;
-      const meta = (session.metadata || {}) as Record<string, string>;
       if (meta.type !== "consultation") break;
 
       const slug = meta.partner_slug;

@@ -223,6 +223,14 @@ export interface PendingCase {
   resolvedAt?: string;
   denyReason?: string;
 
+  // Re-enrollment after auth expiry: when the original PaymentIntent auth
+  // expires before approval, support sends the patient a fresh Checkout
+  // Session in subscription mode. The webhook stamps the new subscription
+  // ID here so the Approve handler skips Stripe capture + sub creation
+  // (already handled by the Checkout Session).
+  reenrollmentSubscriptionId?: string;
+  reenrolledAt?: string;
+
   // Reviewer attribution (which doctor approved/denied the case)
   reviewedBySlug?: string; // doctor_accounts slug, e.g. "kle" | "shubh"
   reviewedByName?: string; // display name at time of review

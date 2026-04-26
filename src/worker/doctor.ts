@@ -501,7 +501,13 @@ doctor.post("/case/:id/approve", async (c) => {
   // capture, old subscription already running). In that mode we skip the
   // Stripe capture + subscription creation entirely and just record the
   // approval + fire the patient email.
-  const force = c.req.query("force") === "1";
+  //
+  // Re-enrollment cases (patient paid via a fresh Checkout Session because
+  // the original auth expired) are auto-forced — the new subscription
+  // already collected payment and set up recurring billing, so the original
+  // PaymentIntent must NOT be captured.
+  const force =
+    c.req.query("force") === "1" || !!pendingCase.reenrollmentSubscriptionId;
 
   const now = new Date();
   const expires = new Date(pendingCase.authExpiresAt);
